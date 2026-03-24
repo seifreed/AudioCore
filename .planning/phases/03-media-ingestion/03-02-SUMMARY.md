@@ -77,9 +77,11 @@ Each task was committed atomically:
 1. **Task 1 & 2: Implement extract_audio() and temp_audio_file context manager** - `158f72a` (feat)
 2. **Task 3: Create unit tests for extract_audio function** - Included in same commit
 
-**Note:** Tasks 1 and 2 implemented together since temp_audio_file is a supporting utility for extract_audio. Tests included in same atomic commit.
+**Additional commits:**
+- `6186515` (fix): Export extract_audio and temp_audio_file from media module
+- `af3e7b7` (docs): Complete audio extractor plan documentation
 
-**Plan metadata:** (to be committed)
+**Note:** Tasks 1 and 2 implemented together since temp_audio_file is a supporting utility for extract_audio. Tests included in same atomic commit.
 
 ## Files Created/Modified
 
