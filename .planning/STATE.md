@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-03-24T20:07:00Z"
+last_updated: "2026-03-24T21:25:00Z"
 progress:
   total_phases: 10
   completed_phases: 1
   total_plans: 3
-  completed_plans: 5
+  completed_plans: 2
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (created 2025-03-24)
 Phase: 2 of 10 (Configuration System)
 Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-03-24 — TOML configuration loader complete
+Last activity: 2026-03-24 — AppConfig Settings and TOML loader complete
 
 Progress: [██░░░░░░░░] 20%
 
@@ -34,23 +34,23 @@ Progress: [██░░░░░░░░] 20%
 
 **Velocity:**
 - Total plans completed: 5
-- Average duration: 5 min
-- Total execution time: 0.42 hours
+- Average duration: 19 min
+- Total execution time: 1.58 hours
 
 **By Phase:**
 
 | Phase | Plans Completed | Total | Avg/Plan |
 |-------|-----------------|-------|----------|
 | 01-foundation | 3 | 3 | 6 min |
-| 02-configuration-system | 2 | 3 | 5 min |
+| 02-configuration-system | 2 | 3 | 39 min |
 
 **Recent Trend:**
 - 01-01: Exception Hierarchy (8 min, 3 tasks, 14 files)
 - 01-02: Type Enums (7 min, 3 tasks, 36 files)
 - 01-03: Domain Models (3 min, 3 tasks, 8 files)
-- 02-01: Environment Variable Configuration (8 min, 4 tasks, 4 files)
+- 02-01: AppConfig Settings (76 min, 3 tasks, 4 files)
 - 02-02: TOML Configuration Loader (3 min, 3 tasks, 4 files)
-- Trend: Fast execution, on track
+- Trend: Fast execution, 02-01 longer due to test coverage verification
 
 *Updated after each plan completion*
 
@@ -69,8 +69,12 @@ Key architectural decisions:
 - **Plan 01-02:** parse() classmethod for case-insensitive CLI/config input — Handles various input formats: OpenAI, openai, OPENAI, prefer-local, PreferLocal
 - **Plan 01-03:** strict=True and extra="forbid" on all models — Maximum type safety, rejects unknown fields
 - **Plan 01-03:** model_validator for cross-field validation — validates Segment end_time >= start_time
+- **Plan 02-01:** AUDIOCORE_ prefix for all environment variables — Clear namespacing, prevents conflicts
+- **Plan 02-01:** SecretStr for API key storage — Prevents accidental logging/exposure of sensitive data
+- **Plan 02-01:** field_validator for enum coercion — Case-insensitive env var parsing with helpful error messages
 - **Plan 02-02:** Python 3.11+ tomllib for TOML parsing — No external dependency needed
 - **Plan 02-02:** Flattened key extraction matching AppConfig fields — TOML section.key mapped to field names
+- **Plan 02-01:** AUDIOCORE_ prefix for all env vars — Clear namespacing, prevents conflicts
 - **Phase 3:** ffmpeg as subprocess rather than Python binding - simpler deployment, guaranteed compatibility
 - **Phase 4:** Silero VAD via torch hub with cache fallback - automatic model management with offline capability
 - **Phase 5:** Minimal backend interface - YAGNI principle, add capabilities as needed
@@ -102,8 +106,8 @@ Initial tests for model_validate() failed because strict mode requires enum inst
 
 ## Session Continuity
 
-Last session: 2026-03-24 (02-02 TOML Configuration Loader completed)
-Stopped at: Phase 2 in progress, plan 2 of 3 complete
+Last session: 2026-03-24 (02-01 and 02-02 completed)
+Stopped at: Phase 2 in progress, plans 01 and 02 complete
 Resume file: None
 
 Next action: Run `/gsd-execute-phase` to continue with plan 02-03, or verify work with `/gsd-verify-work 02-configuration-system`
