@@ -683,7 +683,7 @@ Real-time transcription API.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CORE-01 | Phase 1: Foundation | Pending |
+| CORE-01 | Phase 1: Foundation | Complete |
 | CORE-02 | Phase 1: Foundation | Complete |
 | ERR-01 | Phase 1: Foundation | Complete |
 | ERR-02 | Phase 1: Foundation | Complete |
