@@ -1,0 +1,14 @@
+{
+  "project": {
+    "name": "AudioCore",
+    "version": "1.0.0"
+  },
+  "roadmap": {
+    "depth": "comprehensive",
+    "version": "1"
+  },
+  "planning": {
+    "research_enabled": false,
+    "parallel_planning": false
+  }
+}
