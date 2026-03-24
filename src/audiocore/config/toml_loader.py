@@ -16,6 +16,10 @@ DEFAULT_CONFIG_PATH = Path.home() / ".config" / "audiocore" / "config.toml"
 """Default configuration file path: ~/.config/audiocore/config.toml"""
 
 
+# Fields that should be converted to Path objects
+_PATH_FIELDS = {"model_cache_path", "temp_path"}
+
+
 def _flatten_toml_section(section: dict[str, Any], prefix: str = "") -> dict[str, Any]:
     """Flatten a nested TOML section into dot-notation keys.
 
@@ -27,6 +31,9 @@ def _flatten_toml_section(section: dict[str, Any], prefix: str = "") -> dict[str
     This function flattens to match AppConfig field names:
         backend -> backend
         model_size -> model_size
+
+    Path fields (model_cache_path, temp_path) are converted to Path objects
+    with ~ expansion applied.
 
     Args:
         section: Nested dictionary from TOML parsing
@@ -62,7 +69,12 @@ def _flatten_toml_section(section: dict[str, Any], prefix: str = "") -> dict[str
         else:
             # Map to AppConfig field name or use the key directly
             field_name = field_mapping.get(full_key, key)
-            result[field_name] = value
+
+            # Convert path fields to Path objects with ~ expansion
+            if field_name in _PATH_FIELDS and isinstance(value, str):
+                result[field_name] = Path(value).expanduser()
+            else:
+                result[field_name] = value
 
     return result
 
