@@ -13,7 +13,7 @@ AudioCore delivers reliable audio/video transcription through a phased approach:
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Core models, types, and error handling infrastructure (2026-03-24)
-- [ ] **Phase 2: Configuration System** - Environment and TOML configuration with priority chain
+- [x] **Phase 2: Configuration System** - Environment and TOML configuration with priority chain (2026-03-24)
 - [ ] **Phase 3: Media Ingestion** - Audio extraction and format support via ffmpeg
 - [ ] **Phase 4: VAD Processing** - Voice activity detection and segmentation with Silero
 - [ ] **Phase 5: Backend Abstraction** - Backend interface and registry pattern
@@ -61,7 +61,7 @@ Plans:
 Plans:
 - [x] 02-01: Environment variable configuration loader (2026-03-24)
 - [x] 02-02: TOML configuration file parser (2026-03-24)
-- [ ] 02-03: Configuration priority chain merger
+- [x] 02-03: Configuration priority chain merger (2026-03-24)
 
 ---
 
