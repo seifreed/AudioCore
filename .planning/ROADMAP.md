@@ -12,7 +12,7 @@ AudioCore delivers reliable audio/video transcription through a phased approach:
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation** - Core models, types, and error handling infrastructure
+- [x] **Phase 1: Foundation** - Core models, types, and error handling infrastructure (2026-03-24)
 - [ ] **Phase 2: Configuration System** - Environment and TOML configuration with priority chain
 - [ ] **Phase 3: Media Ingestion** - Audio extraction and format support via ffmpeg
 - [ ] **Phase 4: VAD Processing** - Voice activity detection and segmentation with Silero
@@ -39,9 +39,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: Exception hierarchy with error codes and context
-- [ ] 01-02: Type enums and constants
-- [ ] 01-03: Core domain models with Pydantic validation
+- [x] 01-01: Exception hierarchy with error codes and context (2026-03-24)
+- [x] 01-02: Type enums and constants (2026-03-24)
+- [x] 01-03: Core domain models with Pydantic validation (2026-03-24)
 
 ---
 
