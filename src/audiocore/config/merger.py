@@ -115,6 +115,24 @@ def merge_configs(
         >>> result["model_size"]
         'large'  # cli overrides defaults
     """
+    # Field name mapping: TOML/config uses model_size, AppConfig uses model
+    # TOML loader already outputs model_size, we need to map to model field
+    _FIELD_ALIASES = {"model_size": "model"}
+
+    def _normalize_keys(d: dict[str, Any]) -> dict[str, Any]:
+        """Map aliased field names to actual AppConfig field names."""
+        result: dict[str, Any] = {}
+        for key, value in d.items():
+            actual_key = _FIELD_ALIASES.get(key, key)
+            result[actual_key] = value
+        return result
+
+    # Normalize keys for all sources
+    defaults = _normalize_keys(defaults)
+    toml = _normalize_keys(toml)
+    env = _normalize_keys(env)
+    cli = _normalize_keys(cli)
+
     merged: dict[str, Any] = {}
 
     # Apply in reverse priority order (defaults first, then each higher priority)
@@ -144,7 +162,7 @@ def merge_configs(
 
 
 def load_config(
-    config_path: Path | None = None,
+    config_path: Path | str | None = None,
     cli_overrides: dict[str, Any] | None = None,
 ) -> AppConfig:
     """Load configuration from all sources with correct priority.
@@ -160,6 +178,7 @@ def load_config(
     Args:
         config_path: Optional path to TOML config file.
             If None, uses DEFAULT_CONFIG_PATH (~/.config/audiocore/config.toml).
+            Accepts Path or string path.
         cli_overrides: Optional dictionary of CLI argument overrides.
             These have highest priority.
 
@@ -189,33 +208,52 @@ def load_config(
     # 1. Get defaults from AppConfig fields
     defaults = _get_defaults()
 
-    # 2. Load TOML config (returns {} if missing)
-    toml_config = load_toml_config(config_path)
+    # 2. Convert string path to Path if needed
+    resolved_path: Path | None = None
+    if config_path is not None:
+        resolved_path = Path(config_path) if isinstance(config_path, str) else config_path
 
-    # 3. Get env values from AppConfig (without CLI overrides)
+    # 3. Load TOML config (returns {} if missing)
+    toml_config = load_toml_config(resolved_path)
+
+    # 4. Get env values from AppConfig (without CLI overrides)
     # Create a temporary instance to get env-derived values
     # AppConfig uses pydantic-settings which reads from environment
     env_config_instance = AppConfig()
 
-    # Extract field values that would come from env (non-None values)
-    # We use model_dump to get the actual values, then mask secrets for logging
+    # Extract field values that would come from env (non-default values)
+    # Compare against defaults to identify env overrides
     env_values: dict[str, Any] = {}
     for field_name in AppConfig.model_fields:
-        value = getattr(env_config_instance, field_name)
-        # Only include non-default values (those from env)
-        if value is not None and value != defaults.get(field_name):
-            env_values[field_name] = value
+        default_value = defaults.get(field_name)
+        current_value = getattr(env_config_instance, field_name)
 
-    # 4. CLI overrides (highest priority)
-    cli_config = cli_overrides or {}
+        # Determine if this value differs from default
+        # For SecretStr, compare the secret values
+        if isinstance(current_value, SecretStr):
+            default_secret = (
+                default_value if isinstance(default_value, SecretStr) else SecretStr("")
+            )
+            current_secret = SecretStr(current_value.get_secret_value())
+            if current_secret.get_secret_value() != default_secret.get_secret_value():
+                env_values[field_name] = current_value
+        elif current_value != default_value:
+            env_values[field_name] = current_value
 
-    # 5. Merge all sources
+    # 5. CLI overrides (highest priority)
+    # Also map model_size to model for CLI
+    _FIELD_ALIASES = {"model_size": "model"}
+    cli_config: dict[str, Any] = {}
+    if cli_overrides:
+        for key, value in cli_overrides.items():
+            actual_key = _FIELD_ALIASES.get(key, key)
+            cli_config[actual_key] = value
+
+    # 6. Merge all sources
     merged = merge_configs(defaults, toml_config, env_values, cli_config)
 
-    # 6. Log configuration sources at DEBUG level
+    # 7. Log configuration sources at DEBUG level
     # Never log API keys in plain text
-    merged_for_log = mask_secrets(merged)
-
     logger.debug("Configuration loaded:")
     logger.debug(
         "  Defaults: %s", {k: v for k, v in mask_secrets(defaults).items() if v is not None}
@@ -243,6 +281,6 @@ def load_config(
 
     logger.debug("  Sources: %s", source_tracking)
 
-    # 7. Create AppConfig from merged values
+    # 8. Create AppConfig from merged values
     # Use model_validate to construct from dict, respecting validators
     return AppConfig.model_validate(merged)
