@@ -33,7 +33,7 @@ class ModelErrorType(str, Enum):
         """Parse a string to ModelErrorType case-insensitively.
 
         Args:
-            value: String to parse (e.g., "FILE_NOT_FOUND", "file_not_found")
+            value: String to parse (e.g., "FILE_NOT_FOUND", "file_not_found", "file-not-found")
 
         Returns:
             ModelErrorType enum member
@@ -41,7 +41,7 @@ class ModelErrorType(str, Enum):
         Raises:
             ValueError: If value is not a valid error type
         """
-        normalized = value.upper().replace("-", "_").replace(" ", "_")
+        normalized = value.lower().replace("-", "_").replace(" ", "_")
         try:
             return cls(normalized)
         except ValueError:

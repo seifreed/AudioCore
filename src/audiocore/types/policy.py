@@ -1,5 +1,6 @@
 """Selection policy enum for automatic backend selection."""
 
+import re
 from enum import Enum
 
 
@@ -18,7 +19,7 @@ class SelectionPolicy(str, Enum):
         """Parse a string to SelectionPolicy case-insensitively.
 
         Args:
-            value: String to parse (e.g., "PreferLocal", "prefer_local", "PREFER_LOCAL")
+            value: String to parse (e.g., "prefer_local", "PreferLocal", "PREFER_LOCAL")
 
         Returns:
             SelectionPolicy enum member
@@ -26,7 +27,12 @@ class SelectionPolicy(str, Enum):
         Raises:
             ValueError: If value is not a valid selection policy
         """
-        normalized = value.lower().replace("-", "_").replace(" ", "_")
+        # Handle camelCase or PascalCase: insert underscore before uppercase letters
+        # "PreferLocal" → "Prefer_Local", then lowercase
+        normalized = re.sub(r"([a-z])([A-Z])", r"\1_\2", value)
+        # Now normalize: lowercase and replace spaces/hyphens with underscores
+        normalized = normalized.lower().replace("-", "_").replace(" ", "_")
+
         try:
             return cls(normalized)
         except ValueError:

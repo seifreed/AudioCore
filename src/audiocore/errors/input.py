@@ -20,6 +20,22 @@ class InputError(AudioCoreError):
 
     error_code: str = "AUD-001"
 
+    def __init__(
+        self,
+        message: str,
+        context: dict[str, Any] | None = None,
+        suggestions: list[str] | None = None,
+        cause: Exception | None = None,
+    ) -> None:
+        # Add default suggestions if none provided
+        if suggestions is None:
+            suggestions = [
+                "Check input file path",
+                "Verify file exists and is readable",
+                "Ensure file format is supported",
+            ]
+        super().__init__(message, context, suggestions, cause)
+
 
 class InvalidInputError(InputError):
     """

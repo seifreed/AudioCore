@@ -1,0 +1,94 @@
+"""Tests for BackendType and ModelSize enums."""
+
+import pytest
+
+from audiocore.types import BackendType, ModelSize
+
+
+class TestBackendType:
+    """Tests for BackendType enum."""
+
+    def test_values(self) -> None:
+        """Test that BackendType has correct values."""
+        assert BackendType.OPENAI.value == "openai"
+        assert BackendType.FASTER_WHISPER.value == "faster_whisper"
+        assert BackendType.AUTO.value == "auto"
+
+    def test_str_enum_inheritance(self) -> None:
+        """Test that BackendType inherits from str and Enum for JSON serialization."""
+        assert isinstance(BackendType.OPENAI, str)
+        assert BackendType.OPENAI == "openai"
+
+    def test_parse_case_insensitive(self) -> None:
+        """Test parse() method with various case formats."""
+        assert BackendType.parse("openai") == BackendType.OPENAI
+        assert BackendType.parse("OpenAI") == BackendType.OPENAI
+        assert BackendType.parse("OPENAI") == BackendType.OPENAI
+        assert BackendType.parse("faster-whisper") == BackendType.FASTER_WHISPER
+        assert BackendType.parse("FASTER_WHISPER") == BackendType.FASTER_WHISPER
+        assert BackendType.parse("Faster Whisper") == BackendType.FASTER_WHISPER
+        assert BackendType.parse("auto") == BackendType.AUTO
+        assert BackendType.parse("AUTO") == BackendType.AUTO
+
+    def test_parse_invalid_value(self) -> None:
+        """Test parse() raises ValueError for invalid values."""
+        with pytest.raises(ValueError) as exc_info:
+            BackendType.parse("invalid_backend")
+
+        assert "Invalid backend type" in str(exc_info.value)
+        assert "openai" in str(exc_info.value)
+        assert "faster_whisper" in str(exc_info.value)
+        assert "auto" in str(exc_info.value)
+
+    def test_all_values_exist(self) -> None:
+        """Test that all expected values exist."""
+        values = [m.value for m in BackendType]
+        assert "openai" in values
+        assert "faster_whisper" in values
+        assert "auto" in values
+
+
+class TestModelSize:
+    """Tests for ModelSize enum."""
+
+    def test_values(self) -> None:
+        """Test that ModelSize has correct values."""
+        assert ModelSize.TINY.value == "tiny"
+        assert ModelSize.BASE.value == "base"
+        assert ModelSize.SMALL.value == "small"
+        assert ModelSize.MEDIUM.value == "medium"
+        assert ModelSize.LARGE.value == "large"
+
+    def test_str_enum_inheritance(self) -> None:
+        """Test that ModelSize inherits from str and Enum for JSON serialization."""
+        assert isinstance(ModelSize.LARGE, str)
+        assert ModelSize.LARGE == "large"
+
+    def test_parse_case_insensitive(self) -> None:
+        """Test parse() method with various case formats."""
+        assert ModelSize.parse("tiny") == ModelSize.TINY
+        assert ModelSize.parse("Tiny") == ModelSize.TINY
+        assert ModelSize.parse("TINY") == ModelSize.TINY
+        assert ModelSize.parse("large") == ModelSize.LARGE
+        assert ModelSize.parse("LARGE") == ModelSize.LARGE
+
+    def test_parse_invalid_value(self) -> None:
+        """Test parse() raises ValueError for invalid values."""
+        with pytest.raises(ValueError) as exc_info:
+            ModelSize.parse("extra_large")
+
+        assert "Invalid model size" in str(exc_info.value)
+        assert "tiny" in str(exc_info.value)
+        assert "base" in str(exc_info.value)
+        assert "small" in str(exc_info.value)
+        assert "medium" in str(exc_info.value)
+        assert "large" in str(exc_info.value)
+
+    def test_all_values_exist(self) -> None:
+        """Test that all expected values exist."""
+        values = [m.value for m in ModelSize]
+        assert "tiny" in values
+        assert "base" in values
+        assert "small" in values
+        assert "medium" in values
+        assert "large" in values
