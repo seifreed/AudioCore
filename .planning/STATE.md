@@ -83,6 +83,9 @@ Key architectural decisions:
 - **Plan 03-01:** ffprobe subprocess with JSON output — Reliable parsing, platform-independent, subprocess timeout handling
 - **Plan 03-01:** 30-second timeout default for probe — Reasonable for media files under 1GB, configurable via parameter
 - **Plan 03-01:** InvalidInputError for missing files, MediaError for ffprobe failures — Clear error hierarchy for debugging
+- **Plan 03-02:** 16kHz mono PCM WAV as standard output — Optimal format for speech recognition APIs
+- **Plan 03-02:** Progress callback via stderr parsing — ffmpeg outputs time= field in stderr, parse for percentage
+- **Plan 03-02:** NamedTemporaryFile with delete=False — Explicit control over temp file lifecycle for cleanup
 - **Phase 3:** ffmpeg as subprocess rather than Python binding - simpler deployment, guaranteed compatibility
 - **Phase 4:** Silero VAD via torch hub with cache fallback - automatic model management with offline capability
 - **Phase 5:** Minimal backend interface - YAGNI principle, add capabilities as needed
@@ -118,10 +121,13 @@ Configuration priority chain implemented with merge_configs and load_config func
 **Plan 03-01 Execution:**
 Media probe function implemented with ffprobe subprocess. MediaError exception (AUD-402) added for processing failures. ffprobe_path and ffmpeg_path added to AppConfig. Validation helpers (_validate_file_exists, _check_ffprobe_available) provide pre-flight checks. All 24 unit tests pass with 99% coverage.
 
+**Plan 03-02 Execution:**
+Audio extractor function implemented with ffmpeg subprocess. extract_audio() converts any media format to 16kHz mono WAV for transcription. Progress callback support implemented via stderr time parsing with probe() for duration. temp_audio_file context manager added for clean temp file handling. All 32 unit tests pass.
+
 ## Session Continuity
 
-Last session: 2026-03-24 (Phase 3 Plan 01 complete)
-Stopped at: Ready for Phase 3 Plan 02
+Last session: 2026-03-24 (Phase 3 Plan 02 complete)
+Stopped at: Ready for Phase 3 Plan 03
 Resume file: None
 
-Next action: Run `/gsd-execute-phase 03` to continue with Plan 02 (Audio Extraction), or run `/gsd-verify-work` to verify plan 03-01
+Next action: Run `/gsd-execute-phase 03` to continue with Plan 03 (VAD Segmentation), or run `/gsd-verify-work` to verify plan 03-02
