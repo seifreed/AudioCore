@@ -1,0 +1,3 @@
+# Test fixtures for media files
+# These placeholder files can be replaced with small test audio/video files
+# Consider generating files with ffmpeg in CI or downloading samples in test setup
