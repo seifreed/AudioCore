@@ -685,8 +685,8 @@ Real-time transcription API.
 |-------------|-------|--------|
 | CORE-01 | Phase 1: Foundation | Pending |
 | CORE-02 | Phase 1: Foundation | Complete |
-| ERR-01 | Phase 1: Foundation | Pending |
-| ERR-02 | Phase 1: Foundation | Pending |
+| ERR-01 | Phase 1: Foundation | Complete |
+| ERR-02 | Phase 1: Foundation | Complete |
 | CONF-01 | Phase 2: Configuration System | Pending |
 | CONF-02 | Phase 2: Configuration System | Pending |
 | CONF-03 | Phase 2: Configuration System | Pending |
