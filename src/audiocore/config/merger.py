@@ -22,6 +22,7 @@ def _get_defaults() -> dict[str, Any]:
     Returns:
         Dictionary mapping field names to their default values.
         SecretStr defaults are converted to empty strings for merging.
+        None defaults are included in the dictionary.
 
     Example:
         >>> defaults = _get_defaults()
@@ -39,7 +40,10 @@ def _get_defaults() -> dict[str, Any]:
         elif field_info.default is not None:
             # Has a direct default value
             defaults[field_name] = field_info.default
-        # If both are None, the field is required (shouldn't happen for AppConfig)
+        else:
+            # Field is optional (default=None for optional fields)
+            # Include it with None value
+            defaults[field_name] = None
 
     return defaults
 
@@ -139,21 +143,20 @@ def merge_configs(
     # Lower priority values are overwritten by higher priority values
 
     # 1. Start with defaults (lowest priority)
-    for key, value in defaults.items():
-        if value is not None:
-            merged[key] = value
+    # Note: defaults can have None values (for optional fields), include them
+    merged.update(defaults)
 
-    # 2. TOML config overrides defaults
+    # 2. TOML config overrides defaults (skip None values)
     for key, value in toml.items():
         if value is not None:
             merged[key] = value
 
-    # 3. Environment variables override TOML
+    # 3. Environment variables override TOML (skip None values)
     for key, value in env.items():
         if value is not None:
             merged[key] = value
 
-    # 4. CLI arguments override everything (highest priority)
+    # 4. CLI arguments override everything (skip None values)
     for key, value in cli.items():
         if value is not None:
             merged[key] = value
