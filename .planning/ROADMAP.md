@@ -59,8 +59,8 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: Environment variable configuration loader
-- [ ] 02-02: TOML configuration file parser
+- [x] 02-01: Environment variable configuration loader (2026-03-24)
+- [x] 02-02: TOML configuration file parser (2026-03-24)
 - [ ] 02-03: Configuration priority chain merger
 
 ---
