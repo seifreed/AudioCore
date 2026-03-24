@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Core models, types, and error handling infrastructure (2026-03-24)
 - [x] **Phase 2: Configuration System** - Environment and TOML configuration with priority chain (2026-03-24)
-- [ ] **Phase 3: Media Ingestion** - Audio extraction and format support via ffmpeg
+- [x] **Phase 3: Media Ingestion** - Audio extraction and format support via ffmpeg (2026-03-24)
 - [ ] **Phase 4: VAD Processing** - Voice activity detection and segmentation with Silero
 - [ ] **Phase 5: Backend Abstraction** - Backend interface and registry pattern
 - [ ] **Phase 6: OpenAI Backend** - Whisper API integration with error handling
@@ -79,9 +79,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: Media probing with ffprobe
-- [ ] 03-02: Audio extraction with ffmpeg normalization
-- [ ] 03-03: Format validation and error handling
+- [x] 03-01: Media probing with ffprobe (2026-03-24)
+- [x] 03-02: Audio extraction with ffmpeg normalization (2026-03-24)
+- [x] 03-03: Format validation and error handling (2026-03-24)
 
 ---
 
