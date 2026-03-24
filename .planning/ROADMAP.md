@@ -56,11 +56,12 @@ Plans:
 3. Configuration priority chain works correctly: CLI > env > TOML > defaults
 4. API keys are masked in logs and configuration display
 
-**Plans**: 2 plans
+**Plans**: 3 plans
 
 Plans:
 - [ ] 02-01: Environment variable configuration loader
-- [ ] 02-02: TOML configuration file parser with validation
+- [ ] 02-02: TOML configuration file parser
+- [ ] 02-03: Configuration priority chain merger
 
 ---
 
