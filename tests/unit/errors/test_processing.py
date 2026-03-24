@@ -6,6 +6,7 @@ from audiocore.errors.base import AudioCoreError
 from audiocore.errors.processing import (
     ProcessingError,
     VADError,
+    MediaError,
 )
 
 
@@ -89,7 +90,7 @@ class TestProcessingExceptionHierarchy:
 
     def test_unique_error_codes(self) -> None:
         """Each processing exception should have unique error code."""
-        codes = [ProcessingError.error_code, VADError.error_code]
+        codes = [ProcessingError.error_code, VADError.error_code, MediaError.error_code]
         assert len(set(codes)) == len(codes)
 
     def test_exception_str_representation(self) -> None:
@@ -116,7 +117,7 @@ class TestProcessingExceptionHierarchy:
             )
             error.__cause__ = original
             error.__context__ = original.__context__ if hasattr(original, "__context__") else None
-            
+
             # Verify cause is preserved
             assert error.__cause__ is original
 
@@ -135,3 +136,59 @@ class TestProcessingExceptionHierarchy:
         except VADError as e:
             # Verify chaining worked
             assert isinstance(e.__cause__, ValueError)
+
+
+class TestMediaError:
+    """Test MediaError exception."""
+
+    def test_inherits_from_processing_error(self) -> None:
+        """MediaError should inherit from ProcessingError."""
+        assert issubclass(MediaError, ProcessingError)
+        assert issubclass(MediaError, AudioCoreError)
+
+    def test_error_code(self) -> None:
+        """MediaError should have correct error code."""
+        assert MediaError.error_code == "AUD-402"
+
+    def test_initialization_with_media_context(self) -> None:
+        """MediaError should accept media-specific context."""
+        context = {
+            "file_path": "/path/to/audio.mp3",
+            "reason": "ffprobe failed",
+            "duration": None,
+        }
+        error = MediaError("Media processing failed", context=context)
+        assert error.context == context
+
+    def test_default_suggestions(self) -> None:
+        """MediaError should provide media-related suggestions."""
+        error = MediaError("Media error")
+        assert len(error.suggestions) >= 3
+        assert any("ffmpeg" in s.lower() for s in error.suggestions)
+
+    def test_custom_suggestions_override_defaults(self) -> None:
+        """Custom suggestions should override defaults."""
+        custom_suggestions = ["Install ffmpeg", "Check file format"]
+        error = MediaError("Media error", suggestions=custom_suggestions)
+        assert error.suggestions == custom_suggestions
+
+    def test_format_error_with_file_info(self) -> None:
+        """format_error should include file information."""
+        error = MediaError(
+            "Failed to probe media file",
+            context={"file_path": "/audio/test.mp3", "reason": "corrupted"},
+            suggestions=["Check file integrity", "Try different format"],
+        )
+        result = error.format_error()
+        assert "[AUD-402] Failed to probe media file" in result
+        assert "file_path: /audio/test.mp3" in result
+        assert "reason: corrupted" in result
+
+    def test_initialization_with_ffprobe_context(self) -> None:
+        """MediaError should accept ffprobe-related context."""
+        context = {
+            "error": "ffprobe not found",
+            "ffprobe_path": "/usr/local/bin/ffprobe",
+        }
+        error = MediaError("ffprobe executable not found", context=context)
+        assert error.context == context

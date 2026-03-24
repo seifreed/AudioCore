@@ -41,6 +41,7 @@ from audiocore.errors.api import (
 from audiocore.errors.processing import (
     ProcessingError,
     VADError,
+    MediaError,
 )
 
 __all__ = [
@@ -65,4 +66,5 @@ __all__ = [
     # Processing exceptions
     "ProcessingError",
     "VADError",
+    "MediaError",
 ]

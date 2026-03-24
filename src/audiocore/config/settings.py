@@ -66,6 +66,14 @@ class AppConfig(BaseSettings):
         default=SelectionPolicy.AUTO,
         description="Policy for automatic backend selection: prefer_local, prefer_cloud, or auto",
     )
+    ffprobe_path: str = Field(
+        default="ffprobe",
+        description="Path to ffprobe binary for media analysis",
+    )
+    ffmpeg_path: str = Field(
+        default="ffmpeg",
+        description="Path to ffmpeg binary for media processing",
+    )
 
     @field_validator("backend", mode="before")
     @classmethod

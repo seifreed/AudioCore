@@ -76,3 +76,46 @@ class VADError(ProcessingError):
                 "Try whole-file transcription without VAD",
             ]
         super().__init__(message, context, suggestions, cause)
+
+
+class MediaError(ProcessingError):
+    """
+    Exception raised when media processing operations fail.
+
+    This includes:
+    - ffprobe/ffmpeg executable not found
+    - Media file analysis failures
+    - Invalid or corrupted media files during processing
+    - Timeout during media operations
+
+    Example:
+        >>> raise MediaError(
+        ...     "Failed to probe media file",
+        ...     context={
+        ...         "file_path": "/path/to/audio.mp3",
+        ...         "reason": "ffprobe not found",
+        ...     },
+        ...     suggestions=[
+        ...         "Check ffmpeg installation",
+        ...         "Verify file exists and is readable",
+        ...         "Try a different media format",
+        ...     ]
+        ... )
+    """
+
+    error_code: str = "AUD-402"
+
+    def __init__(
+        self,
+        message: str,
+        context: dict[str, Any] | None = None,
+        suggestions: list[str] | None = None,
+        cause: Exception | None = None,
+    ) -> None:
+        if suggestions is None:
+            suggestions = [
+                "Check ffmpeg installation",
+                "Verify file exists and is readable",
+                "Try a different media format",
+            ]
+        super().__init__(message, context, suggestions, cause)
