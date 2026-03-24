@@ -9,7 +9,13 @@ This module provides Pydantic v2 models for:
 All models use strict validation for type safety.
 """
 
-# Import models as they are created
-# Will be populated in subsequent tasks
+from audiocore.models.media import MediaInfo
+from audiocore.models.segment import Segment
+from audiocore.models.transcription import TranscriptionOptions, TranscriptionResult
 
-__all__: list[str] = []
+__all__ = [
+    "Segment",
+    "MediaInfo",
+    "TranscriptionOptions",
+    "TranscriptionResult",
+]
