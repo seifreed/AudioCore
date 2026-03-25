@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in_progress
-last_updated: "2026-03-25T12:20:34Z"
+status: unknown
+last_updated: "2026-03-25T13:10:37.073Z"
 progress:
-  total_phases: 10
-  completed_phases: 8
-  total_plans: 22
-  completed_plans: 27
+  total_phases: 9
+  completed_phases: 5
+  total_plans: 17
+  completed_plans: 28
 ---
 
 # Project State
@@ -19,14 +19,14 @@ See: .planning/PROJECT.md (created 2025-03-24)
 
 **Core value:** AudioCore bridges cloud and local transcription with automatic backend selection, handling audio extraction, VAD segmentation, and output formatting so developers don't have to.
 
-**Current focus:** Phase 9: Pipeline Orchestrator - Plans 01-04 complete
+**Current focus:** Phase 9: Pipeline Orchestrator - All plans complete. Ready for Phase 10.
 
 ## Current Position
 
 Phase: 9 of 10 (Pipeline Orchestrator)
-Plan: 3 of 4 in current phase (09-03 complete)
-Status: Output formatters implemented (text/JSON), ready for Plan 09-04
-Last activity: 2026-03-25 — Plan 09-03 complete (Text and JSON output formatters)
+Plan: 4 of 4 in current phase (09-04 complete)
+Status: Pipeline error recovery implemented, all 4 plans complete
+Last activity: 2026-03-25 — Plan 09-04 complete (Pipeline Error Recovery and Cleanup)
 
 Progress: [████████░░] 80%
 
@@ -56,6 +56,7 @@ Progress: [████████░░] 80%
 - 09-02: Progress Callbacks and Cancellation (11 min, 4 tasks, 6 files)
 - 09-01: Pipeline Orchestrator Implementation (8 min, 4 tasks, 6 files)
 - Trend: Output formatting with pure functions, JSON/Pydantic serialization
+| Phase 09 P04 | 18 min | 4 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -198,14 +199,17 @@ Integration tests for FasterWhisperBackend with graceful skip pattern. Tests for
 **Plan 09-03 Execution:**
 Output formatters for transcription results. Created output module with text.py and json.py formatters. format_text() produces timestamped output [HH:MM:SS.mmm] text. format_json() uses model_dump() for Pydantic serialization with enum handling. Added formatted_output field to TranscriptionResult. Integrated formatters into Pipeline with OutputFormat selection. 44 unit tests pass with 100% coverage on output module.
 
+**Plan 09-04 Execution:**
+Pipeline error recovery and cleanup implementation. Created pipeline-specific exception hierarchy (AUD-501 to AUD-504): PipelineError, PipelineStageError, PipelineCancelledError, PartialResultError. Each exception carries stage context and original_error. Refactored Pipeline.transcribe with stage-specific error wrapping, VAD fallback to whole-file transcription, and formatting error graceful handling. Added failed_segments field to TranscriptionResult for partial failure tracking. Comprehensive error recovery tests (23 tests, >95% coverage for error paths) covering cleanup, cancellation, VAD fallback, and user-friendly error messages. 102 pipeline tests passing.
+
 ## Session Continuity
 
-Last session: 2026-03-25 (Phase 09-03 complete - Output formatters implemented)
-Stopped at: Plan 09-03 complete, ready for Plan 09-04
+Last session: 2026-03-25 (Phase 09-04 complete - Pipeline Error Recovery and Cleanup)
+Stopped at: Plan 09-04 complete, Phase 9 finished
 Resume file: None
 
-Next action: Execute Plan 09-04 (Pipeline Error Recovery and Cleanup)
+Next action: Phase 9 complete. Ready for Phase 10 or integration testing.
   - **[Plan 09-01]:** Pipeline class with transcribe orchestration, uses BackendSelector for automatic backend selection, temp_file cleanup via context manager
-  - **[Plan 09-01]:** Convenience transcribe() function exported from main module for one-line API
   - **[Plan 09-02]:** Progress callbacks (ProgressCallback Protocol, PipelineStage enum), CancellationToken for clean termination
   - **[Plan 09-03]:** Output formatters (text/JSON), formatted_output in TranscriptionResult, pure functions for formatting
+  - **[Plan 09-04]:** Pipeline exceptions (AUD-501 to AUD-504), VAD fallback, failed_segments field, error recovery tests
