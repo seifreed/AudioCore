@@ -684,3 +684,53 @@ class TestIntegration:
         # Should get same backend instance
         backend2 = registry2.get_backend(BackendType.OPENAI)
         assert backend1 is backend2
+
+
+class TestRegisterBuiltinBackends:
+    """Test register_builtin_backends() function."""
+
+    def test_register_builtin_backends_registers_openai(self) -> None:
+        """Test that register_builtin_backends() registers OpenAI backend."""
+        from audiocore.backends import register_builtin_backends
+
+        registry = BackendRegistry()
+        registry.clear()
+
+        register_builtin_backends()
+
+        backends = registry.list_backends()
+        assert BackendType.OPENAI in backends
+
+    def test_register_builtin_backends_registers_faster_whisper_if_available(self) -> None:
+        """Test that register_builtin_backends() registers FasterWhisper backend if available."""
+        from audiocore.backends import register_builtin_backends, FasterWhisperBackend
+
+        registry = BackendRegistry()
+        registry.clear()
+
+        register_builtin_backends()
+
+        backends = registry.list_backends()
+
+        # FasterWhisperBackend may not be installed
+        # This should be available after Phase 7
+        if FasterWhisperBackend is not None:
+            assert BackendType.FASTER_WHISPER in backends
+
+    def test_register_builtin_backends_can_be_called_multiple_times(self) -> None:
+        """Test that register_builtin_backends() can be called multiple times safely."""
+        from audiocore.backends import register_builtin_backends
+
+        registry = BackendRegistry()
+        registry.clear()
+
+        # Call twice
+        register_builtin_backends()
+        backends1 = registry.list_backends()
+
+        register_builtin_backends()
+        backends2 = registry.list_backends()
+
+        # Should have same backends registered
+        assert backends1 == backends2
+        assert BackendType.OPENAI in backends1
