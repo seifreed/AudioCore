@@ -24,18 +24,18 @@ See: .planning/PROJECT.md (created 2025-03-24)
 ## Current Position
 
 Phase: 10 of 10 (Complete Interface)
-Plan: 2 of 5 in current phase (just completed)
-Status: Phase 10-02 complete (File Output with Directory Creation)
-Last activity: 2026-03-25 — Plan 10-02 complete (Atomic file writer with format auto-detection)
+Plan: 4 of 5 in current phase (just completed)
+Status: Phase 10-04 complete (Public API with Sync and Async Support)
+Last activity: 2026-03-25 — Plan 10-04 complete (Public API with transcribe() and async_transcribe())
 
 Progress: [█████████░] 90%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 26
+- Total plans completed: 27
 - Average duration: 12 min
-- Total execution time: 5.2 hours
+- Total execution time: 5.4 hours
 
 **By Phase:**
 
@@ -139,8 +139,11 @@ Key architectural decisions:
   - **[Plan 07-03]:** Pre-existing test failure (Segment.text empty string) documented as out of scope - deferred to Phase 4 cleanup
    - **[Plan 10-01]:** SRT and VTT subtitle formatters for video/web players
    - **[Plan 10-01]:** SRT uses comma (,) for milliseconds separator, VTT uses period (.) per specification
-   - **[Plan 10-02]:** AUD-600 error code for output exceptions (new category beyond pipeline)
-   - **[Plan 10-02]:** Atomic write pattern with temp file then os.replace for filesystem safety
+ - **[Plan 10-02]:** AUD-600 error code for output exceptions (new category beyond pipeline)
+    - **[Plan 10-02]:** Atomic write pattern with temp file then os.replace for filesystem safety
+   - **[Plan 10-04]:** Lazy imports via __getattr__ in main __init__.py to avoid circular dependencies
+   - **[Plan 10-04]:** ThreadPoolExecutor with max_workers=4 for async_transcribe thread pool
+   - **[Plan 10-04]:** Re-export all exceptions from main package for convenient access
 
 ### Pending Todos
 
@@ -214,13 +217,16 @@ SRT and VTT subtitle formatters implemented. Created format_srt() and format_vtt
 **Plan 10-02 Execution:**
 File output writer implemented with atomic write pattern and format auto-detection. Created OutputFileConfig Pydantic model (overwrite, create_dirs, encoding fields) with strict=True. Implemented write_output() for atomic file writing: write to temp file, then os.replace for atomic move. Added OutputFileExistsError (AUD-600) for overwrite protection when file exists and overwrite=False. Created format_and_write() for one-line API: TranscriptionResult → formatted file. Auto-detects format from file extension (.txt, .json, .srt, .vtt) with fallback to options.output_format. Handles stdout when path=None. 40 unit tests pass for file_writer module, 135 total output tests. All exports available from audiocore.output and audiocore.errors.
 
+**Plan 10-04 Execution:**
+Public API module implemented with transcribe() and async_transcribe() functions. Created audiocore.api package with exports for all public symbols. Implemented async_transcribe() using ThreadPoolExecutor (max_workers=4) with asyncio.run_in_executor() for non-blocking operations. Added lazy imports via __getattr__ in main __init__.py to avoid circular dependency chain (audiocore → audiocore.api → audiocore.pipeline → audiocore.backends → audiocore.config). Added shutdown_executor() for thread pool cleanup. All 22 exception types exported from main package. 25 unit tests pass covering imports, sync transcribe, async transcribe, concurrent execution, and executor shutdown.
+
 ## Session Continuity
 
-Last session: 2026-03-25 (Phase 10-02 complete - File Output with Directory Creation)
-Stopped at: Plan 10-02 complete, Phase 10 in progress
+Last session: 2026-03-25 (Phase 10-04 complete - Public API Module)
+Stopped at: Plan 10-04 complete, Phase 10 in progress
 Resume file: None
 
-Next action: Continue Phase 10 with Plan 10-03 (CLI implementation)
+Next action: Continue Phase 10 with Plan 10-03 (CLI implementation) or Plan 10-05
   - **[Plan 09-01]:** Pipeline class with transcribe orchestration, uses BackendSelector for automatic backend selection, temp_file cleanup via context manager
   - **[Plan 09-02]:** Progress callbacks (ProgressCallback Protocol, PipelineStage enum), CancellationToken for clean termination
   - **[Plan 09-03]:** Output formatters (text/JSON), formatted_output in TranscriptionResult, pure functions for formatting
