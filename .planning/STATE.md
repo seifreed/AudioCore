@@ -19,23 +19,23 @@ See: .planning/PROJECT.md (created 2025-03-24)
 
 **Core value:** AudioCore bridges cloud and local transcription with automatic backend selection, handling audio extraction, VAD segmentation, and output formatting so developers don't have to.
 
-**Current focus:** Phase 9: Pipeline Orchestrator - Plan 01 complete
+**Current focus:** Phase 9: Pipeline Orchestrator - Plan 03 complete
 
 ## Current Position
 
 Phase: 9 of 10 (Pipeline Orchestrator)
-Plan: 1 of 4 in current phase (09-01 complete)
-Status: Pipeline orchestrator implemented, ready for Plan 09-02
-Last activity: 2026-03-25 — Plan 09-01 complete (Pipeline class with transcribe orchestration)
+Plan: 3 of 4 in current phase (09-03 complete)
+Status: Output formatters implemented (text/JSON), ready for Plan 09-04
+Last activity: 2026-03-25 — Plan 09-03 complete (Text and JSON output formatters)
 
 Progress: [████████░░] 80%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 19
+- Total plans completed: 21
 - Average duration: 11 min
-- Total execution time: 3.3 hours
+- Total execution time: 3.6 hours
 
 **By Phase:**
 
@@ -49,13 +49,13 @@ Progress: [████████░░] 80%
 | 06-openai-backend | 3 | 3 | 16 min |
 | 07-faster-whisper-backend | 3 | 3 | 11 min |
 | 08-backend-selection | 2 | 2 | ? min |
-| 09-pipeline-orchestrator | 1 | 4 | 8 min (so far) |
+| 09-pipeline-orchestrator | 3 | 4 | 11 min (so far) |
 
 **Recent Trend:**
-- 07-03: Integration and Registry (6 min, 4 tasks, 2 files)
-- 07-02: FasterWhisperBackend Implementation (12 min, 4 tasks, 4 files)
-- 07-01: Model Manager and Configuration (15 min, 4 tasks, 8 files)
-- Trend: Integration tests with graceful skip pattern, backend registry validation
+- 09-03: Text and JSON Output Formatters (15 min, 4 tasks, 8 files)
+- 09-02: Progress Callbacks and Cancellation (11 min, 4 tasks, 6 files)
+- 09-01: Pipeline Orchestrator Implementation (8 min, 4 tasks, 6 files)
+- Trend: Output formatting with pure functions, JSON/Pydantic serialization
 
 ## Accumulated Context
 
@@ -87,6 +87,8 @@ Key architectural decisions:
 - **Plan 03-02:** NamedTemporaryFile with delete=False — Explicit control over temp file lifecycle for cleanup
 - **Phase 3:** ffmpeg as subprocess rather than Python binding - simpler deployment, guaranteed compatibility
 - **Phase 4:** Silero VAD via torch hub with cache fallback - automatic model management with offline capability
+- **Plan 09-03:** Pure functions for output formatters — No side effects, easy to test, format_text() and format_json() return strings
+- **Plan 09-03:** formatted_output field in TranscriptionResult — Result contains both raw segments and formatted output, avoiding separate output pipelines
 - **Plan 04-01:** Thread-safe Lock at class definition - reliable singleton pattern, enables test mocking
 - **Plan 04-01:** VADConfig from audiocore.vad.config - reuse Pydantic validation, consistency with existing patterns
 - **Plan 04-02:** env_nested_delimiter='__' for nested config - enables AUDIOCORE_VAD__* env vars
@@ -188,12 +190,17 @@ FasterWhisperConfig Pydantic model with 15 validated fields, device detection ut
 **Plan 07-03 Execution:**
 Integration tests for FasterWhisperBackend with graceful skip pattern. Tests for BackendRegistry.register_builtin_backends() added. Test audio created with Python wave module (no external fixtures). Pre-existing test failure (Segment.text) documented as out of scope. 199 unit tests pass, 10 integration tests skip correctly when faster-whisper not installed. Coverage 74%.
 
+**Plan 09-03 Execution:**
+Output formatters for transcription results. Created output module with text.py and json.py formatters. format_text() produces timestamped output [HH:MM:SS.mmm] text. format_json() uses model_dump() for Pydantic serialization with enum handling. Added formatted_output field to TranscriptionResult. Integrated formatters into Pipeline with OutputFormat selection. 44 unit tests pass with 100% coverage on output module.
+
 ## Session Continuity
 
-Last session: 2026-03-25 (Phase 09-01 complete - Pipeline orchestrator implemented)
-Stopped at: Plan 09-01 complete, ready for Plan 09-02
+Last session: 2026-03-25 (Phase 09-03 complete - Output formatters implemented)
+Stopped at: Plan 09-03 complete, ready for Plan 09-04
 Resume file: None
 
-Next action: Execute Plan 09-02 (Progress Callbacks and Cancellation)
+Next action: Execute Plan 09-04 (Pipeline Error Recovery and Cleanup)
   - **[Plan 09-01]:** Pipeline class with transcribe orchestration, uses BackendSelector for automatic backend selection, temp_file cleanup via context manager
   - **[Plan 09-01]:** Convenience transcribe() function exported from main module for one-line API
+  - **[Plan 09-02]:** Progress callbacks (ProgressCallback Protocol, PipelineStage enum), CancellationToken for clean termination
+  - **[Plan 09-03]:** Output formatters (text/JSON), formatted_output in TranscriptionResult, pure functions for formatting
