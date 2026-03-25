@@ -71,3 +71,27 @@ Thumbs.db
 
 # Project specific
 *.log
+
+# GSD Planning
+.planning/
+
+# Ruff cache
+.ruff_cache/
+
+# MyPy cache
+.mypy_cache/
+
+# Test artifacts
+.pytest_cache/
+.testmondata
+
+# Audio test files
+tests/fixtures/audio/*.mp3
+tests/fixtures/audio/*.wav
+tests/fixtures/audio/*.mp4
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
