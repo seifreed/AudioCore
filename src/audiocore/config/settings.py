@@ -10,6 +10,7 @@ from typing import Annotated, Any
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from audiocore.config.openai_config import OpenAIConfig
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
 from audiocore.vad.config import VADConfig
 
@@ -80,6 +81,10 @@ class AppConfig(BaseSettings):
     vad: VADConfig = Field(
         default_factory=VADConfig,
         description="Voice Activity Detection configuration",
+    )
+    openai: OpenAIConfig = Field(
+        default_factory=OpenAIConfig,
+        description="OpenAI Whisper API configuration",
     )
 
     @field_validator("backend", mode="before")
