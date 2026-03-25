@@ -8,12 +8,13 @@ All exceptions inherit from AudioCoreError and provide:
 - Exception chaining via __cause__
 
 Exception categories:
-- Input: InvalidInputError, MediaFormatError (AUD-001 to AUD-xx9)
+- Input: InvalidInputError, MediaFormatError (AUD-001 to AUD-099)
 - Config: ConfigurationError, InvalidConfigError (AUD-100 to AUD-199)
 - Backend: BackendError, BackendUnavailableError, TranscriptionError (AUD-200 to AUD-299)
 - API: APIError, AuthenticationError, RateLimitError, APITimeoutError (AUD-300 to AUD-399)
 - Processing: ProcessingError, VADError (AUD-400 to AUD-499)
 - Pipeline: CancelledError (AUD-500) - imported from audiocore.pipeline.cancellation
+- Output: OutputFileExistsError (AUD-600)
 """
 
 from audiocore.errors.base import AudioCoreError
@@ -44,6 +45,7 @@ from audiocore.errors.processing import (
     VADError,
     MediaError,
 )
+from audiocore.errors.output import OutputFileExistsError
 
 # Note: CancelledError (AUD-500) is in audiocore.pipeline.cancellation
 # to avoid circular imports. Import from audiocore.pipeline.cancellation directly.
@@ -81,6 +83,8 @@ __all__ = [
     "ProcessingError",
     "VADError",
     "MediaError",
+    # Output exceptions
+    "OutputFileExistsError",
     # Pipeline exceptions (AUD-501 to AUD-504)
     "PipelineError",
     "PipelineStageError",
