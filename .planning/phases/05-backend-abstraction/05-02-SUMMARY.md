@@ -179,3 +179,5 @@ registry.register(BackendType.FASTER_WHISPER, FasterWhisperBackend)
 ✓ Coverage = 97% (exceeds 95% target)
 ✓ Imports work correctly
 ✓ Thread-safety verified with concurrent tests
+✓ Files verified: registry.py, test_registry.py, __init__.py modified
+✓ Commits verified: fa07097, 9da2a7a, cb77ef4
