@@ -24,10 +24,12 @@ Example:
     >>> registry.register(BackendType.OPENAI, MyBackend)
 """
 
+from audiocore.backends.availability import BackendAvailabilityChecker, BackendStatus
 from audiocore.backends.base import TranscriptionBackend, is_backend_available
 from audiocore.backends.faster_whisper_backend import FasterWhisperBackend
 from audiocore.backends.openai_backend import OpenAIBackend
 from audiocore.backends.registry import BackendRegistry
+from audiocore.backends.selector import BackendSelector, select_backend
 from audiocore.types import BackendType
 
 __all__ = [
@@ -36,6 +38,10 @@ __all__ = [
     "BackendRegistry",
     "OpenAIBackend",
     "FasterWhisperBackend",
+    "BackendStatus",
+    "BackendAvailabilityChecker",
+    "BackendSelector",
+    "select_backend",
 ]
 
 
