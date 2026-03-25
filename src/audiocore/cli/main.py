@@ -18,7 +18,10 @@ from typing import Optional
 import typer
 from rich.console import Console
 
-# Create the main Typer app
+from audiocore.backends import register_builtin_backends
+
+register_builtin_backends()
+
 app = typer.Typer(
     name="audiocore",
     help="AudioCore - Audio/Video transcription engine with dual backend support",
