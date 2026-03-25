@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-last_updated: "2026-03-25T10:23:52.000Z"
+last_updated: "2026-03-25T10:07:00.000Z"
 progress:
   total_phases: 10
   completed_phases: 5
@@ -24,18 +24,18 @@ See: .planning/PROJECT.md (created 2025-03-24)
 ## Current Position
 
 Phase: 6 of 10 (OpenAI Backend)
-Plan: 1 of 3 in current phase
-Status: Plan 06-01 complete (OpenAI Client Implementation)
-Last activity: 2026-03-25 — Plan 06-01 complete (OpenAI Backend implementation with lazy client, error handling, and tests)
+Plan: 2 of 3 in current phase
+Status: Plan 06-02 complete (OpenAI Configuration)
+Last activity: 2026-03-25 — Plan 06-02 complete (OpenAIConfig with SecretStr, AppConfig integration, backend priority chain)
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 14
+- Total plans completed: 15
 - Average duration: 11 min
-- Total execution time: 2.8 hours
+- Total execution time: 3.0 hours
 
 **By Phase:**
 
@@ -46,11 +46,12 @@ Progress: [██████████] 100%
 | 03-media-ingestion | 3 | 3 | 3 min |
 | 04-vad-processing | 3 | 3 | 9 min |
 | 05-backend-abstraction | 2 | 2 | 10 min |
-| 06-openai-backend | 1 | 3 | 35 min |
+| 06-openai-backend | 2 | 3 | 22 min |
 
 **Recent Trend:**
+- 06-02: OpenAI Configuration (12 min, 4 tasks, 4 files)
 - 06-01: OpenAI Client Implementation (35 min, 3 tasks, 4 files)
-- Trend: Comprehensive implementation with full error handling coverage
+- Trend: Secure configuration with SecretStr, clean integration patterns
 
 ## Accumulated Context
 
@@ -103,6 +104,10 @@ Key architectural decisions:
 - **[Plan 06-01]:** API key format validation (sk- prefix) for early error detection before API calls
 - **[Plan 06-01]:** Temperature mapping from model_size (tiny=0.0 to large=0.6) for deterministic output control
 - **[Plan 06-01]:** All OpenAI exceptions mapped to AudioCore error hierarchy with context preservation and API key redaction
+- **[Plan 06-02]:** Separate OpenAIConfig model for clean separation of concerns and future extensibility
+- **[Plan 06-02]:** Priority chain for config resolution: OpenAIConfig.api_key > api_key parameter > OPENAI_API_KEY env var
+- **[Plan 06-02]:** Optional organization and base_url fields for proxy/custom OpenAI endpoint support
+- **[Plan 06-02]:** Default timeout 300s for large files, max_retries 2 for rate limit resilience
 
 ### Pending Todos
 
@@ -155,10 +160,13 @@ BackendRegistry singleton with thread-safe lazy loading and memoization. Impleme
 **Plan 06-01 Execution:**
 OpenAI backend implementation with comprehensive error handling and API key protection. Implemented lazy client initialization with API key validation (sk- prefix check). All 5 OpenAI exception types mapped to AudioCore error types with context preservation and suggestions. API key redaction in all error messages and logs. File handle cleanup via _safe_close_file() helper. Model size to temperature mapping for deterministic output. Minimum duration 0.01s for empty transcriptions. 32 unit tests pass with 93% coverage. Three auto-fixed blocking issues: UnboundLocalError for api_params, file handle cleanup, and OpenAI exception constructor signatures.
 
+**Plan 06-02 Execution:**
+OpenAI configuration model implemented with Pydantic SecretStr for secure API key storage. Created OpenAIConfig model with timeout (default 300s), max_retries (default 2), organization, and base_url fields. Field validation: timeout 1-3600s, max_retries 0-10. Integrated into AppConfig via default_factory pattern. Updated OpenAIBackend to accept config parameter with priority chain: config.api_key > api_key parameter > OPENAI_API_KEY env var. Config fields (organization, base_url, timeout) passed to OpenAI client initialization. Backward compatibility maintained with existing api_key parameter. 35 new tests pass with comprehensive coverage of SecretStr handling, priority chain, and integration.
+
 ## Session Continuity
 
 Last session: 2026-03-25 (Phase 6 in progress - OpenAI Backend)
-Stopped at: Plan 06-01 complete, ready for Plan 06-02 (OpenAI Configuration)
+Stopped at: Plan 06-02 complete, ready for Plan 06-03 (Error Handling and Key Protection)
 Resume file: None
 
-Next action: Continue with Plan 06-02 (OpenAI Configuration integration)
+Next action: Continue with Plan 06-03 (Error Handling and Key Protection integration tests)
