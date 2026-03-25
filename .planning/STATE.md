@@ -24,9 +24,9 @@ See: .planning/PROJECT.md (created 2025-03-24)
 ## Current Position
 
 Phase: 10 of 10 (Complete Interface)
-Plan: 1 of 5 in current phase (in progress)
-Status: Phase 10-01 complete (SRT and VTT formatters)
-Last activity: 2026-03-25 — Plan 10-01 complete (SRT and VTT Output Serializers)
+Plan: 2 of 5 in current phase (just completed)
+Status: Phase 10-02 complete (File Output with Directory Creation)
+Last activity: 2026-03-25 — Plan 10-02 complete (Atomic file writer with format auto-detection)
 
 Progress: [█████████░] 90%
 
@@ -137,8 +137,10 @@ Key architectural decisions:
   - **[Plan 07-03]:** Integration tests skip gracefully when faster-whisper not installed - pytest.mark.skipif pattern
  - **[Plan 07-03]:** Test audio created dynamically with wave module (1-second silence) - no external fixtures needed
   - **[Plan 07-03]:** Pre-existing test failure (Segment.text empty string) documented as out of scope - deferred to Phase 4 cleanup
-  - **[Plan 10-01]:** SRT and VTT subtitle formatters for video/web players
-  - **[Plan 10-01]:** SRT uses comma (,) for milliseconds separator, VTT uses period (.) per specification
+   - **[Plan 10-01]:** SRT and VTT subtitle formatters for video/web players
+   - **[Plan 10-01]:** SRT uses comma (,) for milliseconds separator, VTT uses period (.) per specification
+   - **[Plan 10-02]:** AUD-600 error code for output exceptions (new category beyond pipeline)
+   - **[Plan 10-02]:** Atomic write pattern with temp file then os.replace for filesystem safety
 
 ### Pending Todos
 
@@ -209,13 +211,16 @@ Pipeline error recovery and cleanup implementation. Created pipeline-specific ex
 **Plan 10-01 Execution:**
 SRT and VTT subtitle formatters implemented. Created format_srt() and format_vtt() functions following existing text.py and json.py patterns. SRT uses comma (,) for milliseconds in HH:MM:SS,mmm format with sequential numbering starting from 1. VTT uses period (.) for milliseconds in HH:MM:SS.mmm format with WEBVTT header and no numbering. Both formatters handle empty segments gracefully (empty string for SRT, WEBVTT header only for VTT). 102 total output tests pass (text: 19, json: 23, srt: 24, vtt: 27, imports: 7). 100% coverage on output module.
 
+**Plan 10-02 Execution:**
+File output writer implemented with atomic write pattern and format auto-detection. Created OutputFileConfig Pydantic model (overwrite, create_dirs, encoding fields) with strict=True. Implemented write_output() for atomic file writing: write to temp file, then os.replace for atomic move. Added OutputFileExistsError (AUD-600) for overwrite protection when file exists and overwrite=False. Created format_and_write() for one-line API: TranscriptionResult → formatted file. Auto-detects format from file extension (.txt, .json, .srt, .vtt) with fallback to options.output_format. Handles stdout when path=None. 40 unit tests pass for file_writer module, 135 total output tests. All exports available from audiocore.output and audiocore.errors.
+
 ## Session Continuity
 
-Last session: 2026-03-25 (Phase 10-01 complete - SRT and VTT Output Serializers)
-Stopped at: Plan 10-01 complete, Phase 10 in progress
+Last session: 2026-03-25 (Phase 10-02 complete - File Output with Directory Creation)
+Stopped at: Plan 10-02 complete, Phase 10 in progress
 Resume file: None
 
-Next action: Continue Phase 10 with Plan 10-02 (CLI implementation)
+Next action: Continue Phase 10 with Plan 10-03 (CLI implementation)
   - **[Plan 09-01]:** Pipeline class with transcribe orchestration, uses BackendSelector for automatic backend selection, temp_file cleanup via context manager
   - **[Plan 09-02]:** Progress callbacks (ProgressCallback Protocol, PipelineStage enum), CancellationToken for clean termination
   - **[Plan 09-03]:** Output formatters (text/JSON), formatted_output in TranscriptionResult, pure functions for formatting
