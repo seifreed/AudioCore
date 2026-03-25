@@ -355,3 +355,238 @@ class TestTranscribeOptions:
 
         with pytest.raises(typer.BadParameter):
             parse_selection_policy("invalid")
+
+
+class TestBatchTranscription:
+    """Test batch transcription functionality."""
+
+    def test_single_file_mode(self, audio_file: Path, mock_pipeline: MagicMock) -> None:
+        """Test single file mode (no --parallel needed)."""
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file)])
+
+        assert result.exit_code == 0
+        assert "Hello world" in result.output
+
+    def test_multiple_files_batch_mode(self, tmp_path: Path) -> None:
+        """Test multiple files enables batch mode."""
+        import asyncio
+
+        from audiocore.parallel.files import FileResult
+
+        # Create multiple audio files
+        files = []
+        for i in range(3):
+            audio_file = tmp_path / f"test{i}.wav"
+            audio_file.write_bytes(b"fake audio data")
+            files.append(audio_file)
+
+        # Mock transcribe_files_concurrent
+        mock_results = [
+            FileResult(
+                path=f,
+                success=True,
+                result=TranscriptionResult(
+                    segments=[Segment(start_time=0.0, end_time=5.0, text=f"File {i}")],
+                    media_info=MediaInfo(duration=5.0, format="wav", sample_rate=16000, channels=1),
+                    config_used=TranscriptionOptions(),
+                    duration_seconds=2.0,
+                    backend_used=BackendType.OPENAI,
+                    formatted_output=f"File {i}",
+                ),
+                error=None,
+            )
+            for i, f in enumerate(files)
+        ]
+
+        async def mock_transcribe_concurrent(*args, **kwargs):
+            return mock_results
+
+        with patch(
+            "audiocore.cli.transcribe.transcribe_files_concurrent",
+            side_effect=mock_transcribe_concurrent,
+        ):
+            result = runner.invoke(app, [str(f) for f in files])
+
+        assert result.exit_code == 0
+        assert "3 file(s)" in result.output
+
+    def test_max_workers_option(self, tmp_path: Path) -> None:
+        """Test --max-workers flag limits concurrency."""
+        from audiocore.parallel.files import FileResult
+
+        files = []
+        for i in range(2):
+            audio_file = tmp_path / f"test{i}.wav"
+            audio_file.write_bytes(b"fake audio data")
+            files.append(audio_file)
+
+        mock_results = [
+            FileResult(
+                path=f,
+                success=True,
+                result=TranscriptionResult(
+                    segments=[Segment(start_time=0.0, end_time=5.0, text="test")],
+                    media_info=MediaInfo(duration=5.0, format="wav", sample_rate=16000, channels=1),
+                    config_used=TranscriptionOptions(),
+                    duration_seconds=2.0,
+                    backend_used=BackendType.OPENAI,
+                    formatted_output="test",
+                ),
+                error=None,
+            )
+            for f in files
+        ]
+
+        captured_kwargs = {}
+
+        async def mock_transcribe_concurrent(*args, **kwargs):
+            captured_kwargs["max_workers"] = kwargs.get("max_workers", 4)
+            return mock_results
+
+        with patch(
+            "audiocore.cli.transcribe.transcribe_files_concurrent",
+            side_effect=mock_transcribe_concurrent,
+        ):
+            result = runner.invoke(app, [str(f) for f in files] + ["--max-workers", "2"])
+
+        assert result.exit_code == 0
+        assert captured_kwargs.get("max_workers") == 2
+
+    def test_batch_mode_with_output_dir(self, tmp_path: Path) -> None:
+        """Test batch mode with output directory."""
+        from audiocore.parallel.files import FileResult
+
+        files = []
+        for i in range(2):
+            audio_file = tmp_path / f"test{i}.wav"
+            audio_file.write_bytes(b"fake audio data")
+            files.append(audio_file)
+
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        mock_results = [
+            FileResult(
+                path=f,
+                success=True,
+                result=TranscriptionResult(
+                    segments=[Segment(start_time=0.0, end_time=5.0, text="test")],
+                    media_info=MediaInfo(duration=5.0, format="wav", sample_rate=16000, channels=1),
+                    config_used=TranscriptionOptions(),
+                    duration_seconds=2.0,
+                    backend_used=BackendType.OPENAI,
+                    formatted_output="test",
+                ),
+                error=None,
+            )
+            for f in files
+        ]
+
+        async def mock_transcribe_concurrent(*args, **kwargs):
+            return mock_results
+
+        with patch(
+            "audiocore.cli.transcribe.transcribe_files_concurrent",
+            side_effect=mock_transcribe_concurrent,
+        ):
+            result = runner.invoke(app, [str(f) for f in files] + ["--output-dir", str(output_dir)])
+
+        assert result.exit_code == 0
+
+    def test_batch_mode_exit_code_on_failure(self, tmp_path: Path) -> None:
+        """Test exit code 1 when any file fails in batch mode."""
+        from audiocore.parallel.files import FileResult
+
+        files = []
+        for i in range(3):
+            audio_file = tmp_path / f"test{i}.wav"
+            audio_file.write_bytes(b"fake audio data")
+            files.append(audio_file)
+
+        # One file fails
+        mock_results = [
+            FileResult(
+                path=files[0],
+                success=True,
+                result=TranscriptionResult(
+                    segments=[Segment(start_time=0.0, end_time=5.0, text="test")],
+                    media_info=MediaInfo(duration=5.0, format="wav", sample_rate=16000, channels=1),
+                    config_used=TranscriptionOptions(),
+                    duration_seconds=2.0,
+                    backend_used=BackendType.OPENAI,
+                    formatted_output="test",
+                ),
+                error=None,
+            ),
+            FileResult(
+                path=files[1],
+                success=False,
+                result=None,
+                error="Transcription failed",
+            ),
+            FileResult(
+                path=files[2],
+                success=True,
+                result=TranscriptionResult(
+                    segments=[Segment(start_time=0.0, end_time=5.0, text="test")],
+                    media_info=MediaInfo(duration=5.0, format="wav", sample_rate=16000, channels=1),
+                    config_used=TranscriptionOptions(),
+                    duration_seconds=2.0,
+                    backend_used=BackendType.OPENAI,
+                    formatted_output="test",
+                ),
+                error=None,
+            ),
+        ]
+
+        async def mock_transcribe_concurrent(*args, **kwargs):
+            return mock_results
+
+        with patch(
+            "audiocore.cli.transcribe.transcribe_files_concurrent",
+            side_effect=mock_transcribe_concurrent,
+        ):
+            result = runner.invoke(app, [str(f) for f in files])
+
+        assert result.exit_code == 1
+        assert "failed" in result.output.lower()
+
+    def test_batch_mode_all_success(self, tmp_path: Path) -> None:
+        """Test exit code 0 when all files succeed in batch mode."""
+        from audiocore.parallel.files import FileResult
+
+        files = []
+        for i in range(2):
+            audio_file = tmp_path / f"test{i}.wav"
+            audio_file.write_bytes(b"fake audio data")
+            files.append(audio_file)
+
+        mock_results = [
+            FileResult(
+                path=f,
+                success=True,
+                result=TranscriptionResult(
+                    segments=[Segment(start_time=0.0, end_time=5.0, text="test")],
+                    media_info=MediaInfo(duration=5.0, format="wav", sample_rate=16000, channels=1),
+                    config_used=TranscriptionOptions(),
+                    duration_seconds=2.0,
+                    backend_used=BackendType.OPENAI,
+                    formatted_output="test",
+                ),
+                error=None,
+            )
+            for f in files
+        ]
+
+        async def mock_transcribe_concurrent(*args, **kwargs):
+            return mock_results
+
+        with patch(
+            "audiocore.cli.transcribe.transcribe_files_concurrent",
+            side_effect=mock_transcribe_concurrent,
+        ):
+            result = runner.invoke(app, [str(f) for f in files])
+
+        assert result.exit_code == 0
+        assert "successfully" in result.output.lower()
