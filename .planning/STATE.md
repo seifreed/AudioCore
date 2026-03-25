@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-03-25T09:01:50.375Z"
+status: in_progress
+last_updated: "2026-03-25T09:04:16.000Z"
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 12
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 # Project State
@@ -19,23 +19,23 @@ See: .planning/PROJECT.md (created 2025-03-24)
 
 **Core value:** AudioCore bridges cloud and local transcription with automatic backend selection, handling audio extraction, VAD segmentation, and output formatting so developers don't have to.
 
-**Current focus:** Ready for Phase 4: VAD Processing
+**Current focus:** Phase 4: VAD Processing - Plan 02 complete
 
 ## Current Position
 
 Phase: 4 of 10 (VAD Processing)
-Plan: 1 of 3 in current phase
-Status: In progress - Plan 01 complete
-Last activity: 2026-03-25 — Plan 04-01 complete (Silero VAD integration)
+Plan: 2 of 3 in current phase
+Status: In progress - Plan 02 complete
+Last activity: 2026-03-25 — Plan 04-02 complete (VADConfig configuration)
 
-Progress: [████░░░░░░] 31%
+Progress: [████████░░] 33%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
+- Total plans completed: 11
 - Average duration: 12 min
-- Total execution time: 2.04 hours
+- Total execution time: 2.14 hours
 
 **By Phase:**
 
@@ -44,20 +44,12 @@ Progress: [████░░░░░░] 31%
 | 01-foundation | 3 | 3 | 6 min |
 | 02-configuration-system | 3 | 3 | 28 min |
 | 03-media-ingestion | 3 | 3 | 3 min |
-| 04-vad-processing | 1 | 3 | 9 min |
+| 04-vad-processing | 2 | 3 | 9 min |
 
 **Recent Trend:**
-- 01-01: Exception Hierarchy (8 min, 3 tasks, 14 files)
-- 01-02: Type Enums (7 min, 3 tasks, 36 files)
-- 01-03: Domain Models (3 min, 3 tasks, 8 files)
-- 02-01: AppConfig Settings (76 min, 3 tasks, 4 files)
-- 02-02: TOML Configuration Loader (3 min, 3 tasks, 4 files)
-- 02-03: Configuration Priority Chain (4 min, 4 tasks, 4 files)
-- 03-01: Media Probe Function (4 min, 3 tasks, 8 files)
-- 03-02: Audio Extractor (4 min, 3 tasks, 3 files)
-- 03-03: Format Validation (2 min, 3 tasks, 6 files)
-- Trend: Fast execution, format validation complete
-| Phase 04-vad-processing P01 | 9 min | 3 tasks | 6 files |
+- 04-01: Silero VAD Integration (9 min, 3 tasks, 6 files)
+- 04-02: VAD Configuration (10 min, 3 tasks, 4 files)
+- Trend: Fast execution, VADConfig ready for segmentation
 
 ## Accumulated Context
 
@@ -91,6 +83,8 @@ Key architectural decisions:
 - **Phase 4:** Silero VAD via torch hub with cache fallback - automatic model management with offline capability
 - **Plan 04-01:** Thread-safe Lock at class definition - reliable singleton pattern, enables test mocking
 - **Plan 04-01:** VADConfig from audiocore.vad.config - reuse Pydantic validation, consistency with existing patterns
+- **Plan 04-02:** env_nested_delimiter='__' for nested config - enables AUDIOCORE_VAD__* env vars
+- **Plan 04-02:** Remove strict=True for nested models - allows pydantic-settings env var coercion
 - **Phase 5:** Minimal backend interface - YAGNI principle, add capabilities as needed
 - **Phase 9:** Pipeline orchestrator owns cleanup - centralized temp file management via context managers
 - [Phase 03-media-ingestion]: frozenset for format constants — immutable, performant, prevents accidental modification — Immutable constants are safer and thread-safe, membership testing is O(1)
@@ -136,10 +130,13 @@ Format validation module with SUPPORTED_FORMATS constants for audio (mp3, wav, m
 **Plan 04-01 Execution:**
 Silero VAD integration with lazy model loading and thread-safe singleton caching. Implemented SileroVAD class with torch.hub primary loading and ~/.cache/torch fallback for offline operation. Audio loading handles stereo-to-mono conversion and sample rate validation (16kHz required). Speech detection processes audio in configurable chunk sizes (512 default). Used existing VADConfig from audiocore.vad.config instead of creating duplicate. Fixed lock initialization at class definition for reliable test mocking. 17 unit tests pass (1 skipped integration test).
 
+**Plan 04-02 Execution:**
+VADConfig Pydantic model created with 7 VAD parameters (min/max segment duration, speech/silence thresholds, speech pad, min silence duration, window size). Integrated into AppConfig with env_nested_delimiter='__' for AUDIOCORE_VAD__* env vars. Removed strict=True to enable pydantic-settings coercion. Cross-field validation ensures speech_threshold > silence_threshold and min_segment_duration < max_segment_duration. 32 unit tests pass with comprehensive coverage.
+
 ## Session Continuity
 
 Last session: 2026-03-25 (Phase 4 in progress)
-Stopped at: Plan 04-01 complete, ready for Plan 04-02
+Stopped at: Plan 04-02 complete, ready for Plan 04-03
 Resume file: None
 
-Next action: Run `/gsd-execute-phase 04` to continue with Plan 04-02, or run `/gsd-verify-work` to verify phase 04
+Next action: Run `/gsd-execute-phase 04` to continue with Plan 04-03, or run `/gsd-verify-work` to verify phase 04
