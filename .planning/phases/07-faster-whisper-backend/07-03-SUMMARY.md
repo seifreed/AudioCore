@@ -195,3 +195,16 @@ Ready to advance to Phase 8.
 - [x] Backend registry shows both backends
 - [x] Coverage meets threshold (74%)
 - [x] No test regressions
+
+## Self-Check: PASSED ✓
+
+- [x] Integration test file created: `tests/integration/backends/test_faster_whisper_integration.py`
+- [x] Registry tests updated: `tests/unit/backends/test_registry.py`
+- [x] Summary file created: `.planning/phases/07-faster-whisper-backend/07-03-SUMMARY.md`
+- [x] Deferred items documented: `.planning/phases/07-faster-whisper-backend/deferred-items.md`
+- [x] Commit created: test(07-03): 5ca5a87
+- [x] State updated: Phase 07 complete (3/3 plans)
+- [x] Requirements marked complete: FAUX-01, FAUX-02, FAUX-03
+- [x] All 199 unit tests pass
+- [x] All 10 integration tests skip correctly
+- [x] No test regressions
