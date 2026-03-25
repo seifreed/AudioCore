@@ -9,7 +9,7 @@ Available backends:
 - Faster-Whisper local backend (Phase 7)
 
 Example:
-    >>> from audiocore.backends import TranscriptionBackend
+    >>> from audiocore.backends import TranscriptionBackend, BackendRegistry
     >>> from audiocore.types import BackendType
     >>>
     >>> class MyBackend(TranscriptionBackend):
@@ -18,8 +18,13 @@ Example:
     ...         return BackendType.OPENAI
     ...
     ...     # ... implement other abstract methods
+    >>>
+    >>> # Register your backend
+    >>> registry = BackendRegistry()
+    >>> registry.register(BackendType.OPENAI, MyBackend)
 """
 
 from audiocore.backends.base import TranscriptionBackend, is_backend_available
+from audiocore.backends.registry import BackendRegistry
 
-__all__ = ["TranscriptionBackend", "is_backend_available"]
+__all__ = ["TranscriptionBackend", "is_backend_available", "BackendRegistry"]
