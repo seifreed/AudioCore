@@ -29,7 +29,10 @@ class Segment(BaseModel):
 
     start_time: float = Field(ge=0, description="Start time of the segment in seconds")
     end_time: float = Field(ge=0, description="End time of the segment in seconds")
-    text: str = Field(min_length=1, description="Transcribed text content for this segment")
+    text: str = Field(
+        default="",
+        description="Transcribed text content for this segment (empty before transcription)",
+    )
     confidence: Optional[float] = Field(
         default=None, ge=0, le=1, description="Confidence score between 0 and 1 (optional)"
     )
