@@ -25,6 +25,12 @@ Cancellation tokens enable clean termination mid-pipeline:
 """
 
 from audiocore.pipeline.cancellation import CancellationToken, CancelledError
+from audiocore.pipeline.errors import (
+    PartialResultError,
+    PipelineCancelledError,
+    PipelineError,
+    PipelineStageError,
+)
 from audiocore.pipeline.orchestrator import Pipeline, transcribe
 from audiocore.pipeline.progress import PipelineStage, ProgressCallback, ProgressEvent
 
@@ -39,4 +45,9 @@ __all__ = [
     # Cancellation types
     "CancellationToken",
     "CancelledError",
+    # Pipeline error types
+    "PipelineError",
+    "PipelineStageError",
+    "PipelineCancelledError",
+    "PartialResultError",
 ]

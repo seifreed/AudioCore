@@ -48,6 +48,16 @@ from audiocore.errors.processing import (
 # Note: CancelledError (AUD-500) is in audiocore.pipeline.cancellation
 # to avoid circular imports. Import from audiocore.pipeline.cancellation directly.
 
+# Pipeline-specific exceptions (AUD-501 to AUD-504)
+# These are imported here for convenience, but defined in audiocore.pipeline.errors
+# to avoid circular imports with PipelineStage.
+from audiocore.pipeline.errors import (
+    PartialResultError,
+    PipelineCancelledError,
+    PipelineError,
+    PipelineStageError,
+)
+
 __all__ = [
     # Base
     "AudioCoreError",
@@ -71,4 +81,9 @@ __all__ = [
     "ProcessingError",
     "VADError",
     "MediaError",
+    # Pipeline exceptions (AUD-501 to AUD-504)
+    "PipelineError",
+    "PipelineStageError",
+    "PipelineCancelledError",
+    "PartialResultError",
 ]
