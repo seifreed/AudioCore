@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 6: OpenAI Backend** - Whisper API integration with error handling
 - [ ] **Phase 7: Faster-Whisper Backend** - Local transcription with model management
 - [ ] **Phase 8: Backend Selection** - Automatic and explicit backend selection policies
-- [ ] **Phase 9: Pipeline & Core Output** - Transcription orchestrator with text/JSON output
+- [x] **Phase 9: Pipeline & Core Output** - Transcription orchestrator with text/JSON output (2026-03-25)
 - [ ] **Phase 10: Complete Interface** - CLI, API, subtitle formats, and parallelism
 
 ## Phase Details
@@ -198,10 +198,10 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 09-01: Pipeline orchestrator implementation
-- [ ] 09-02: Progress callbacks and cancellation
-- [ ] 09-03: Plain text and JSON output serializers
-- [ ] 09-04: Pipeline error recovery and cleanup
+- [x] 09-01: Pipeline orchestrator implementation (2026-03-25)
+- [x] 09-02: Progress callbacks and cancellation (2026-03-25)
+- [x] 09-03: Plain text and JSON output serializers (2026-03-25)
+- [x] 09-04: Pipeline error recovery and cleanup (2026-03-25)
 
 ---
 
@@ -250,7 +250,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. OpenAI Backend | 0/3 | Not started | - |
 | 7. Faster-Whisper Backend | 0/3 | Not started | - |
 | 8. Backend Selection | 0/2 | Not started | - |
-| 9. Pipeline & Core Output | 0/4 | Not started | - |
+| 9. Pipeline & Core Output | 4/4 | Complete | 2026-03-25 |
 | 10. Complete Interface | 0/5 | Not started | - |
 
 ## Coverage Summary
