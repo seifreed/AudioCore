@@ -723,7 +723,7 @@ Real-time transcription API.
 | API-01 | Phase 10: Complete Interface | Pending |
 | API-02 | Phase 10: Complete Interface | Pending |
 | API-03 | Phase 10: Complete Interface | Pending |
-| PARA-01 | Phase 10: Complete Interface | Pending |
-| PARA-02 | Phase 10: Complete Interface | Pending |
+| PARA-01 | Phase 10: Complete Interface | Complete |
+| PARA-02 | Phase 10: Complete Interface | Complete |
 
 **Coverage Summary:** 39/39 v1 requirements mapped to phases
