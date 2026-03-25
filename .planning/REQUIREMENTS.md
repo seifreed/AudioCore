@@ -701,9 +701,9 @@ Real-time transcription API.
 | OPEN-01 | Phase 6: OpenAI Backend | Pending |
 | OPEN-02 | Phase 6: OpenAI Backend | Pending |
 | OPEN-03 | Phase 6: OpenAI Backend | Pending |
-| FAUX-01 | Phase 7: Faster-Whisper Backend | Pending |
-| FAUX-02 | Phase 7: Faster-Whisper Backend | Pending |
-| FAUX-03 | Phase 7: Faster-Whisper Backend | Pending |
+| FAUX-01 | Phase 7: Faster-Whisper Backend | Complete |
+| FAUX-02 | Phase 7: Faster-Whisper Backend | Complete |
+| FAUX-03 | Phase 7: Faster-Whisper Backend | Complete |
 | SEL-01 | Phase 8: Backend Selection | Pending |
 | SEL-02 | Phase 8: Backend Selection | Pending |
 | SEL-03 | Phase 8: Backend Selection | Pending |

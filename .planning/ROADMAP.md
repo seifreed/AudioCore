@@ -158,9 +158,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 07-01: Faster-whisper integration with model loading
-- [ ] 07-02: Faster-whisper configuration options
-- [ ] 07-03: Model download and cache management
+- [ ] 07-01: Model Manager and Configuration
+- [ ] 07-02: FasterWhisperBackend Implementation
+- [ ] 07-03: Integration and Registry
 
 ---
 
