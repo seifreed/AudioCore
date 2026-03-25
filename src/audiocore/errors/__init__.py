@@ -13,6 +13,7 @@ Exception categories:
 - Backend: BackendError, BackendUnavailableError, TranscriptionError (AUD-200 to AUD-299)
 - API: APIError, AuthenticationError, RateLimitError, APITimeoutError (AUD-300 to AUD-399)
 - Processing: ProcessingError, VADError (AUD-400 to AUD-499)
+- Pipeline: CancelledError (AUD-500) - imported from audiocore.pipeline.cancellation
 """
 
 from audiocore.errors.base import AudioCoreError
@@ -43,6 +44,9 @@ from audiocore.errors.processing import (
     VADError,
     MediaError,
 )
+
+# Note: CancelledError (AUD-500) is in audiocore.pipeline.cancellation
+# to avoid circular imports. Import from audiocore.pipeline.cancellation directly.
 
 __all__ = [
     # Base
