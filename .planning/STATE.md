@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-03-25T21:30:00Z"
+last_updated: "2026-03-25T18:52:00Z"
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 26
-  completed_plans: 26
+  completed_plans: 27
 ---
 
 # Project State
@@ -24,16 +24,16 @@ See: .planning/PROJECT.md (created 2025-03-24)
 ## Current Position
 
 Phase: 10 of 10 (Complete Interface)
-Plan: 4 of 5 in current phase (just completed)
-Status: Phase 10-04 complete (Public API with Sync and Async Support)
-Last activity: 2026-03-25 — Plan 10-04 complete (Public API with transcribe() and async_transcribe())
+Plan: 3 of 5 in current phase (just completed)
+Status: Phase 10-03 complete (CLI Commands Implementation)
+Last activity: 2026-03-25 — Plan 10-03 complete (CLI with transcribe, backends, models, config commands)
 
 Progress: [█████████░] 90%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 27
+- Total plans completed: 28
 - Average duration: 12 min
 - Total execution time: 5.4 hours
 
@@ -132,18 +132,23 @@ Key architectural decisions:
  - **[Plan 07-01]:** Thread-safe singleton pattern for ModelManager with class-level Lock - same pattern as SileroVAD, reliable test mocking via clear()
  - **[Plan 07-01]:** Field validators with mode='before' for Pydantic strict mode string-to-enum coercion - preserves strict=True while enabling string input
  - **[Plan 07-02]:** Lazy model loading in _load_model() method - model created on first transcribe() call to avoid startup overhead
- - **[Plan 07-02]:** Configuration parameters passed directly from FasterWhisperConfig to faster-whisper API - all config fields mapped to model.transcribe()
+   - **[Plan 07-02]:** Configuration parameters passed directly from FasterWhisperConfig to faster-whisper API - all config fields mapped to model.transcribe()
   - **[Plan 07-02]:** Minimum duration 0.01s fallback for zero-duration files - MediaInfo validation requirement
   - **[Plan 07-03]:** Integration tests skip gracefully when faster-whisper not installed - pytest.mark.skipif pattern
- - **[Plan 07-03]:** Test audio created dynamically with wave module (1-second silence) - no external fixtures needed
+  - **[Plan 07-03]:** Test audio created dynamically with wave module (1-second silence) - no external fixtures needed
   - **[Plan 07-03]:** Pre-existing test failure (Segment.text empty string) documented as out of scope - deferred to Phase 4 cleanup
-   - **[Plan 10-01]:** SRT and VTT subtitle formatters for video/web players
-   - **[Plan 10-01]:** SRT uses comma (,) for milliseconds separator, VTT uses period (.) per specification
- - **[Plan 10-02]:** AUD-600 error code for output exceptions (new category beyond pipeline)
-    - **[Plan 10-02]:** Atomic write pattern with temp file then os.replace for filesystem safety
-   - **[Plan 10-04]:** Lazy imports via __getattr__ in main __init__.py to avoid circular dependencies
-   - **[Plan 10-04]:** ThreadPoolExecutor with max_workers=4 for async_transcribe thread pool
-   - **[Plan 10-04]:** Re-export all exceptions from main package for convenient access
+  - **[Plan 10-01]:** SRT and VTT subtitle formatters for video/web players
+  - **[Plan 10-01]:** SRT uses comma (,) for milliseconds separator, VTT uses period (.) per specification
+  - **[Plan 10-02]:** AUD-600 error code for output exceptions (new category beyond pipeline)
+  - **[Plan 10-02]:** Atomic write pattern with temp file then os.replace for filesystem safety
+  - **[Plan 10-03]:** Typer for CLI framework - standard choice for Python CLIs with excellent Rich integration
+  - **[Plan 10-03]:** Rich progress bars for transcription stages - visual feedback for long operations
+  - **[Plan 10-03]:** Exit codes for different error types - enables scriptable error handling
+  - **[Plan 10-03]:** API key masking in config show - prevents accidental credential exposure
+  - **[Plan 10-03]:** Force flag for model removal - prevents accidental data loss
+  - **[Plan 10-04]:** Lazy imports via __getattr__ in main __init__.py to avoid circular dependencies
+  - **[Plan 10-04]:** ThreadPoolExecutor with max_workers=4 for async_transcribe thread pool
+  - **[Plan 10-04]:** Re-export all exceptions from main package for convenient access
 
 ### Pending Todos
 
@@ -220,13 +225,16 @@ File output writer implemented with atomic write pattern and format auto-detecti
 **Plan 10-04 Execution:**
 Public API module implemented with transcribe() and async_transcribe() functions. Created audiocore.api package with exports for all public symbols. Implemented async_transcribe() using ThreadPoolExecutor (max_workers=4) with asyncio.run_in_executor() for non-blocking operations. Added lazy imports via __getattr__ in main __init__.py to avoid circular dependency chain (audiocore → audiocore.api → audiocore.pipeline → audiocore.backends → audiocore.config). Added shutdown_executor() for thread pool cleanup. All 22 exception types exported from main package. 25 unit tests pass covering imports, sync transcribe, async transcribe, concurrent execution, and executor shutdown.
 
+**Plan 10-03 Execution:**
+CLI module implemented with Typer framework and Rich for formatted output. Created transcribe command with all options (backend, model, language, format, output-path, backend-preference). Implemented backend management commands (list_backends, check_backends) using BackendAvailabilityChecker. Implemented model management commands (list_models, download_model, remove_model) using ModelManager. Implemented config commands (show_config, config_path) with API key masking (sk-*** pattern). Rich progress bars for transcription stages. Meaningful exit codes (0 success, 1-5 errors). 69 unit tests pass covering all CLI commands, options, error handling, and exit codes.
+
 ## Session Continuity
 
-Last session: 2026-03-25 (Phase 10-04 complete - Public API Module)
-Stopped at: Plan 10-04 complete, Phase 10 in progress
+Last session: 2026-03-25 (Phase 10-03 complete - CLI Commands Implementation)
+Stopped at: Plan 10-03 complete, Phase 10 in progress
 Resume file: None
 
-Next action: Continue Phase 10 with Plan 10-03 (CLI implementation) or Plan 10-05
+Next action: Continue Phase 10 with Plan 10-04 or 10-05 (if needed)
   - **[Plan 09-01]:** Pipeline class with transcribe orchestration, uses BackendSelector for automatic backend selection, temp_file cleanup via context manager
   - **[Plan 09-02]:** Progress callbacks (ProgressCallback Protocol, PipelineStage enum), CancellationToken for clean termination
   - **[Plan 09-03]:** Output formatters (text/JSON), formatted_output in TranscriptionResult, pure functions for formatting
