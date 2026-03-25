@@ -17,21 +17,9 @@ import torch
 from torch import nn
 
 from audiocore.errors import VADError
+from audiocore.vad.config import VADConfig
 
-
-@dataclass
-class VADConfig:
-    """Configuration for VAD processing.
-
-    Attributes:
-        threshold: Speech probability threshold (0.0 to 1.0).
-        min_speech_duration: Minimum silence duration in seconds to split segments.
-        min_silence_duration: Minimum silence duration in seconds to split segments.
-    """
-
-    threshold: float = 0.5
-    min_speech_duration: float = 0.25
-    min_silence_duration: float = 0.5
+import threading
 
 
 class SileroVAD:
@@ -56,7 +44,7 @@ class SileroVAD:
     """
 
     _model: nn.Module | None = None
-    _lock: Any = None  # Will be threading.Lock at class level
+    _lock: threading.Lock = threading.Lock()  # Initialized at class definition
     _sample_rate: int = 16000  # Silero requires 16kHz audio
 
     def __init__(self, config: VADConfig | None = None) -> None:
@@ -65,12 +53,6 @@ class SileroVAD:
         Args:
             config: Optional VAD configuration. Uses defaults if not provided.
         """
-        # Initialize class-level lock only once
-        if SileroVAD._lock is None:
-            import threading
-
-            SileroVAD._lock = threading.Lock()
-
         self.config = config or VADConfig()
 
     @classmethod
@@ -228,7 +210,7 @@ class SileroVAD:
         Args:
             audio_data: Audio samples as float array (normalized to [-1, 1]).
             sample_rate: Sample rate of audio (must be 16000 for Silero).
-            config: Optional VAD configuration. Uses instance config if not provided.
+            config: Optional VAD configuration. Uses defaults if not provided.
 
         Returns:
             List of (start_time, end_time, confidence) tuples where times are in seconds
@@ -251,21 +233,25 @@ class SileroVAD:
                 ],
             )
 
-        # Use provided config or instance config
-        vad_config = config or self.config
+        # Use provided config or create default
+        if config is None:
+            config = VADConfig()
 
         # Get thread-safe model instance
         model = self.get_model()
         model.reset_states()
 
-        # Process audio in 512-sample chunks (Silero optimal size)
-        chunk_size = 512
+        # Use window_size_samples from config (default 512, optimal for Silero)
+        chunk_size = config.window_size_samples
         segments: list[tuple[float, float, float]] = []
 
         # Track speech state
         in_speech = False
         speech_start_time: float | None = None
         chunk_confidences: list[float] = []
+
+        # Convert min_silence_duration from ms to seconds for threshold
+        min_silence_duration_s = config.min_silence_duration_ms / 1000.0
 
         # Process each chunk
         for i in range(0, len(audio_data) - chunk_size + 1, chunk_size):
@@ -279,7 +265,7 @@ class SileroVAD:
                 speech_prob = model(chunk_tensor, sample_rate).item()
 
             # Determine if we're in speech based on threshold
-            is_speech = speech_prob > vad_config.threshold
+            is_speech = speech_prob > config.speech_threshold
 
             # Track state transitions
             current_time = i / sample_rate
@@ -297,7 +283,7 @@ class SileroVAD:
                 speech_duration = current_time - (speech_start_time or 0.0)
 
                 # Only record if above minimum duration
-                if speech_duration >= vad_config.min_speech_duration:
+                if speech_duration >= config.min_segment_duration:
                     # Calculate mean confidence
                     mean_confidence = float(np.mean(chunk_confidences))
                     segments.append((speech_start_time or 0.0, current_time, mean_confidence))
@@ -312,7 +298,7 @@ class SileroVAD:
             end_time = len(audio_data) / sample_rate
             speech_duration = end_time - speech_start_time
 
-            if speech_duration >= vad_config.min_speech_duration:
+            if speech_duration >= config.min_segment_duration:
                 mean_confidence = float(np.mean(chunk_confidences))
                 segments.append((speech_start_time, end_time, mean_confidence))
 

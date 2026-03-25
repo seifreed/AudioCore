@@ -5,5 +5,6 @@ speech segments, reducing unnecessary transcription time.
 """
 
 from audiocore.vad.config import VADConfig
+from audiocore.vad.silero import SileroVAD
 
-__all__ = ["VADConfig"]
+__all__ = ["SileroVAD", "VADConfig"]
