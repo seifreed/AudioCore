@@ -1,0 +1,357 @@
+"""Unit tests for CLI transcribe command.
+
+Tests verify:
+- Command invocation with various options
+- Output to file and stdout
+- Error handling and exit codes
+- Progress display
+"""
+
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+from typer.testing import CliRunner
+
+from audiocore.cli.transcribe import app, transcribe
+from audiocore.models import MediaInfo, Segment, TranscriptionOptions, TranscriptionResult
+from audiocore.pipeline.progress import PipelineStage
+from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
+
+
+runner = CliRunner()
+
+
+@pytest.fixture
+def mock_pipeline() -> MagicMock:
+    """Create a mock Pipeline instance."""
+    mock = MagicMock()
+    mock.transcribe.return_value = TranscriptionResult(
+        segments=[
+            Segment(start_time=0.0, end_time=5.0, text="Hello world"),
+            Segment(start_time=5.0, end_time=10.0, text="This is a test"),
+        ],
+        media_info=MediaInfo(duration=10.0, format="wav", sample_rate=16000, channels=1),
+        config_used=TranscriptionOptions(),
+        duration_seconds=5.0,
+        backend_used=BackendType.OPENAI,
+        formatted_output="Hello world\nThis is a test",
+    )
+    return mock
+
+
+@pytest.fixture
+def audio_file(tmp_path: Path) -> Path:
+    """Create a temporary audio file for testing."""
+    audio_path = tmp_path / "test.wav"
+    audio_path.write_bytes(b"fake audio data")
+    return audio_path
+
+
+class TestTranscribeCommand:
+    """Test transcribe command functionality."""
+
+    def test_transcribe_basic(self, audio_file: Path, mock_pipeline: MagicMock) -> None:
+        """Test basic transcription to stdout."""
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file)])
+
+        assert result.exit_code == 0
+        assert "Hello world" in result.output
+
+    def test_transcribe_to_file(
+        self, audio_file: Path, mock_pipeline: MagicMock, tmp_path: Path
+    ) -> None:
+        """Test transcription to output file."""
+        output_file = tmp_path / "output.txt"
+
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file), "--output", str(output_file)])
+
+        assert result.exit_code == 0
+        assert "Transcription saved to" in result.output
+
+    def test_transcribe_with_format(self, audio_file: Path, mock_pipeline: MagicMock) -> None:
+        """Test transcription with specific output format."""
+        mock_pipeline.transcribe.return_value = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=5.0, text="Test segment")],
+            media_info=MediaInfo(duration=5.0, format="wav", sample_rate=16000, channels=1),
+            config_used=TranscriptionOptions(output_format=OutputFormat.JSON),
+            duration_seconds=2.0,
+            backend_used=BackendType.OPENAI,
+            formatted_output='{"segments": [{"text": "Test segment"}]}',
+        )
+
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file), "--format", "json"])
+
+        assert result.exit_code == 0
+
+    def test_transcribe_with_backend(self, audio_file: Path, mock_pipeline: MagicMock) -> None:
+        """Test transcription with specific backend."""
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file), "--backend", "openai"])
+
+        assert result.exit_code == 0
+
+        # Verify options passed correctly
+        call_args = mock_pipeline.transcribe.call_args
+        assert call_args is not None
+        options = call_args[1]["options"]
+        assert options.backend == BackendType.OPENAI
+
+    def test_transcribe_with_language(self, audio_file: Path, mock_pipeline: MagicMock) -> None:
+        """Test transcription with language option."""
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file), "--language", "en"])
+
+        assert result.exit_code == 0
+
+        # Verify language passed
+        call_args = mock_pipeline.transcribe.call_args
+        assert call_args is not None
+        options = call_args[1]["options"]
+        assert options.language == "en"
+
+    def test_transcribe_with_model(self, audio_file: Path, mock_pipeline: MagicMock) -> None:
+        """Test transcription with model size option."""
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file), "--model", "small"])
+
+        assert result.exit_code == 0
+
+        # Verify model size passed
+        call_args = mock_pipeline.transcribe.call_args
+        assert call_args is not None
+        options = call_args[1]["options"]
+        assert options.model_size == ModelSize.SMALL
+
+    def test_transcribe_with_backend_preference(
+        self, audio_file: Path, mock_pipeline: MagicMock
+    ) -> None:
+        """Test transcription with backend preference."""
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file), "--prefer", "prefer_local"])
+
+        assert result.exit_code == 0
+
+        # Verify preference passed
+        call_args = mock_pipeline.transcribe.call_args
+        assert call_args is not None
+        options = call_args[1]["options"]
+        assert options.backend_preference == SelectionPolicy.PREFER_LOCAL
+
+    def test_transcribe_file_not_found(self, mock_pipeline: MagicMock) -> None:
+        """Test transcription with non-existent file."""
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, ["/nonexistent/audio.mp3"])
+
+        # Typer handles file validation before command runs
+        assert result.exit_code != 0
+
+    def test_transcribe_invalid_backend(self, audio_file: Path, mock_pipeline: MagicMock) -> None:
+        """Test transcription with invalid backend type."""
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file), "--backend", "invalid_backend"])
+
+        assert result.exit_code != 0
+
+    def test_transcribe_invalid_model(self, audio_file: Path, mock_pipeline: MagicMock) -> None:
+        """Test transcription with invalid model size."""
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file), "--model", "huge"])
+
+        assert result.exit_code != 0
+
+    def test_transcribe_invalid_format(self, audio_file: Path, mock_pipeline: MagicMock) -> None:
+        """Test transcription with invalid output format."""
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file), "--format", "invalid"])
+
+        assert result.exit_code != 0
+
+
+class TestTranscribeErrorHandling:
+    """Test error handling in transcribe command."""
+
+    def test_file_not_found_error(self, audio_file: Path) -> None:
+        """Test FileNotFoundError handling."""
+        mock_pipeline = MagicMock()
+        mock_pipeline.transcribe.side_effect = FileNotFoundError("File not found")
+
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file)])
+
+        assert result.exit_code == 1
+        assert "Error" in result.output
+
+    def test_permission_error(self, audio_file: Path) -> None:
+        """Test PermissionError handling."""
+        mock_pipeline = MagicMock()
+        mock_pipeline.transcribe.side_effect = PermissionError("Permission denied")
+
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file)])
+
+        assert result.exit_code == 1
+        assert "Error" in result.output
+
+    def test_config_error(self, audio_file: Path) -> None:
+        """Test configuration error handling."""
+        from audiocore.errors import ConfigurationError
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.transcribe.side_effect = ConfigurationError(
+            "Invalid configuration",
+            context={},
+            suggestions=["Fix the configuration"],
+        )
+
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file)])
+
+        assert result.exit_code == 2
+
+    def test_backend_unavailable_error(self, audio_file: Path) -> None:
+        """Test BackendUnavailableError handling."""
+        from audiocore.errors import BackendUnavailableError
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.transcribe.side_effect = BackendUnavailableError(
+            "Backend not available",
+            context={},
+            suggestions=["Install backend"],
+        )
+
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file)])
+
+        assert result.exit_code == 4
+
+    def test_output_error(self, audio_file: Path) -> None:
+        """Test output error handling."""
+        from audiocore.errors import MediaFormatError
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.transcribe.side_effect = MediaFormatError(
+            "Invalid format",
+            context={},
+            suggestions=["Use supported format"],
+        )
+
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file)])
+
+        assert result.exit_code != 0
+
+    def test_processing_error(self, audio_file: Path) -> None:
+        """Test processing error handling."""
+        from audiocore.errors import MediaError
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.transcribe.side_effect = MediaError(
+            "Processing failed",
+            context={},
+            suggestions=["Try again"],
+        )
+
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file)])
+
+        assert result.exit_code == 3
+
+
+class TestTranscribeProgress:
+    """Test progress display in transcribe command."""
+
+    def test_progress_callback_called(self, audio_file: Path, mock_pipeline: MagicMock) -> None:
+        """Test that progress callback is passed to pipeline.transcribe()."""
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file)])
+
+        assert result.exit_code == 0
+
+        # Verify progress_callback was passed
+        call_args = mock_pipeline.transcribe.call_args
+        assert call_args is not None
+        assert "progress_callback" in call_args[1]
+        assert call_args[1]["progress_callback"] is not None
+
+
+class TestTranscribeOptions:
+    """Test option parsing for transcribe command."""
+
+    def test_parse_backend_type_valid(self) -> None:
+        """Test valid backend type parsing."""
+        from audiocore.cli.transcribe import parse_backend_type
+
+        assert parse_backend_type("openai") == BackendType.OPENAI
+        assert parse_backend_type("OPENAI") == BackendType.OPENAI
+        assert parse_backend_type("OpenAI") == BackendType.OPENAI
+        assert parse_backend_type("faster_whisper") == BackendType.FASTER_WHISPER
+
+    def test_parse_backend_type_invalid(self) -> None:
+        """Test invalid backend type parsing."""
+        import typer
+
+        from audiocore.cli.transcribe import parse_backend_type
+
+        with pytest.raises(typer.BadParameter):
+            parse_backend_type("invalid")
+
+    def test_parse_model_size_valid(self) -> None:
+        """Test valid model size parsing."""
+        from audiocore.cli.transcribe import parse_model_size
+
+        assert parse_model_size("tiny") == ModelSize.TINY
+        assert parse_model_size("TINY") == ModelSize.TINY
+        assert parse_model_size("Tiny") == ModelSize.TINY
+        assert parse_model_size("base") == ModelSize.BASE
+        assert parse_model_size("small") == ModelSize.SMALL
+        assert parse_model_size("medium") == ModelSize.MEDIUM
+        assert parse_model_size("large") == ModelSize.LARGE
+
+    def test_parse_model_size_invalid(self) -> None:
+        """Test invalid model size parsing."""
+        import typer
+
+        from audiocore.cli.transcribe import parse_model_size
+
+        with pytest.raises(typer.BadParameter):
+            parse_model_size("huge")
+
+    def test_parse_output_format_valid(self) -> None:
+        """Test valid output format parsing."""
+        from audiocore.cli.transcribe import parse_output_format
+
+        assert parse_output_format("text") == OutputFormat.TEXT
+        assert parse_output_format("TEXT") == OutputFormat.TEXT
+        assert parse_output_format("json") == OutputFormat.JSON
+        assert parse_output_format("srt") == OutputFormat.SRT
+        assert parse_output_format("vtt") == OutputFormat.VTT
+
+    def test_parse_output_format_invalid(self) -> None:
+        """Test invalid output format parsing."""
+        import typer
+
+        from audiocore.cli.transcribe import parse_output_format
+
+        with pytest.raises(typer.BadParameter):
+            parse_output_format("invalid")
+
+    def test_parse_selection_policy_valid(self) -> None:
+        """Test valid selection policy parsing."""
+        from audiocore.cli.transcribe import parse_selection_policy
+
+        assert parse_selection_policy("auto") == SelectionPolicy.AUTO
+        assert parse_selection_policy("prefer_local") == SelectionPolicy.PREFER_LOCAL
+        assert parse_selection_policy("prefer_cloud") == SelectionPolicy.PREFER_CLOUD
+
+    def test_parse_selection_policy_invalid(self) -> None:
+        """Test invalid selection policy parsing."""
+        import typer
+
+        from audiocore.cli.transcribe import parse_selection_policy
+
+        with pytest.raises(typer.BadParameter):
+            parse_selection_policy("invalid")
