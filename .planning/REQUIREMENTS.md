@@ -696,8 +696,8 @@ Real-time transcription API.
 | VAD-01 | Phase 4: VAD Processing | Complete |
 | VAD-02 | Phase 4: VAD Processing | Complete |
 | VAD-03 | Phase 4: VAD Processing | Complete |
-| BACK-01 | Phase 5: Backend Abstraction | Pending |
-| BACK-02 | Phase 5: Backend Abstraction | Pending |
+| BACK-01 | Phase 5: Backend Abstraction | Complete |
+| BACK-02 | Phase 5: Backend Abstraction | Complete |
 | OPEN-01 | Phase 6: OpenAI Backend | Pending |
 | OPEN-02 | Phase 6: OpenAI Backend | Pending |
 | OPEN-03 | Phase 6: OpenAI Backend | Pending |
