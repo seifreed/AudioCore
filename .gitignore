@@ -95,3 +95,6 @@ tests/fixtures/audio/*.mp4
 *.temp
 tmp/
 temp/
+
+# Video files (large)
+videos/
