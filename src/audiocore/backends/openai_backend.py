@@ -10,6 +10,7 @@ Key Features:
 - OpenAI exception mapping to AudioCore exceptions
 - API key redaction in all error messages
 - Support for multiple response formats (verbose_json)
+- Configuration via OpenAIConfig
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ from openai import (
     RateLimitError as OpenAIRateLimitError,
 )
 
+from audiocore.config.openai_config import OpenAIConfig
 from audiocore.errors import (
     APIError,
     APITimeoutError,
@@ -54,9 +56,12 @@ class OpenAIBackend(TranscriptionBackend):
         backend_type: Returns BackendType.OPENAI.
         _client: Lazily-initialized OpenAI client instance.
         _api_key: API key for OpenAI (optional, uses environment if not provided).
+        _config: OpenAIConfig instance (optional, provides configuration).
 
     Example:
-        >>> backend = OpenAIBackend(api_key="sk-...")
+        >>> from audiocore.config.openai_config import OpenAIConfig
+        >>> config = OpenAIConfig(api_key="sk-...")
+        >>> backend = OpenAIBackend(config=config)
         >>> if backend.is_available():
         ...     result = backend.transcribe("audio.mp3", TranscriptionOptions())
         ...     print(result.segments[0].text)
@@ -71,18 +76,38 @@ class OpenAIBackend(TranscriptionBackend):
         - API key is redacted from all error messages
     """
 
-    def __init__(self, api_key: str | None = None) -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        config: OpenAIConfig | None = None,
+    ) -> None:
         """Initialize OpenAI backend.
 
         Args:
             api_key: OpenAI API key. If not provided, uses OPENAI_API_KEY
-                environment variable.
+                environment variable. (deprecated: use config instead)
+            config: OpenAIConfig instance. If provided, takes precedence over
+                api_key parameter for configuration.
 
         Note:
             Client is lazily initialized on first transcribe() call.
+            Priority: config.api_key > api_key > OPENAI_API_KEY env var
         """
         self._client: OpenAI | None = None
-        self._api_key: str | None = api_key
+        self._api_key: str | None = None
+        self._config: OpenAIConfig | None = config
+
+        # Extract API key from config if provided
+        if config is not None and config.api_key is not None:
+            self._api_key = config.api_key.get_secret_value()
+        elif api_key is not None:
+            self._api_key = api_key
+
+        # Log initialization status
+        logger.debug(
+            "OpenAIBackend initialized with %s",
+            "config" if config is not None else "api_key" if api_key is not None else "environment",
+        )
 
     @property
     def backend_type(self) -> BackendType:
@@ -143,7 +168,7 @@ class OpenAIBackend(TranscriptionBackend):
             BackendUnavailableError: If API key is not configured.
         """
         if self._client is None:
-            # Determine API key source
+            # Determine API key source (priority: config > constructor > env var)
             api_key = self._api_key
             if api_key is None:
                 import os
@@ -156,11 +181,23 @@ class OpenAIBackend(TranscriptionBackend):
                     context={"backend": "openai"},
                     suggestions=[
                         "Set OPENAI_API_KEY environment variable",
+                        "Pass config parameter to OpenAIBackend constructor",
                         "Pass api_key parameter to OpenAIBackend constructor",
                     ],
                 )
 
-            self._client = OpenAI(api_key=api_key)
+            # Build client kwargs from config if available
+            client_kwargs: dict[str, object] = {"api_key": api_key}
+            if self._config is not None:
+                if self._config.organization is not None:
+                    client_kwargs["organization"] = self._config.organization
+                if self._config.base_url is not None:
+                    client_kwargs["base_url"] = self._config.base_url
+                if self._config.timeout:
+                    client_kwargs["timeout"] = self._config.timeout
+                # Note: max_retries is handled by the OpenAI client internally
+
+            self._client = OpenAI(**client_kwargs)  # type: ignore[arg-type]
 
         return self._client
 
