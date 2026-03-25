@@ -247,40 +247,24 @@ class FasterWhisperBackend(TranscriptionBackend):
             params["language"] = self.config.language
 
         # Decoding parameters from config
-        if self.config.beam_size:
-            params["beam_size"] = self.config.beam_size
-
-        if self.config.best_of:
-            params["best_of"] = self.config.best_of
-
-        if self.config.patience:
-            params["patience"] = self.config.patience
-
-        if self.config.temperature:
-            params["temperature"] = self.config.temperature
+        params["beam_size"] = self.config.beam_size
+        params["best_of"] = self.config.best_of
+        params["patience"] = self.config.patience
+        params["temperature"] = self.config.temperature
 
         # Thresholds from config
-        if self.config.compression_ratio_threshold:
-            params["compression_ratio_threshold"] = self.config.compression_ratio_threshold
-
-        if self.config.log_prob_threshold:
-            params["log_prob_threshold"] = self.config.log_prob_threshold
-
-        if self.config.no_speech_threshold:
-            params["no_speech_threshold"] = self.config.no_speech_threshold
+        params["compression_ratio_threshold"] = self.config.compression_ratio_threshold
+        params["log_prob_threshold"] = self.config.log_prob_threshold
+        params["no_speech_threshold"] = self.config.no_speech_threshold
 
         # Advanced options from config
-        if self.config.condition_on_previous_text is not None:
-            params["condition_on_previous_text"] = self.config.condition_on_previous_text
+        params["condition_on_previous_text"] = self.config.condition_on_previous_text
+        params["word_timestamps"] = self.config.word_timestamps
+        params["vad_filter"] = self.config.vad_filter
 
+        # Optional initial_prompt
         if self.config.initial_prompt:
             params["initial_prompt"] = self.config.initial_prompt
-
-        if self.config.word_timestamps is not None:
-            params["word_timestamps"] = self.config.word_timestamps
-
-        if self.config.vad_filter is not None:
-            params["vad_filter"] = self.config.vad_filter
 
         logger.debug(
             "Starting faster-whisper transcription for %s with params: %s",
@@ -306,11 +290,14 @@ class FasterWhisperBackend(TranscriptionBackend):
             # Get duration from info
             duration = info.duration if hasattr(info, "duration") and info.duration else 0.0
 
+            # Use minimum duration if zero (MediaInfo requires duration > 0)
+            media_duration = duration if duration > 0 else 0.01
+
             # Build media info
             from audiocore.models import MediaInfo
 
             media_info = MediaInfo(
-                duration=duration,
+                duration=media_duration,
                 format=audio_path.suffix.lstrip("."),
             )
 
