@@ -11,6 +11,7 @@ from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
+from audiocore.vad.config import VADConfig
 
 
 class AppConfig(BaseSettings):
@@ -32,6 +33,7 @@ class AppConfig(BaseSettings):
         language: Language code for transcription (e.g., "en", "es") or None
         output_format: Output format for transcription results
         backend_preference: Policy for automatic backend selection
+        vad: Voice Activity Detection configuration
     """
 
     model_config = SettingsConfigDict(
@@ -39,6 +41,7 @@ class AppConfig(BaseSettings):
         case_sensitive=False,
         env_file=None,
         extra="forbid",
+        env_nested_delimiter="__",
     )
 
     openai_api_key: Annotated[SecretStr, Field(default_factory=lambda: SecretStr(""))] = Field(
@@ -73,6 +76,10 @@ class AppConfig(BaseSettings):
     ffmpeg_path: str = Field(
         default="ffmpeg",
         description="Path to ffmpeg binary for media processing",
+    )
+    vad: VADConfig = Field(
+        default_factory=VADConfig,
+        description="Voice Activity Detection configuration",
     )
 
     @field_validator("backend", mode="before")

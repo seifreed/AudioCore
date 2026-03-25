@@ -27,7 +27,7 @@ class VADConfig(BaseModel):
             Silero optimal values: 512, 768, or 1024.
     """
 
-    model_config = {"strict": True, "extra": "forbid"}
+    model_config = {"extra": "forbid"}
 
     min_segment_duration: float = Field(
         default=0.5,

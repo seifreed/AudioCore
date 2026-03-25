@@ -4,6 +4,6 @@ This module provides VAD functionality for segmenting audio into
 speech segments, reducing unnecessary transcription time.
 """
 
-from audiocore.vad.silero import SileroVAD
+from audiocore.vad.config import VADConfig
 
-__all__ = ["SileroVAD"]
+__all__ = ["VADConfig"]
