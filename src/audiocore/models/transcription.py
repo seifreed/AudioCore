@@ -90,3 +90,7 @@ class TranscriptionResult(BaseModel):
     )
     duration_seconds: float = Field(ge=0, description="Processing duration in seconds")
     backend_used: BackendType = Field(description="Backend that performed this transcription")
+    formatted_output: str | None = Field(
+        default=None,
+        description="Formatted transcription output (text or JSON based on output_format)",
+    )

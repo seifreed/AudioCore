@@ -8,6 +8,8 @@ Tests the main Pipeline class that coordinates:
 - Backend selection
 - Transcription execution
 - Result assembly
+- Progress callbacks
+- Cancellation support
 """
 
 from pathlib import Path
@@ -21,7 +23,8 @@ from audiocore.errors import BackendUnavailableError, MediaError, MediaFormatErr
 from audiocore.models import MediaInfo, Segment, TranscriptionOptions, TranscriptionResult
 from audiocore.pipeline import Pipeline, transcribe
 from audiocore.pipeline.orchestrator import Pipeline as PipelineClass
-from audiocore.types import BackendType, SelectionPolicy
+from audiocore.pipeline.cancellation import CancelledError
+from audiocore.types import BackendType, OutputFormat, SelectionPolicy
 
 
 @pytest.fixture
@@ -795,3 +798,546 @@ class TestPipelineStageEnum:
         # The actual enum definition should be in a separate module
         # For now, we're testing that stages can be tracked
         pass
+
+
+class TestPipelineProgressCallbacks:
+    """Test progress callback integration in Pipeline."""
+
+    @patch("audiocore.pipeline.orchestrator.validate_format_or_raise")
+    @patch("audiocore.pipeline.orchestrator.probe")
+    @patch("audiocore.pipeline.orchestrator.extract_audio")
+    @patch("audiocore.pipeline.orchestrator.detect_speech")
+    @patch("audiocore.pipeline.orchestrator.temp_audio_file")
+    def test_progress_callback_emitted_at_each_stage(
+        self,
+        mock_temp_file,
+        mock_detect_speech,
+        mock_extract_audio,
+        mock_probe,
+        mock_validate,
+        mock_backend,
+        mock_media_info,
+        mock_segments,
+        tmp_path,
+    ):
+        """Progress callback is invoked at each pipeline stage."""
+        from audiocore.pipeline.progress import PipelineStage
+
+        # Setup mocks
+        mock_validate.return_value = None
+        mock_probe.return_value = mock_media_info
+        mock_detect_speech.return_value = mock_segments
+
+        # Setup temp file context manager
+        temp_path = tmp_path / "temp.wav"
+        temp_path.touch()
+        mock_temp_file.return_value.__enter__ = MagicMock(return_value=temp_path)
+        mock_temp_file.return_value.__exit__ = MagicMock(return_value=False)
+
+        # Track all callback invocations
+        callback_events: list[tuple[PipelineStage, float, str]] = []
+
+        def progress_callback(stage: PipelineStage, progress: float, message: str) -> None:
+            callback_events.append((stage, progress, message))
+
+        # Mock registry and selector
+        pipeline = Pipeline()
+        pipeline._registry.get_backend = MagicMock(return_value=mock_backend)
+        pipeline._selector.select = MagicMock(return_value=BackendType.OPENAI)
+
+        # Execute with progress callback
+        audio_file = tmp_path / "audio.mp3"
+        audio_file.touch()
+        pipeline.transcribe(audio_file, progress_callback=progress_callback)
+
+        # Assert callback was invoked at each major stage
+        stages_invoked = [event[0] for event in callback_events]
+        assert PipelineStage.PROBING in stages_invoked
+        assert PipelineStage.EXTRACTING in stages_invoked
+        assert PipelineStage.VAD in stages_invoked
+        assert PipelineStage.SELECTING in stages_invoked
+        assert PipelineStage.TRANSCRIBING in stages_invoked
+        assert PipelineStage.COMPLETE in stages_invoked
+
+    @patch("audiocore.pipeline.orchestrator.validate_format_or_raise")
+    @patch("audiocore.pipeline.orchestrator.probe")
+    @patch("audiocore.pipeline.orchestrator.extract_audio")
+    @patch("audiocore.pipeline.orchestrator.detect_speech")
+    @patch("audiocore.pipeline.orchestrator.temp_audio_file")
+    def test_progress_callback_receives_progress_values(
+        self,
+        mock_temp_file,
+        mock_detect_speech,
+        mock_extract_audio,
+        mock_probe,
+        mock_validate,
+        mock_backend,
+        mock_media_info,
+        mock_segments,
+        tmp_path,
+    ):
+        """Progress callback receives progress values (0.0 to 1.0)."""
+        from audiocore.pipeline.progress import PipelineStage
+
+        # Setup mocks
+        mock_validate.return_value = None
+        mock_probe.return_value = mock_media_info
+        mock_detect_speech.return_value = mock_segments
+
+        # Setup temp file context manager
+        temp_path = tmp_path / "temp.wav"
+        temp_path.touch()
+        mock_temp_file.return_value.__enter__ = MagicMock(return_value=temp_path)
+        mock_temp_file.return_value.__exit__ = MagicMock(return_value=False)
+
+        # Track progress values
+        progress_values: list[float] = []
+
+        def progress_callback(stage: PipelineStage, progress: float, message: str) -> None:
+            progress_values.append(progress)
+
+        # Mock registry and selector
+        pipeline = Pipeline()
+        pipeline._registry.get_backend = MagicMock(return_value=mock_backend)
+        pipeline._selector.select = MagicMock(return_value=BackendType.OPENAI)
+
+        # Execute with progress callback
+        audio_file = tmp_path / "audio.mp3"
+        audio_file.touch()
+        pipeline.transcribe(audio_file, progress_callback=progress_callback)
+
+        # Assert all progress values are in valid range [0.0, 1.0]
+        assert all(0.0 <= p <= 1.0 for p in progress_values), f"Invalid progress: {progress_values}"
+        # Assert at least some progress values are at 1.0 (completion)
+        assert any(p == 1.0 for p in progress_values), "No completion progress found"
+
+    @patch("audiocore.pipeline.orchestrator.validate_format_or_raise")
+    @patch("audiocore.pipeline.orchestrator.probe")
+    @patch("audiocore.pipeline.orchestrator.extract_audio")
+    @patch("audiocore.pipeline.orchestrator.detect_speech")
+    @patch("audiocore.pipeline.orchestrator.temp_audio_file")
+    def test_progress_callback_optional(
+        self,
+        mock_temp_file,
+        mock_detect_speech,
+        mock_extract_audio,
+        mock_probe,
+        mock_validate,
+        mock_backend,
+        mock_media_info,
+        mock_segments,
+        tmp_path,
+    ):
+        """Pipeline works without progress callback."""
+        # Setup mocks
+        mock_validate.return_value = None
+        mock_probe.return_value = mock_media_info
+        mock_detect_speech.return_value = mock_segments
+
+        # Setup temp file context manager
+        temp_path = tmp_path / "temp.wav"
+        temp_path.touch()
+        mock_temp_file.return_value.__enter__ = MagicMock(return_value=temp_path)
+        mock_temp_file.return_value.__exit__ = MagicMock(return_value=False)
+
+        # Mock registry and selector
+        pipeline = Pipeline()
+        pipeline._registry.get_backend = MagicMock(return_value=mock_backend)
+        pipeline._selector.select = MagicMock(return_value=BackendType.OPENAI)
+
+        # Execute without progress callback (should not raise)
+        audio_file = tmp_path / "audio.mp3"
+        audio_file.touch()
+        result = pipeline.transcribe(audio_file)
+
+        assert result is not None
+        assert isinstance(result, TranscriptionResult)
+
+    @patch("audiocore.pipeline.orchestrator.validate_format_or_raise")
+    @patch("audiocore.pipeline.orchestrator.probe")
+    @patch("audiocore.pipeline.orchestrator.extract_audio")
+    @patch("audiocore.pipeline.orchestrator.detect_speech")
+    @patch("audiocore.pipeline.orchestrator.temp_audio_file")
+    def test_progress_callback_with_messages(
+        self,
+        mock_temp_file,
+        mock_detect_speech,
+        mock_extract_audio,
+        mock_probe,
+        mock_validate,
+        mock_backend,
+        mock_media_info,
+        mock_segments,
+        tmp_path,
+    ):
+        """Progress callback receives descriptive messages."""
+        from audiocore.pipeline.progress import PipelineStage
+
+        # Setup mocks
+        mock_validate.return_value = None
+        mock_probe.return_value = mock_media_info
+        mock_detect_speech.return_value = mock_segments
+
+        # Setup temp file context manager
+        temp_path = tmp_path / "temp.wav"
+        temp_path.touch()
+        mock_temp_file.return_value.__enter__ = MagicMock(return_value=temp_path)
+        mock_temp_file.return_value.__exit__ = MagicMock(return_value=False)
+
+        # Track messages
+        messages: list[str] = []
+
+        def progress_callback(stage: PipelineStage, progress: float, message: str) -> None:
+            messages.append(message)
+
+        # Mock registry and selector
+        pipeline = Pipeline()
+        pipeline._registry.get_backend = MagicMock(return_value=mock_backend)
+        pipeline._selector.select = MagicMock(return_value=BackendType.OPENAI)
+
+        # Execute with progress callback
+        audio_file = tmp_path / "audio.mp3"
+        audio_file.touch()
+        pipeline.transcribe(audio_file, progress_callback=progress_callback)
+
+        # Assert all messages are non-empty strings
+        assert all(isinstance(m, str) and len(m) > 0 for m in messages)
+
+
+class TestPipelineCancellation:
+    """Test cancellation token integration in Pipeline."""
+
+    @patch("audiocore.pipeline.orchestrator.validate_format_or_raise")
+    @patch("audiocore.pipeline.orchestrator.probe")
+    @patch("audiocore.pipeline.orchestrator.extract_audio")
+    @patch("audiocore.pipeline.orchestrator.detect_speech")
+    @patch("audiocore.pipeline.orchestrator.temp_audio_file")
+    def test_cancellation_token_not_cancelled(
+        self,
+        mock_temp_file,
+        mock_detect_speech,
+        mock_extract_audio,
+        mock_probe,
+        mock_validate,
+        mock_backend,
+        mock_media_info,
+        mock_segments,
+        tmp_path,
+    ):
+        """Pipeline completes successfully when cancellation token is not cancelled."""
+        from audiocore.pipeline.cancellation import CancellationToken
+
+        # Setup mocks
+        mock_validate.return_value = None
+        mock_probe.return_value = mock_media_info
+        mock_detect_speech.return_value = mock_segments
+
+        # Setup temp file context manager
+        temp_path = tmp_path / "temp.wav"
+        temp_path.touch()
+        mock_temp_file.return_value.__enter__ = MagicMock(return_value=temp_path)
+        mock_temp_file.return_value.__exit__ = MagicMock(return_value=False)
+
+        # Create non-cancelled token
+        token = CancellationToken()
+
+        # Mock registry and selector
+        pipeline = Pipeline()
+        pipeline._registry.get_backend = MagicMock(return_value=mock_backend)
+        pipeline._selector.select = MagicMock(return_value=BackendType.OPENAI)
+
+        # Execute with cancellation token (not cancelled)
+        audio_file = tmp_path / "audio.mp3"
+        audio_file.touch()
+        result = pipeline.transcribe(audio_file, cancellation_token=token)
+
+        # Should complete successfully
+        assert result is not None
+        assert isinstance(result, TranscriptionResult)
+
+    @patch("audiocore.pipeline.orchestrator.validate_format_or_raise")
+    def test_cancellation_at_format_validation(
+        self,
+        mock_validate,
+        mock_backend,
+        mock_media_info,
+        tmp_path,
+    ):
+        """Pipeline raises CancelledError when cancelled at format validation."""
+        from audiocore.pipeline.cancellation import CancellationToken
+
+        # Make validate pass
+        mock_validate.return_value = None
+
+        # Create cancelled token at format validation stage
+        token = CancellationToken()
+        token.cancel()
+
+        pipeline = Pipeline()
+
+        # Execute and expect cancellation
+        audio_file = tmp_path / "audio.mp3"
+        audio_file.touch()
+
+        with pytest.raises(CancelledError):
+            pipeline.transcribe(audio_file, cancellation_token=token)
+
+    @patch("audiocore.pipeline.orchestrator.validate_format_or_raise")
+    @patch("audiocore.pipeline.orchestrator.probe")
+    @patch("audiocore.pipeline.orchestrator.extract_audio")
+    @patch("audiocore.pipeline.orchestrator.detect_speech")
+    @patch("audiocore.pipeline.orchestrator.temp_audio_file")
+    def test_cancellation_after_probe(
+        self,
+        mock_temp_file,
+        mock_detect_speech,
+        mock_extract_audio,
+        mock_probe,
+        mock_validate,
+        mock_backend,
+        mock_media_info,
+        mock_segments,
+        tmp_path,
+    ):
+        """Pipeline can be cancelled after probe stage."""
+        from audiocore.pipeline.cancellation import CancellationToken
+
+        # Setup mocks
+        mock_validate.return_value = None
+        mock_probe.return_value = mock_media_info
+
+        # Setup temp file context manager
+        temp_path = tmp_path / "temp.wav"
+        temp_path.touch()
+        mock_temp_file.return_value.__enter__ = MagicMock(return_value=temp_path)
+        mock_temp_file.return_value.__exit__ = MagicMock(return_value=False)
+
+        # Create token that will be cancelled after probe
+        token = CancellationToken()
+
+        def cancel_after_probe(*args, **kwargs):
+            """Cancel token when probe is called."""
+            if not token.is_cancelled:
+                token.cancel()
+            return mock_media_info
+
+        mock_probe.side_effect = cancel_after_probe
+
+        # Mock registry and selector
+        pipeline = Pipeline()
+        pipeline._registry.get_backend = MagicMock(return_value=mock_backend)
+        pipeline._selector.select = MagicMock(return_value=BackendType.OPENAI)
+
+        # Execute and expect cancellation
+        audio_file = tmp_path / "audio.mp3"
+        audio_file.touch()
+
+        with pytest.raises(CancelledError):
+            pipeline.transcribe(audio_file, cancellation_token=token)
+
+    @patch("audiocore.pipeline.orchestrator.validate_format_or_raise")
+    @patch("audiocore.pipeline.orchestrator.probe")
+    @patch("audiocore.pipeline.orchestrator.extract_audio")
+    @patch("audiocore.pipeline.orchestrator.detect_speech")
+    @patch("audiocore.pipeline.orchestrator.temp_audio_file")
+    def test_cancellation_cleanup_temp_files(
+        self,
+        mock_temp_file,
+        mock_detect_speech,
+        mock_extract_audio,
+        mock_probe,
+        mock_validate,
+        mock_backend,
+        mock_media_info,
+        mock_segments,
+        tmp_path,
+    ):
+        """Pipeline cleans up temp files even when cancelled during processing."""
+        from audiocore.pipeline.cancellation import CancellationToken
+
+        # Setup mocks
+        mock_validate.return_value = None
+        mock_probe.return_value = mock_media_info
+
+        # Setup temp file context manager mock with proper enter/exit tracking
+        temp_path = tmp_path / "temp.wav"
+        temp_path.touch()
+        mock_context = MagicMock()
+        mock_context.__enter__ = MagicMock(return_value=temp_path)
+        mock_context.__exit__ = MagicMock(return_value=False)
+        mock_temp_file.return_value = mock_context
+
+        # Create token that will be cancelled during extraction
+        token = CancellationToken()
+
+        # Cancel after temp file is created (via side_effect in extract_audio)
+        def extract_and_cancel(*args, **kwargs):
+            # Cancel after temp file is created
+            token.cancel()
+            # Continue with normal extraction
+            return None
+
+        mock_extract_audio.side_effect = extract_and_cancel
+
+        # Mock registry and selector
+        pipeline = Pipeline()
+        pipeline._registry.get_backend = MagicMock(return_value=mock_backend)
+        pipeline._selector.select = MagicMock(return_value=BackendType.OPENAI)
+
+        # Execute and expect cancellation after extraction
+        audio_file = tmp_path / "audio.mp3"
+        audio_file.touch()
+
+        with pytest.raises(CancelledError):
+            pipeline.transcribe(audio_file, cancellation_token=token)
+
+        # Context manager cleanup should still be called (__exit__ called)
+        # (Note: temp_audio_file context manager handles cleanup)
+        mock_temp_file.assert_called_once()
+        mock_context.__exit__.assert_called()
+
+    @patch("audiocore.pipeline.orchestrator.Pipeline.transcribe")
+    def test_transcribe_with_progress_and_cancellation(
+        self,
+        mock_transcribe,
+        mock_transcription_result,
+    ):
+        """Convenience transcribe() accepts progress_callback and cancellation_token."""
+        from audiocore.pipeline.cancellation import CancellationToken
+        from audiocore.pipeline.progress import PipelineStage
+
+        mock_transcribe.return_value = mock_transcription_result
+
+        token = CancellationToken()
+        events: list[tuple[PipelineStage, float, str]] = []
+
+        def callback(stage: PipelineStage, progress: float, message: str) -> None:
+            events.append((stage, progress, message))
+
+        result = transcribe(
+            Path("audio.mp3"),
+            progress_callback=callback,
+            cancellation_token=token,
+        )
+
+        mock_transcribe.assert_called_once()
+        call_kwargs = mock_transcribe.call_args[1]
+        assert call_kwargs["progress_callback"] == callback
+        assert call_kwargs["cancellation_token"] == token
+        assert result == mock_transcription_result
+
+
+class TestOutputFormatting:
+    """Test output formatter integration in pipeline."""
+
+    def test_transcribe_uses_text_formatter_by_default(
+        self, mock_media_info, mock_segments, mock_transcription_result
+    ):
+        """Pipeline uses text formatter by default."""
+        pipeline = Pipeline()
+
+        with patch("audiocore.pipeline.orchestrator.validate_format_or_raise"):
+            with patch("audiocore.pipeline.orchestrator.probe", return_value=mock_media_info):
+                with patch("audiocore.pipeline.orchestrator.extract_audio"):
+                    with patch(
+                        "audiocore.pipeline.orchestrator.detect_speech",
+                        return_value=mock_segments,
+                    ):
+                        with patch.object(
+                            pipeline._registry,
+                            "get_backend",
+                        ) as mock_get_backend:
+                            mock_backend = MagicMock()
+                            mock_backend.transcribe.return_value = mock_transcription_result
+                            mock_get_backend.return_value = mock_backend
+
+                            with patch.object(
+                                pipeline._selector,
+                                "select",
+                                return_value=BackendType.OPENAI,
+                            ):
+                                result = pipeline.transcribe(Path("audio.mp3"))
+
+                                assert result.formatted_output is not None
+                                assert "[00:00:00.000]" in result.formatted_output
+
+    def test_transcribe_uses_json_formatter(
+        self, mock_media_info, mock_segments, mock_transcription_result
+    ):
+        """Pipeline uses JSON formatter when output_format is JSON."""
+        from audiocore.types import OutputFormat
+
+        options = TranscriptionOptions(output_format=OutputFormat.JSON)
+        pipeline = Pipeline()
+
+        with patch("audiocore.pipeline.orchestrator.validate_format_or_raise"):
+            with patch("audiocore.pipeline.orchestrator.probe", return_value=mock_media_info):
+                with patch("audiocore.pipeline.orchestrator.extract_audio"):
+                    with patch(
+                        "audiocore.pipeline.orchestrator.detect_speech",
+                        return_value=mock_segments,
+                    ):
+                        with patch.object(
+                            pipeline._registry,
+                            "get_backend",
+                        ) as mock_get_backend:
+                            mock_backend = MagicMock()
+                            mock_backend.transcribe.return_value = mock_transcription_result
+                            mock_get_backend.return_value = mock_backend
+
+                            with patch.object(
+                                pipeline._selector,
+                                "select",
+                                return_value=BackendType.OPENAI,
+                            ):
+                                result = pipeline.transcribe(Path("audio.mp3"), options=options)
+
+                                assert result.formatted_output is not None
+                                # JSON should start with {
+                                assert result.formatted_output.strip().startswith("{")
+
+    def test_formatted_output_includes_all_segments(self, mock_media_info):
+        """Formatted output includes all transcription segments."""
+        import json
+
+        # Create result with multiple segments
+        segments = [
+            Segment(start_time=0.0, end_time=5.0, text="Hello world"),
+            Segment(start_time=5.0, end_time=10.0, text="How are you"),
+        ]
+        result = TranscriptionResult(
+            segments=segments,
+            media_info=mock_media_info,
+            config_used=TranscriptionOptions(),
+            duration_seconds=15.0,
+            backend_used=BackendType.OPENAI,
+        )
+
+        pipeline = Pipeline()
+
+        with patch("audiocore.pipeline.orchestrator.validate_format_or_raise"):
+            with patch("audiocore.pipeline.orchestrator.probe", return_value=mock_media_info):
+                with patch("audiocore.pipeline.orchestrator.extract_audio"):
+                    with patch(
+                        "audiocore.pipeline.orchestrator.detect_speech",
+                        return_value=segments,
+                    ):
+                        with patch.object(pipeline._registry, "get_backend") as mock_get_backend:
+                            mock_backend = MagicMock()
+                            mock_backend.transcribe.return_value = result
+                            mock_get_backend.return_value = mock_backend
+
+                            with patch.object(
+                                pipeline._selector,
+                                "select",
+                                return_value=BackendType.OPENAI,
+                            ):
+                                options = TranscriptionOptions(output_format=OutputFormat.JSON)
+                                transcribed = pipeline.transcribe(
+                                    Path("audio.mp3"), options=options
+                                )
+
+                                # Parse JSON and verify segments
+                                data = json.loads(transcribed.formatted_output)
+                                assert len(data["segments"]) == 2
+                                assert data["segments"][0]["text"] == "Hello world"
