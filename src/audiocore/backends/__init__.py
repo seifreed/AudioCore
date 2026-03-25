@@ -25,11 +25,18 @@ Example:
 """
 
 from audiocore.backends.base import TranscriptionBackend, is_backend_available
+from audiocore.backends.faster_whisper_backend import FasterWhisperBackend
 from audiocore.backends.openai_backend import OpenAIBackend
 from audiocore.backends.registry import BackendRegistry
 from audiocore.types import BackendType
 
-__all__ = ["TranscriptionBackend", "is_backend_available", "BackendRegistry", "OpenAIBackend"]
+__all__ = [
+    "TranscriptionBackend",
+    "is_backend_available",
+    "BackendRegistry",
+    "OpenAIBackend",
+    "FasterWhisperBackend",
+]
 
 
 def register_builtin_backends() -> None:
@@ -38,6 +45,7 @@ def register_builtin_backends() -> None:
     This function registers all backends that are included with AudioCore.
     Currently includes:
     - OpenAI Whisper API backend (OPENAI)
+    - Faster-Whisper local backend (FASTER_WHISPER)
 
     Call this function to ensure backends are registered before using
     BackendRegistry for backend discovery.
@@ -52,3 +60,4 @@ def register_builtin_backends() -> None:
     """
     registry = BackendRegistry()
     registry.register(BackendType.OPENAI, OpenAIBackend)
+    registry.register(BackendType.FASTER_WHISPER, FasterWhisperBackend)
