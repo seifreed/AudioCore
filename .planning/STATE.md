@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-03-25T10:18:25.007Z"
+status: in_progress
+last_updated: "2026-03-25T10:47:00.000Z"
 progress:
-  total_phases: 6
-  completed_phases: 4
+  total_phases: 7
+  completed_phases: 5
   total_plans: 12
-  completed_plans: 17
+  completed_plans: 18
 ---
 
 # Project State
@@ -19,21 +19,21 @@ See: .planning/PROJECT.md (created 2025-03-24)
 
 **Core value:** AudioCore bridges cloud and local transcription with automatic backend selection, handling audio extraction, VAD segmentation, and output formatting so developers don't have to.
 
-**Current focus:** Phase 6: OpenAI Backend - In Progress
+**Current focus:** Phase 7: Faster-Whisper Backend - In Progress
 
 ## Current Position
 
-Phase: 6 of 10 (OpenAI Backend)
-Plan: 3 of 3 in current phase complete
-Status: Phase 6 complete (All OpenAI backend plans executed)
-Last activity: 2026-03-25 — Phase 06 complete (OpenAIBackend, OpenAIConfig, Integration Tests, Backend Registry)
+Phase: 7 of 10 (Faster-Whisper Backend)
+Plan: 1 of 3 in current phase complete
+Status: Plan 07-01 complete (FasterWhisperConfig, Device Detection, ModelManager)
+Last activity: 2026-03-25 — Plan 07-01 complete (Configuration, device utilities, HuggingFace Hub integration)
 
-Progress: [██████████] 100%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 16
+- Total plans completed: 17
 - Average duration: 11 min
 - Total execution time: 3.1 hours
 
@@ -47,6 +47,7 @@ Progress: [██████████] 100%
 | 04-vad-processing | 3 | 3 | 9 min |
 | 05-backend-abstraction | 2 | 2 | 10 min |
 | 06-openai-backend | 3 | 3 | 16 min |
+| 07-faster-whisper-backend | 1 | 3 | 15 min |
 
 **Recent Trend:**
 - 06-02: OpenAI Configuration (12 min, 4 tasks, 4 files)
@@ -112,7 +113,12 @@ Key architectural decisions:
 - **[Plan 06-03]:** Integration tests with pytest.mark.integration and graceful skip when no API key
 - **[Plan 06-03]:** Explicit register_builtin_backends() function avoids import side effects
 - **[Plan 06-03]:** Test audio file created dynamically with wave module (1-second silence)
-- **[Plan 06-03]:** Backend registry singleton with memization for single backend instance per type
+ - **[Plan 06-03]:** Backend registry singleton with memization for single backend instance per type
+ - **[Plan 07-01]:** StrEnum for DeviceType and ComputeType - string serialization compatible with faster-whisper API, inherits str for JSON compatibility
+ - **[Plan 07-01]:** Separate faster_whisper package under backends/ - clean organization allowing future backend additions
+ - **[Plan 07-01]:** Lazy HuggingFace Hub import in download_model() - avoids ImportError when huggingface-hub not installed
+ - **[Plan 07-01]:** Thread-safe singleton pattern for ModelManager with class-level Lock - same pattern as SileroVAD, reliable test mocking via clear()
+ - **[Plan 07-01]:** Field validators with mode='before' for Pydantic strict mode string-to-enum coercion - preserves strict=True while enabling string input
 
 ### Pending Todos
 
