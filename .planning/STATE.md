@@ -19,7 +19,7 @@ See: .planning/PROJECT.md (created 2025-03-24)
 
 **Core value:** AudioCore bridges cloud and local transcription with automatic backend selection, handling audio extraction, VAD segmentation, and output formatting so developers don't have to.
 
-**Current focus:** Phase 9: Pipeline Orchestrator - Plan 03 complete
+**Current focus:** Phase 9: Pipeline Orchestrator - Plans 01-04 complete
 
 ## Current Position
 
@@ -89,6 +89,11 @@ Key architectural decisions:
 - **Phase 4:** Silero VAD via torch hub with cache fallback - automatic model management with offline capability
 - **Plan 09-03:** Pure functions for output formatters — No side effects, easy to test, format_text() and format_json() return strings
 - **Plan 09-03:** formatted_output field in TranscriptionResult — Result contains both raw segments and formatted output, avoiding separate output pipelines
+- **Plan 09-02:** ProgressCallback as Protocol — Flexible interface for any callable, stage/progress/message signature
+- **Plan 09-02:** PipelineStage as str, Enum — Automatic JSON serialization compatibility
+- **Plan 09-02:** threading.Event for thread-safe cancellation — Atomic set/clear operations, wait() with timeout
+- **Plan 09-02:** CancelledError AUD-500 — Pipeline category exception inheriting from AudioCoreError
+- **Plan 09-02:** Cancellation checks at stage boundaries — Clean termination between PROBING, EXTRACTING, VAD, SELECTING, TRANSCRIBING, FORMATTING, COMPLETE
 - **Plan 04-01:** Thread-safe Lock at class definition - reliable singleton pattern, enables test mocking
 - **Plan 04-01:** VADConfig from audiocore.vad.config - reuse Pydantic validation, consistency with existing patterns
 - **Plan 04-02:** env_nested_delimiter='__' for nested config - enables AUDIOCORE_VAD__* env vars
