@@ -11,4 +11,7 @@ __version__ = "1.0.0"
 # Import commonly used exceptions for convenience
 from audiocore.errors import AudioCoreError
 
-__all__ = ["__version__", "AudioCoreError"]
+# Import convenience transcribe function for simple API
+from audiocore.pipeline import transcribe
+
+__all__ = ["__version__", "AudioCoreError", "transcribe"]
