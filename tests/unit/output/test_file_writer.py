@@ -8,7 +8,13 @@ from pathlib import Path
 import pytest
 
 from audiocore.errors.output import OutputFileExistsError
-from audiocore.output.file_writer import OutputFileConfig, write_output
+from audiocore.models import MediaInfo, Segment, TranscriptionOptions, TranscriptionResult
+from audiocore.output.file_writer import (
+    OutputFileConfig,
+    format_and_write,
+    write_output,
+)
+from audiocore.types import BackendType, OutputFormat
 
 
 class TestOutputFileConfig:
@@ -230,3 +236,153 @@ class TestAtomicWriteFailure:
         finally:
             # Restore permissions for cleanup
             readonly_dir.chmod(0o755)
+
+
+class TestFormatAndWrite:
+    """Tests for format_and_write function."""
+
+    def test_detect_srt_from_extension(self, tmp_path: Path) -> None:
+        """format_and_write detects SRT format from .srt extension."""
+        result = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=5.0, text="Hello")],
+            media_info=MediaInfo(duration=5.0, format="wav"),
+            config_used=TranscriptionOptions(),
+            duration_seconds=1.0,
+            backend_used=BackendType.OPENAI,
+        )
+
+        output_path = tmp_path / "output.srt"
+        format_and_write(result, TranscriptionOptions(), output_path)
+
+        content = output_path.read_text()
+        assert "1\n" in content  # SRT numbering
+        assert "00:00:00,000 --> 00:00:05,000" in content  # SRT timestamp format (comma)
+        assert "Hello" in content
+
+    def test_detect_vtt_from_extension(self, tmp_path: Path) -> None:
+        """format_and_write detects VTT format from .vtt extension."""
+        result = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=5.0, text="Hello")],
+            media_info=MediaInfo(duration=5.0, format="wav"),
+            config_used=TranscriptionOptions(),
+            duration_seconds=1.0,
+            backend_used=BackendType.OPENAI,
+        )
+
+        output_path = tmp_path / "output.vtt"
+        format_and_write(result, TranscriptionOptions(), output_path)
+
+        content = output_path.read_text()
+        assert content.startswith("WEBVTT\n")
+        assert "00:00:00.000 --> 00:00:05.000" in content  # VTT timestamp format (period)
+        assert "Hello" in content
+
+    def test_detect_json_from_extension(self, tmp_path: Path) -> None:
+        """format_and_write detects JSON format from .json extension."""
+        result = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=5.0, text="Hello")],
+            media_info=MediaInfo(duration=5.0, format="wav"),
+            config_used=TranscriptionOptions(),
+            duration_seconds=1.0,
+            backend_used=BackendType.OPENAI,
+        )
+
+        output_path = tmp_path / "output.json"
+        format_and_write(result, TranscriptionOptions(), output_path)
+
+        content = output_path.read_text()
+        assert '"segments"' in content
+        assert '"text": "Hello"' in content
+
+    def test_detect_text_from_extension(self, tmp_path: Path) -> None:
+        """format_and_write detects TEXT format from .txt extension."""
+        result = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=5.0, text="Hello")],
+            media_info=MediaInfo(duration=5.0, format="wav"),
+            config_used=TranscriptionOptions(),
+            duration_seconds=1.0,
+            backend_used=BackendType.OPENAI,
+        )
+
+        output_path = tmp_path / "output.txt"
+        format_and_write(result, TranscriptionOptions(), output_path)
+
+        content = output_path.read_text()
+        assert "[00:00:00.000] Hello" in content
+
+    def test_unknown_extension_uses_options_format(self, tmp_path: Path) -> None:
+        """Unknown extension falls back to options.output_format."""
+        result = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=5.0, text="Hello")],
+            media_info=MediaInfo(duration=5.0, format="wav"),
+            config_used=TranscriptionOptions(),
+            duration_seconds=1.0,
+            backend_used=BackendType.OPENAI,
+        )
+
+        # Use .unknown extension with SRT format in options
+        options = TranscriptionOptions(output_format=OutputFormat.SRT)
+        output_path = tmp_path / "output.unknown"
+        format_and_write(result, options, output_path)
+
+        content = output_path.read_text()
+        assert "1\n" in content  # SRT numbering
+        assert "00:00:00,000 --> 00:00:05,000" in content  # SRT format
+
+    def test_stdout_uses_options_format(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """path=None uses options.output_format."""
+        result = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=5.0, text="Hello")],
+            media_info=MediaInfo(duration=5.0, format="wav"),
+            config_used=TranscriptionOptions(),
+            duration_seconds=1.0,
+            backend_used=BackendType.OPENAI,
+        )
+
+        captured = StringIO()
+        monkeypatch.setattr(sys, "stdout", captured)
+
+        # Use VTT format for stdout
+        options = TranscriptionOptions(output_format=OutputFormat.VTT)
+        result_path = format_and_write(result, options, None)
+
+        assert result_path is None
+        assert captured.getvalue().startswith("WEBVTT\n")
+
+    def test_respects_overwrite_config(self, tmp_path: Path) -> None:
+        """format_and_write respects overwrite config."""
+        result = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=10.0, text="New")],
+            media_info=MediaInfo(duration=10.0, format="wav"),
+            config_used=TranscriptionOptions(),
+            duration_seconds=1.0,
+            backend_used=BackendType.OPENAI,
+        )
+
+        output_path = tmp_path / "output.txt"
+        output_path.write_text("Original")
+
+        # Should raise error with overwrite=False (default)
+        with pytest.raises(OutputFileExistsError):
+            format_and_write(result, TranscriptionOptions(), output_path)
+
+        # Should succeed with overwrite=True
+        config = OutputFileConfig(overwrite=True)
+        format_and_write(result, TranscriptionOptions(), output_path, config)
+        assert "New" in output_path.read_text()
+
+    def test_creates_directories(self, tmp_path: Path) -> None:
+        """format_and_write creates directories when needed."""
+        result = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=5.0, text="Test")],
+            media_info=MediaInfo(duration=5.0, format="wav"),
+            config_used=TranscriptionOptions(),
+            duration_seconds=1.0,
+            backend_used=BackendType.OPENAI,
+        )
+
+        output_path = tmp_path / "nested" / "dir" / "output.srt"
+        format_and_write(result, TranscriptionOptions(), output_path)
+
+        assert output_path.exists()
+        assert "Test" in output_path.read_text()

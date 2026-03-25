@@ -21,6 +21,13 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from audiocore.errors.output import OutputFileExistsError
+from audiocore.models.transcription import TranscriptionOptions
+from audiocore.models.transcription import TranscriptionResult
+from audiocore.output.json import format_json
+from audiocore.output.srt import format_srt
+from audiocore.output.text import format_text
+from audiocore.output.vtt import format_vtt
+from audiocore.types.format import OutputFormat
 
 
 class OutputFileConfig(BaseModel):
@@ -121,3 +128,72 @@ def write_output(
         raise
 
     return file_path
+
+
+# Mapping of OutputFormat to formatter function
+_FORMATTERS = {
+    OutputFormat.TEXT: format_text,
+    OutputFormat.JSON: format_json,
+    OutputFormat.SRT: format_srt,
+    OutputFormat.VTT: format_vtt,
+}
+
+
+def format_and_write(
+    result: TranscriptionResult,
+    options: TranscriptionOptions,
+    path: Path | str | None,
+    config: OutputFileConfig | None = None,
+) -> Path | None:
+    """Format transcription result and write to file.
+
+    Auto-detects output format from file extension and uses appropriate formatter.
+    Falls back to options.output_format if extension is unknown.
+
+    Args:
+        result: TranscriptionResult containing segments and metadata.
+        options: TranscriptionOptions with output_format as fallback.
+        path: Output file path. If None, writes to stdout and returns None.
+            Extension is used to determine format (.txt, .json, .srt, .vtt).
+        config: Output configuration. If None, uses defaults.
+
+    Returns:
+        Path to written file, or None if path=None (stdout).
+
+    Raises:
+        OutputFileExistsError: If file exists and overwrite=False.
+        OSError: If directory creation fails or write fails.
+
+    Example:
+        >>> from audiocore.models import TranscriptionResult, TranscriptionOptions
+        >>> result = TranscriptionResult(...)
+        >>> format_and_write(result, TranscriptionOptions(), "output.srt")
+        PosixPath('output.srt')
+
+    Note:
+        For stdout (path=None), uses options.output_format to determine format,
+        defaulting to TEXT if not specified.
+    """
+    # Determine format from extension or options
+    output_format: OutputFormat
+
+    if path is not None:
+        # Auto-detect format from file extension
+        file_path = Path(path) if isinstance(path, str) else path
+        extension = file_path.suffix.lower().lstrip(".")
+
+        try:
+            output_format = OutputFormat.parse(extension)
+        except ValueError:
+            # Unknown extension, use options.output_format
+            output_format = options.output_format
+    else:
+        # No path (stdout), use options.output_format
+        output_format = options.output_format
+
+    # Get formatter and format content
+    formatter = _FORMATTERS[output_format]
+    content = formatter(result, options)
+
+    # Write using write_output
+    return write_output(content, path, config)

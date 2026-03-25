@@ -2,7 +2,15 @@
 
 import pytest
 
-from audiocore.output import format_json, format_srt, format_text, format_vtt
+from audiocore.output import (
+    OutputFileConfig,
+    format_and_write,
+    format_json,
+    format_srt,
+    format_text,
+    format_vtt,
+    write_output,
+)
 
 
 class TestOutputImports:
@@ -28,6 +36,23 @@ class TestOutputImports:
         assert callable(format_vtt)
         assert format_vtt.__name__ == "format_vtt"
 
+    def test_write_output_imported(self) -> None:
+        """write_output is importable from audiocore.output."""
+        assert callable(write_output)
+        assert write_output.__name__ == "write_output"
+
+    def test_format_and_write_imported(self) -> None:
+        """format_and_write is importable from audiocore.output."""
+        assert callable(format_and_write)
+        assert format_and_write.__name__ == "format_and_write"
+
+    def test_output_file_config_imported(self) -> None:
+        """OutputFileConfig is importable from audiocore.output."""
+        from pydantic import BaseModel
+
+        assert OutputFileConfig is not None
+        assert issubclass(OutputFileConfig, BaseModel)
+
     def test_all_formatters_in_dunder_all(self) -> None:
         """All formatters are listed in __all__."""
         from audiocore.output import __all__
@@ -36,7 +61,10 @@ class TestOutputImports:
         assert "format_json" in __all__
         assert "format_srt" in __all__
         assert "format_vtt" in __all__
-        assert len(__all__) == 4
+        assert "write_output" in __all__
+        assert "format_and_write" in __all__
+        assert "OutputFileConfig" in __all__
+        assert len(__all__) == 7
 
     def test_direct_import(self) -> None:
         """Formatters can be imported directly from module files."""
@@ -45,11 +73,15 @@ class TestOutputImports:
         import audiocore.output.json as json_mod
         import audiocore.output.srt as srt_mod
         import audiocore.output.vtt as vtt_mod
+        import audiocore.output.file_writer as file_writer_mod
 
         assert hasattr(text_mod, "format_text")
         assert hasattr(json_mod, "format_json")
         assert hasattr(srt_mod, "format_srt")
         assert hasattr(vtt_mod, "format_vtt")
+        assert hasattr(file_writer_mod, "write_output")
+        assert hasattr(file_writer_mod, "format_and_write")
+        assert hasattr(file_writer_mod, "OutputFileConfig")
 
     def test_module_docstring_mentions_formats(self) -> None:
         """Module docstring mentions all output formats."""
