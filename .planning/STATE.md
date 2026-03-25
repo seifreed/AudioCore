@@ -24,9 +24,9 @@ See: .planning/PROJECT.md (created 2025-03-24)
 ## Current Position
 
 Phase: 10 of 10 (Complete Interface)
-Plan: 0 of 5 in current phase (ready to begin)
-Status: Phases 1-9 verified, Phase 10 ready to plan
-Last activity: 2026-03-25 — Phase 9 complete (Pipeline Orchestrator)
+Plan: 1 of 5 in current phase (in progress)
+Status: Phase 10-01 complete (SRT and VTT formatters)
+Last activity: 2026-03-25 — Plan 10-01 complete (SRT and VTT Output Serializers)
 
 Progress: [█████████░] 90%
 
@@ -135,8 +135,10 @@ Key architectural decisions:
  - **[Plan 07-02]:** Configuration parameters passed directly from FasterWhisperConfig to faster-whisper API - all config fields mapped to model.transcribe()
   - **[Plan 07-02]:** Minimum duration 0.01s fallback for zero-duration files - MediaInfo validation requirement
   - **[Plan 07-03]:** Integration tests skip gracefully when faster-whisper not installed - pytest.mark.skipif pattern
-  - **[Plan 07-03]:** Test audio created dynamically with wave module (1-second silence) - no external fixtures needed
+ - **[Plan 07-03]:** Test audio created dynamically with wave module (1-second silence) - no external fixtures needed
   - **[Plan 07-03]:** Pre-existing test failure (Segment.text empty string) documented as out of scope - deferred to Phase 4 cleanup
+  - **[Plan 10-01]:** SRT and VTT subtitle formatters for video/web players
+  - **[Plan 10-01]:** SRT uses comma (,) for milliseconds separator, VTT uses period (.) per specification
 
 ### Pending Todos
 
@@ -204,14 +206,18 @@ Output formatters for transcription results. Created output module with text.py 
 **Plan 09-04 Execution:**
 Pipeline error recovery and cleanup implementation. Created pipeline-specific exception hierarchy (AUD-501 to AUD-504): PipelineError, PipelineStageError, PipelineCancelledError, PartialResultError. Each exception carries stage context and original_error. Refactored Pipeline.transcribe with stage-specific error wrapping, VAD fallback to whole-file transcription, and formatting error graceful handling. Added failed_segments field to TranscriptionResult for partial failure tracking. Comprehensive error recovery tests (23 tests, >95% coverage for error paths) covering cleanup, cancellation, VAD fallback, and user-friendly error messages. 102 pipeline tests passing.
 
+**Plan 10-01 Execution:**
+SRT and VTT subtitle formatters implemented. Created format_srt() and format_vtt() functions following existing text.py and json.py patterns. SRT uses comma (,) for milliseconds in HH:MM:SS,mmm format with sequential numbering starting from 1. VTT uses period (.) for milliseconds in HH:MM:SS.mmm format with WEBVTT header and no numbering. Both formatters handle empty segments gracefully (empty string for SRT, WEBVTT header only for VTT). 102 total output tests pass (text: 19, json: 23, srt: 24, vtt: 27, imports: 7). 100% coverage on output module.
+
 ## Session Continuity
 
-Last session: 2026-03-25 (Phase 09-04 complete - Pipeline Error Recovery and Cleanup)
-Stopped at: Plan 09-04 complete, Phase 9 finished
+Last session: 2026-03-25 (Phase 10-01 complete - SRT and VTT Output Serializers)
+Stopped at: Plan 10-01 complete, Phase 10 in progress
 Resume file: None
 
-Next action: Phase 9 complete. Ready for Phase 10 or integration testing.
+Next action: Continue Phase 10 with Plan 10-02 (CLI implementation)
   - **[Plan 09-01]:** Pipeline class with transcribe orchestration, uses BackendSelector for automatic backend selection, temp_file cleanup via context manager
   - **[Plan 09-02]:** Progress callbacks (ProgressCallback Protocol, PipelineStage enum), CancellationToken for clean termination
   - **[Plan 09-03]:** Output formatters (text/JSON), formatted_output in TranscriptionResult, pure functions for formatting
   - **[Plan 09-04]:** Pipeline exceptions (AUD-501 to AUD-504), VAD fallback, failed_segments field, error recovery tests
+  - **[Plan 10-01]:** SRT and VTT formatters with proper timestamp formatting and subtitle format specifications
