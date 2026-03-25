@@ -27,5 +27,28 @@ Example:
 from audiocore.backends.base import TranscriptionBackend, is_backend_available
 from audiocore.backends.openai_backend import OpenAIBackend
 from audiocore.backends.registry import BackendRegistry
+from audiocore.types import BackendType
 
 __all__ = ["TranscriptionBackend", "is_backend_available", "BackendRegistry", "OpenAIBackend"]
+
+
+def register_builtin_backends() -> None:
+    """Register all built-in backends.
+
+    This function registers all backends that are included with AudioCore.
+    Currently includes:
+    - OpenAI Whisper API backend (OPENAI)
+
+    Call this function to ensure backends are registered before using
+    BackendRegistry for backend discovery.
+
+    Example:
+        >>> from audiocore.backends import register_builtin_backends, BackendRegistry
+        >>> from audiocore.types import BackendType
+        >>>
+        >>> register_builtin_backends()
+        >>> registry = BackendRegistry()
+        >>> backend = registry.get_backend(BackendType.OPENAI)
+    """
+    registry = BackendRegistry()
+    registry.register(BackendType.OPENAI, OpenAIBackend)
