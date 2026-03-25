@@ -121,6 +121,7 @@ def pad_segments(
 
     Padding is added to start and end of each segment.
     Segments are clipped to [0, total_duration].
+    Overlapping segments after padding are merged.
 
     Args:
         segments: List of (start, end, confidence) tuples.
@@ -128,8 +129,11 @@ def pad_segments(
         total_duration: Total audio duration in seconds.
 
     Returns:
-        Padded segments list.
+        Padded segments list with overlaps merged.
     """
+    if not segments:
+        return segments
+
     pad_seconds = pad_ms / 1000.0
     result = []
 
@@ -138,7 +142,17 @@ def pad_segments(
         padded_end = min(total_duration, end + pad_seconds)
         result.append((padded_start, padded_end, conf))
 
-    return result
+    # Merge overlapping segments after padding
+    merged = [result[0]]
+    for start, end, conf in result[1:]:
+        prev_start, prev_end, prev_conf = merged[-1]
+        if start <= prev_end:
+            # Overlap: merge segments
+            merged[-1] = (prev_start, max(prev_end, end), min(prev_conf, conf))
+        else:
+            merged.append((start, end, conf))
+
+    return merged
 
 
 def validate_segments(
