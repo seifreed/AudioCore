@@ -81,6 +81,19 @@ class TestSerializeValue:
         result = _serialize_value(3.14159)
         assert result == 3.14159
 
+    def test_float_infinity(self) -> None:
+        """Float infinity is converted to None."""
+        result = _serialize_value(float("inf"))
+        assert result is None
+
+        result = _serialize_value(float("-inf"))
+        assert result is None
+
+    def test_float_nan(self) -> None:
+        """Float NaN is converted to None."""
+        result = _serialize_value(float("nan"))
+        assert result is None
+
 
 class TestPrepareForJson:
     """Tests for _prepare_for_json function."""

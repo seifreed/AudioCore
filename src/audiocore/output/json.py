@@ -74,11 +74,7 @@ def _prepare_for_json(result: TranscriptionResult) -> dict[str, Any]:
     # Use model_dump() for Pydantic serialization
     data = result.model_dump()
 
-    # Convert Path objects to strings
-    if "media_info" in data and "path" in data["media_info"]:
-        data["media_info"]["path"] = str(data["media_info"]["path"])
-
-    # Recursively process values to handle any remaining non-serializable types
+    # Recursively process values to handle any non-serializable types (enums, paths, etc.)
     def process_dict(d: dict[str, Any]) -> dict[str, Any]:
         return {
             k: _serialize_value(v) if not isinstance(v, dict) else process_dict(v)
