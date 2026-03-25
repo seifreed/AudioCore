@@ -24,6 +24,8 @@ from audiocore.models import MediaInfo, Segment, TranscriptionOptions, Transcrip
 from audiocore.pipeline import Pipeline, transcribe
 from audiocore.pipeline.orchestrator import Pipeline as PipelineClass
 from audiocore.pipeline.cancellation import CancelledError
+from audiocore.pipeline.progress import PipelineStage
+from audiocore.pipeline.errors import PipelineStageError, PartialResultError
 from audiocore.types import BackendType, OutputFormat, SelectionPolicy
 
 
@@ -656,7 +658,9 @@ class TestPipelineTranscribe:
         mock_media_info,
         tmp_path,
     ):
-        """transcribe() raises MediaError on probe failure."""
+        """transcribe() wraps MediaError in PipelineStageError on probe failure."""
+        from audiocore.pipeline.errors import PipelineStageError
+
         # Setup mocks
         mock_validate.return_value = None
         mock_probe.side_effect = MediaError(
@@ -669,8 +673,13 @@ class TestPipelineTranscribe:
         audio_file = tmp_path / "audio.mp3"
         audio_file.touch()
 
-        with pytest.raises(MediaError):
+        with pytest.raises(PipelineStageError) as exc_info:
             pipeline.transcribe(audio_file)
+
+        # Verify it's a PipelineStageError wrapping the original MediaError
+        assert exc_info.value.stage == PipelineStage.PROBING
+        assert exc_info.value.original_error is not None
+        assert isinstance(exc_info.value.original_error, MediaError)
 
     @patch("audiocore.pipeline.orchestrator.validate_format_or_raise")
     @patch("audiocore.pipeline.orchestrator.probe")
@@ -688,7 +697,9 @@ class TestPipelineTranscribe:
         mock_segments,
         tmp_path,
     ):
-        """transcribe() raises BackendUnavailableError when no backend available."""
+        """transcribe() wraps BackendUnavailableError in PipelineStageError."""
+        from audiocore.pipeline.errors import PipelineStageError
+
         # Setup mocks
         mock_validate.return_value = None
         mock_probe.return_value = mock_media_info
@@ -713,8 +724,13 @@ class TestPipelineTranscribe:
         audio_file = tmp_path / "audio.mp3"
         audio_file.touch()
 
-        with pytest.raises(BackendUnavailableError):
+        with pytest.raises(PipelineStageError) as exc_info:
             pipeline.transcribe(audio_file)
+
+        # Verify it's a PipelineStageError wrapping the original BackendUnavailableError
+        assert exc_info.value.stage == PipelineStage.SELECTING
+        assert exc_info.value.original_error is not None
+        assert isinstance(exc_info.value.original_error, BackendUnavailableError)
 
 
 class TestTranscribeConvenienceFunction:
