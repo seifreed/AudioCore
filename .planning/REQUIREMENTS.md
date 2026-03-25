@@ -710,8 +710,8 @@ Real-time transcription API.
 | PIPE-01 | Phase 9: Pipeline & Core Output | Pending |
 | PIPE-02 | Phase 9: Pipeline & Core Output | Pending |
 | PIPE-03 | Phase 9: Pipeline & Core Output | Pending |
-| OUT-01 | Phase 9: Pipeline & Core Output | Pending |
-| OUT-02 | Phase 9: Pipeline & Core Output | Pending |
+| OUT-01 | Phase 9: Pipeline & Core Output | Complete |
+| OUT-02 | Phase 9: Pipeline & Core Output | Complete |
 | ERR-03 | Phase 9: Pipeline & Core Output | Pending |
 | OUT-03 | Phase 10: Complete Interface | Pending |
 | OUT-04 | Phase 10: Complete Interface | Pending |

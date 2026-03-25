@@ -15,11 +15,11 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation** - Core models, types, and error handling infrastructure (2026-03-24)
 - [x] **Phase 2: Configuration System** - Environment and TOML configuration with priority chain (2026-03-24)
 - [x] **Phase 3: Media Ingestion** - Audio extraction and format support via ffmpeg (2026-03-24)
-- [ ] **Phase 4: VAD Processing** - Voice activity detection and segmentation with Silero
-- [ ] **Phase 5: Backend Abstraction** - Backend interface and registry pattern
-- [ ] **Phase 6: OpenAI Backend** - Whisper API integration with error handling
-- [ ] **Phase 7: Faster-Whisper Backend** - Local transcription with model management
-- [ ] **Phase 8: Backend Selection** - Automatic and explicit backend selection policies
+- [x] **Phase 4: VAD Processing** - Voice activity detection and segmentation with Silero (2026-03-25)
+- [x] **Phase 5: Backend Abstraction** - Backend interface and registry pattern (2026-03-25)
+- [x] **Phase 6: OpenAI Backend** - Whisper API integration with error handling (2026-03-25)
+- [x] **Phase 7: Faster-Whisper Backend** - Local transcription with model management (2026-03-25)
+- [x] **Phase 8: Backend Selection** - Automatic and explicit backend selection policies (2026-03-25)
 - [x] **Phase 9: Pipeline & Core Output** - Transcription orchestrator with text/JSON output (2026-03-25)
 - [ ] **Phase 10: Complete Interface** - CLI, API, subtitle formats, and parallelism
 
@@ -99,9 +99,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 04-01: Silero VAD model integration
-- [ ] 04-02: VAD parameter configuration
-- [ ] 04-03: Segment boundary processing
+- [x] 04-01: Silero VAD model integration (2026-03-25)
+- [x] 04-02: VAD parameter configuration (2026-03-25)
+- [x] 04-03: Segment boundary processing (2026-03-25)
 
 ---
 
@@ -119,8 +119,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 05-01: Abstract backend interface definition
-- [ ] 05-02: Backend registry pattern implementation
+- [x] 05-01: Abstract backend interface definition (2026-03-25)
+- [x] 05-02: Backend registry pattern implementation (2026-03-25)
 
 ---
 
@@ -138,9 +138,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 06-01: OpenAI Whisper API client implementation
-- [ ] 06-02: OpenAI-specific configuration options
-- [ ] 06-03: OpenAI error handling and key protection
+- [x] 06-01: OpenAI Whisper API client implementation (2026-03-25)
+- [x] 06-02: OpenAI-specific configuration options (2026-03-25)
+- [x] 06-03: OpenAI error handling and key protection (2026-03-25)
 
 ---
 
@@ -158,9 +158,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 07-01: Model Manager and Configuration
-- [ ] 07-02: FasterWhisperBackend Implementation
-- [ ] 07-03: Integration and Registry
+- [x] 07-01: Model Manager and Configuration (2026-03-25)
+- [x] 07-02: FasterWhisperBackend Implementation (2026-03-25)
+- [x] 07-03: Integration and Registry (2026-03-25)
 
 ---
 
@@ -178,8 +178,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 08-01: Backend availability checker
-- [ ] 08-02: Policy-based backend selector
+- [x] 08-01: Backend availability checker (2026-03-25)
+- [x] 08-02: Policy-based backend selector (2026-03-25)
 
 ---
 
@@ -242,14 +242,14 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/3 | Not started | - |
-| 2. Configuration System | 0/2 | Not started | - |
-| 3. Media Ingestion | 0/3 | Not started | - |
-| 4. VAD Processing | 0/3 | Not started | - |
-| 5. Backend Abstraction | 0/2 | Not started | - |
-| 6. OpenAI Backend | 0/3 | Not started | - |
-| 7. Faster-Whisper Backend | 0/3 | Not started | - |
-| 8. Backend Selection | 0/2 | Not started | - |
+| 1. Foundation | 3/3 | Complete | 2026-03-24 |
+| 2. Configuration System | 3/3 | Complete | 2026-03-24 |
+| 3. Media Ingestion | 3/3 | Complete | 2026-03-24 |
+| 4. VAD Processing | 3/3 | Complete | 2026-03-25 |
+| 5. Backend Abstraction | 2/2 | Complete | 2026-03-25 |
+| 6. OpenAI Backend | 3/3 | Complete | 2026-03-25 |
+| 7. Faster-Whisper Backend | 3/3 | Complete | 2026-03-25 |
+| 8. Backend Selection | 2/2 | Complete | 2026-03-25 |
 | 9. Pipeline & Core Output | 4/4 | Complete | 2026-03-25 |
 | 10. Complete Interface | 0/5 | Not started | - |
 
