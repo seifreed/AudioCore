@@ -25,6 +25,7 @@ Example:
 """
 
 from audiocore.backends.base import TranscriptionBackend, is_backend_available
+from audiocore.backends.openai_backend import OpenAIBackend
 from audiocore.backends.registry import BackendRegistry
 
-__all__ = ["TranscriptionBackend", "is_backend_available", "BackendRegistry"]
+__all__ = ["TranscriptionBackend", "is_backend_available", "BackendRegistry", "OpenAIBackend"]
