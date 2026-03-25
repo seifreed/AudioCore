@@ -96,67 +96,7 @@ class TranscriptionResult(BaseModel):
         default=None,
         description="Formatted transcription output (text or JSON based on output_format)",
     )
-    failed_segments: Annotated[
-        list[dict[str, Any]],
-        Field(
-            default_factory=list,
-            description="Segments that failed transcription (start_time, end_time, error)",
-        ),
-    ] = Field(default_factory=list)
-    model_size: ModelSize = Field(
-        default=ModelSize.BASE,
-        description="Model size for transcription (tiny, base, small, medium, large)",
-    )
-    backend: BackendType = Field(
-        default=BackendType.AUTO, description="Backend to use (openai, faster_whisper, or auto)"
-    )
-    output_format: OutputFormat = Field(
-        default=OutputFormat.TEXT, description="Output format (text, srt, vtt, json)"
-    )
-    backend_preference: SelectionPolicy = Field(
-        default=SelectionPolicy.AUTO,
-        description="Policy for automatic backend selection (prefer_local, prefer_cloud, auto)",
-    )
-
-
-class TranscriptionResult(BaseModel):
-    """Complete transcription result with segments and metadata.
-
-    Contains the full transcription output including time-segmented
-    text, source media information, and the configuration used.
-
-    Attributes:
-        segments: List of time-segmented transcriptions.
-        media_info: Metadata about the source media.
-        config_used: Configuration options used for this transcription.
-        duration_seconds: Processing duration in seconds.
-        backend_used: Backend that performed this transcription.
-
-    Example:
-        >>> from audiocore.models import Segment, MediaInfo, TranscriptionOptions
-        >>> result = TranscriptionResult(
-        ...     segments=[Segment(start_time=0.0, end_time=5.0, text='Hello')],
-        ...     media_info=MediaInfo(duration=120.0, format='mp4'),
-        ...     config_used=TranscriptionOptions(),
-        ...     duration_seconds=15.5,
-        ...     backend_used=BackendType.OPENAI
-        ... )
-        >>> result.segments[0].text
-        'Hello'
-    """
-
-    model_config = {"strict": True, "extra": "forbid"}
-
-    segments: Annotated[
-        list[Segment], Field(min_length=0, description="List of transcription segments")
-    ]
-    media_info: MediaInfo = Field(description="Metadata about the source media")
-    config_used: TranscriptionOptions = Field(
-        description="Configuration options used for this transcription"
-    )
-    duration_seconds: float = Field(ge=0, description="Processing duration in seconds")
-    backend_used: BackendType = Field(description="Backend that performed this transcription")
-    formatted_output: str | None = Field(
-        default=None,
-        description="Formatted transcription output (text or JSON based on output_format)",
+    failed_segments: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Segments that failed transcription (start_time, end_time, error)",
     )
