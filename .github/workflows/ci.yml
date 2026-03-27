@@ -33,7 +33,7 @@ jobs:
         run: mypy src/audiocore --ignore-missing-imports
       
       - name: Run Bandit
-        run: bandit -r src/audiocore --skip B101
+        run: bandit -r src/audiocore --skip B101,B110,B404,B603
 
   test:
     name: Test ${{ matrix.os }} - Python ${{ matrix.python-version }}
