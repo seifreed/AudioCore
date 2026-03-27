@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import re
-import shutil
 import subprocess
 from collections.abc import Callable
 from contextlib import contextmanager
@@ -17,6 +16,7 @@ from tempfile import NamedTemporaryFile
 
 from audiocore.errors import InvalidInputError, MediaError
 from audiocore.media.probe import probe
+from audiocore.utils.subprocess_utils import safe_run
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,6 @@ def _validate_executable_path(executable_path: str) -> str:
     Raises:
         MediaError: If path contains dangerous characters or doesn't exist.
     """
-    # Check for shell metacharacters that could enable injection
     dangerous_chars = {"|", "&", ";", "$", "`", "(", ")", "<", ">", "\n", "\r"}
     if any(char in executable_path for char in dangerous_chars):
         raise MediaError(
@@ -48,7 +47,8 @@ def _validate_executable_path(executable_path: str) -> str:
             ],
         )
 
-    # Validate existence
+    import shutil
+
     if shutil.which(executable_path) is None:
         raise MediaError(
             f"Executable not found: {executable_path}",
@@ -266,15 +266,14 @@ def extract_audio(
     )
 
     try:
-        result = subprocess.run(
+        result = safe_run(
             command,
-            capture_output=True,
-            text=True,
             timeout=timeout,
+            check=False,  # We handle return code manually
         )
-    except FileNotFoundError as e:
+    except ValueError as e:
         raise MediaError(
-            f"ffmpeg executable not found at: {ffmpeg_path}",
+            f"Invalid ffmpeg path: {ffmpeg_path}",
             context={"ffmpeg_path": ffmpeg_path, "input_path": str(input_path)},
             suggestions=[
                 "Install ffmpeg using your package manager",
@@ -284,18 +283,6 @@ def extract_audio(
             cause=e,
         ) from e
     except subprocess.TimeoutExpired as e:
-        # Ensure process is terminated on timeout
-        if e.proc is not None:
-            import contextlib
-
-            with contextlib.suppress(Exception):
-                e.proc.terminate()
-                try:
-                    e.proc.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    # Force kill if terminate doesn't work
-                    e.proc.kill()
-                    e.proc.wait()
         # Clean up temp file if created
         if created_temp and output_path.exists():
             output_path.unlink(missing_ok=True)

@@ -13,48 +13,7 @@ from typing import Any
 
 from audiocore.errors import InvalidInputError, MediaError
 from audiocore.models import MediaInfo
-
-
-def _validate_executable_path(executable_path: str) -> str:
-    """Validate that executable path is safe and exists.
-
-    Security: Prevents command injection by validating that the path
-    is a simple executable name or absolute path without shell metacharacters.
-
-    Args:
-        executable_path: Path or name of executable to validate.
-
-    Returns:
-        Validated executable path.
-
-    Raises:
-        MediaError: If path contains dangerous characters or doesn't exist.
-    """
-    # Check for shell metacharacters that could enable injection
-    dangerous_chars = {"|", "&", ";", "$", "`", "(", ")", "<", ">", "\n", "\r"}
-    if any(char in executable_path for char in dangerous_chars):
-        raise MediaError(
-            "Invalid executable path: contains forbidden characters",
-            context={"path": executable_path},
-            suggestions=[
-                "Use simple executable name (e.g., 'ffprobe')",
-                "Use absolute path without special characters",
-            ],
-        )
-
-    # Validate existence
-    if shutil.which(executable_path) is None:
-        raise MediaError(
-            f"Executable not found: {executable_path}",
-            context={"path": executable_path},
-            suggestions=[
-                "Install the required executable",
-                "Verify the path is correct",
-                f"Ensure {executable_path} is in PATH",
-            ],
-        )
-
-    return executable_path
+from audiocore.utils.subprocess_utils import safe_run
 
 
 def _validate_file_exists(file_path: Path) -> None:
@@ -78,17 +37,44 @@ def _validate_file_exists(file_path: Path) -> None:
         )
 
 
-def _check_ffprobe_available(ffprobe_path: str) -> None:
-    """Check if ffprobe executable is available.
+def _validate_executable_path(executable_path: str) -> str:
+    """Validate that executable path is safe and exists.
+
+    Security: Prevents command injection by validating that the path
+    is a simple executable name or absolute path without shell metacharacters.
 
     Args:
-        ffprobe_path: Path to ffprobe executable.
+        executable_path: Path or name of executable to validate.
+
+    Returns:
+        Validated executable path.
 
     Raises:
-        MediaError: If ffprobe is not found or not executable.
+        MediaError: If path contains dangerous characters or doesn't exist.
     """
-    # Use shared validation (includes security checks)
-    _validate_executable_path(ffprobe_path)
+    dangerous_chars = {"|", "&", ";", "$", "`", "(", ")", "<", ">", "\n", "\r"}
+    if any(char in executable_path for char in dangerous_chars):
+        raise MediaError(
+            "Invalid executable path: contains forbidden characters",
+            context={"path": executable_path},
+            suggestions=[
+                "Use simple executable name (e.g., 'ffprobe')",
+                "Use absolute path without special characters",
+            ],
+        )
+
+    if shutil.which(executable_path) is None:
+        raise MediaError(
+            f"Executable not found: {executable_path}",
+            context={"path": executable_path},
+            suggestions=[
+                "Install the required executable",
+                "Verify the path is correct",
+                f"Ensure {executable_path} is in PATH",
+            ],
+        )
+
+    return executable_path
 
 
 def probe(
@@ -141,15 +127,14 @@ def probe(
     ]
 
     try:
-        result = subprocess.run(
+        result = safe_run(
             command,
-            capture_output=True,
-            text=True,
             timeout=timeout,
+            check=False,  # We handle return code manually
         )
-    except FileNotFoundError as e:
+    except ValueError as e:
         raise MediaError(
-            f"ffprobe executable not found at: {ffprobe_path}",
+            f"Invalid ffprobe path: {ffprobe_path}",
             context={"ffprobe_path": ffprobe_path, "file_path": str(file_path)},
             suggestions=[
                 "Install ffmpeg (includes ffprobe)",

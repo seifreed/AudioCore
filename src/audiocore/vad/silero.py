@@ -6,6 +6,7 @@ for detecting speech segments in audio files.
 
 from __future__ import annotations
 
+import logging
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -20,6 +21,8 @@ from audiocore.vad.config import VADConfig
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
+
+logger = logging.getLogger(__name__)
 
 
 class SileroVAD:
@@ -128,8 +131,10 @@ class SileroVAD:
                         model = torch.jit.load(str(model_path))
                         model.eval()
                         return model
-                except Exception:
-                    pass
+                except Exception as cache_error:
+                    logger.warning(
+                        f"Failed to load Silero VAD from cache after timeout: {cache_error}"
+                    )
             raise VADError(
                 message=f"Silero VAD model download timed out after {timeout_seconds} seconds",
                 context={"timeout_seconds": timeout_seconds},
@@ -155,8 +160,10 @@ class SileroVAD:
                         model = torch.jit.load(str(model_path))
                         model.eval()
                         return model
-                except Exception:
-                    pass
+                except Exception as cache_error:
+                    logger.warning(
+                        f"Failed to load Silero VAD from local cache: {cache_error}"
+                    )
 
             # Both methods failed
             raise VADError(
