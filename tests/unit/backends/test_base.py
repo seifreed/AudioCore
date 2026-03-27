@@ -325,7 +325,7 @@ class TestTranscribeMethodSignature:
         assert hasattr(result, "segments")
         assert hasattr(result, "media_info")
         assert hasattr(result, "config_used")
-        assert hasattr(result, "duration_seconds")
+        assert hasattr(result, "processing_time_seconds")
         assert hasattr(result, "backend_used")
 
     def test_transcribe_result_has_segments(self) -> None:

@@ -20,6 +20,7 @@ Example:
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 import typer
@@ -39,8 +40,6 @@ from audiocore.pipeline import Pipeline
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from audiocore.pipeline.progress import PipelineStage
 
 app = typer.Typer(help="Transcribe audio/video files")

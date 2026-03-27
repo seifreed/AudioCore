@@ -271,7 +271,7 @@ class TestTranscriptionResultSerialization:
         )
         data = result.model_dump()
         assert len(data["segments"]) == 1
-        assert data["duration_seconds"] == 10.0
+        assert data["processing_time_seconds"] == 10.0
         assert data["backend_used"] == BackendType.OPENAI
 
     def test_model_validate(self) -> None:
@@ -294,7 +294,7 @@ class TestTranscriptionResultSerialization:
                 "output_format": OutputFormat.TEXT,
                 "backend_preference": SelectionPolicy.AUTO,
             },
-            "duration_seconds": 5.5,
+            "processing_time_seconds": 5.5,
             "backend_used": BackendType.OPENAI,
         }
         result = TranscriptionResult.model_validate(data)
@@ -320,7 +320,7 @@ class TestTranscriptionResultSerialization:
             "segments": [{"start_time": 0.0, "end_time": 5.0, "text": "test", "confidence": null}],
             "media_info": {"duration": 10.0, "format": "mp4", "codec": null, "sample_rate": null, "channels": null},
             "config_used": {"language": null, "model_size": "base", "backend": "auto", "output_format": "text", "backend_preference": "auto"},
-            "duration_seconds": 3.5,
+            "processing_time_seconds": 3.5,
             "backend_used": "faster_whisper"
         }"""
         result = TranscriptionResult.model_validate_json(json_str)

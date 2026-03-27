@@ -280,8 +280,8 @@ class TestModelManagerListModels:
         models = manager.list_models()
 
         repos = {m.name: m.repo_id for m in models}
-        assert "guillaumekln/faster-whisper-tiny" in repos["tiny"]
-        assert "guillaumekln/faster-whisper-base" in repos["base"]
+        assert "Systran/faster-whisper-tiny" in repos["tiny"]
+        assert "Systran/faster-whisper-base" in repos["base"]
 
 
 class TestModelManagerDeleteModel:

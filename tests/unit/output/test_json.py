@@ -105,7 +105,7 @@ class TestPrepareForJson:
         assert "segments" in data
         assert "media_info" in data
         assert "config_used" in data
-        assert "duration_seconds" in data
+        assert "processing_time_seconds" in data
         assert "backend_used" in data
 
     def test_segments_serialization(self, sample_result: TranscriptionResult) -> None:
@@ -144,7 +144,7 @@ class TestFormatJson:
         assert "segments" in data
         assert "media_info" in data
         assert "config_used" in data
-        assert "duration_seconds" in data
+        assert "processing_time_seconds" in data
         assert "backend_used" in data
 
     def test_segments_array(self, sample_media_info: MediaInfo) -> None:
@@ -298,7 +298,7 @@ class TestFormatJson:
         # Both produce same output (options aren't included)
         assert json1 == json2
 
-    def test_duration_seconds_preserved(self, sample_media_info: MediaInfo) -> None:
+    def test_processing_time_seconds_preserved(self, sample_media_info: MediaInfo) -> None:
         """Processing duration is preserved."""
         result = TranscriptionResult(
             segments=[],
@@ -311,7 +311,7 @@ class TestFormatJson:
         json_str = format_json(result, TranscriptionOptions())
         data = json.loads(json_str)
 
-        assert data["duration_seconds"] == 42.7
+        assert data["processing_time_seconds"] == 42.7
 
     def test_round_trip_parseable(self, sample_result: TranscriptionResult) -> None:
         """JSON output can be parsed back."""
