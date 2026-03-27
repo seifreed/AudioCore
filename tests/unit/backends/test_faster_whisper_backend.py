@@ -120,7 +120,9 @@ class TestFasterWhisperBackendTranscribe:
             backend.transcribe("/nonexistent/audio.mp3", options)
 
         assert "not found" in str(exc_info.value)
-        assert exc_info.value.context.get("file_path") == "/nonexistent/audio.mp3"
+        file_path = exc_info.value.context.get("file_path")
+        assert file_path is not None
+        assert Path(file_path) == Path("/nonexistent/audio.mp3")
 
     @patch("audiocore.backends.faster_whisper_backend.Path.exists")
     def test_transcribe_file_not_found_context(self, mock_exists: Mock) -> None:
