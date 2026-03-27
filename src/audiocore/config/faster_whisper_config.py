@@ -298,9 +298,7 @@ class FasterWhisperConfig(BaseModel):
             ValueError: If best_of < beam_size
         """
         if self.best_of < self.beam_size:
-            raise ValueError(
-                f"best_of ({self.best_of}) must be >= beam_size ({self.beam_size})"
-            )
+            raise ValueError(f"best_of ({self.best_of}) must be >= beam_size ({self.beam_size})")
         return self
 
     @classmethod

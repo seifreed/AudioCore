@@ -161,10 +161,7 @@ async def transcribe_files_concurrent(
                 )
 
     # Create tasks for all files
-    tasks = [
-        asyncio.create_task(transcribe_single_file(i, file))
-        for i, file in enumerate(files)
-    ]
+    tasks = [asyncio.create_task(transcribe_single_file(i, file)) for i, file in enumerate(files)]
 
     # Run all tasks concurrently
     try:

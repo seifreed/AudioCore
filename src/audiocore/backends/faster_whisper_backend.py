@@ -175,9 +175,7 @@ class FasterWhisperBackend(TranscriptionBackend):
                 if torch.cuda.is_available():
                     return "cuda"
                 else:
-                    logger.warning(
-                        "CUDA requested but not available, falling back to CPU"
-                    )
+                    logger.warning("CUDA requested but not available, falling back to CPU")
                     return "cpu"
             except ImportError:
                 logger.warning("torch not installed, falling back to CPU")
@@ -340,9 +338,7 @@ class FasterWhisperBackend(TranscriptionBackend):
             processing_time_seconds = end_time - start_time
 
             # Get duration from info
-            duration = (
-                info.duration if hasattr(info, "duration") and info.duration else 0.0
-            )
+            duration = info.duration if hasattr(info, "duration") and info.duration else 0.0
 
             # Use minimum duration if zero (MediaInfo requires duration > 0)
             media_duration = duration if duration > 0 else 0.01

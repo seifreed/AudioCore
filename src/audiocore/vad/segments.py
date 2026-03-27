@@ -68,9 +68,7 @@ def merge_short_segments(
             merged.append((start, end, conf))
 
     # Final pass: merge any remaining short segments
-    if (
-        merged and (merged[-1][1] - merged[-1][0]) < min_duration and len(merged) > 1
-    ):  # noqa: SIM102
+    if merged and (merged[-1][1] - merged[-1][0]) < min_duration and len(merged) > 1:  # noqa: SIM102
         # Try to merge last with second-to-last
         prev_start, prev_end, prev_conf = merged[-2]
         gap = merged[-1][0] - prev_end

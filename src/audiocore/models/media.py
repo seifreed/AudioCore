@@ -29,15 +29,9 @@ class MediaInfo(BaseModel):
     model_config = {"strict": True, "extra": "forbid"}
 
     duration: float = Field(gt=0, description="Total duration of the media in seconds")
-    format: str = Field(
-        description="Media container format (e.g., 'mp4', 'mp3', 'wav')"
-    )
+    format: str = Field(description="Media container format (e.g., 'mp4', 'mp3', 'wav')")
     codec: str | None = Field(
         default=None, description="Audio codec used (e.g., 'aac', 'mp3', 'pcm')"
     )
-    sample_rate: int | None = Field(
-        default=None, gt=0, description="Audio sample rate in Hz"
-    )
-    channels: int | None = Field(
-        default=None, gt=0, description="Number of audio channels"
-    )
+    sample_rate: int | None = Field(default=None, gt=0, description="Audio sample rate in Hz")
+    channels: int | None = Field(default=None, gt=0, description="Number of audio channels")

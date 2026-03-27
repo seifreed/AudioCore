@@ -84,9 +84,7 @@ class SileroVAD:
         import signal
 
         def timeout_handler(signum, frame):
-            raise TimeoutError(
-                f"Model download timed out after {timeout_seconds} seconds"
-            )
+            raise TimeoutError(f"Model download timed out after {timeout_seconds} seconds")
 
         # Try torch hub first
         try:
@@ -121,9 +119,7 @@ class SileroVAD:
             # Try local cache fallback after timeout
             import os
 
-            cache_dir = os.path.expanduser(
-                "~/.cache/torch/hub/snakers4_silero-vad_master/"
-            )
+            cache_dir = os.path.expanduser("~/.cache/torch/hub/snakers4_silero-vad_master/")
             if Path(cache_dir).exists():
                 try:
                     model_path = Path(cache_dir) / "files" / "silero_vad.jit"
@@ -149,9 +145,7 @@ class SileroVAD:
             # Try local cache fallback
             import os
 
-            cache_dir = os.path.expanduser(
-                "~/.cache/torch/hub/snakers4_silero-vad_master/"
-            )
+            cache_dir = os.path.expanduser("~/.cache/torch/hub/snakers4_silero-vad_master/")
             if Path(cache_dir).exists():
                 try:
                     # Attempt to load from local cache
@@ -161,9 +155,7 @@ class SileroVAD:
                         model.eval()
                         return model
                 except Exception as cache_error:
-                    logger.warning(
-                        f"Failed to load Silero VAD from local cache: {cache_error}"
-                    )
+                    logger.warning(f"Failed to load Silero VAD from local cache: {cache_error}")
 
             # Both methods failed
             raise VADError(
@@ -373,9 +365,7 @@ class SileroVAD:
                 if speech_duration >= config.min_segment_duration:
                     # Calculate mean confidence
                     mean_confidence = float(np.mean(chunk_confidences))
-                    segments.append(
-                        (speech_start_time or 0.0, current_time, mean_confidence)
-                    )
+                    segments.append((speech_start_time or 0.0, current_time, mean_confidence))
 
                 # Reset speech tracking
                 in_speech = False

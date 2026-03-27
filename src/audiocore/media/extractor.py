@@ -16,51 +16,8 @@ from tempfile import NamedTemporaryFile
 
 from audiocore.errors import InvalidInputError, MediaError
 from audiocore.media.probe import probe
-from audiocore.utils.subprocess_utils import safe_run
 
 logger = logging.getLogger(__name__)
-
-
-def _validate_executable_path(executable_path: str) -> str:
-    """Validate that executable path is safe and exists.
-
-    Security: Prevents command injection by validating that the path
-    is a simple executable name or absolute path without shell metacharacters.
-
-    Args:
-        executable_path: Path or name of executable to validate.
-
-    Returns:
-        Validated executable path.
-
-    Raises:
-        MediaError: If path contains dangerous characters or doesn't exist.
-    """
-    dangerous_chars = {"|", "&", ";", "$", "`", "(", ")", "<", ">", "\n", "\r"}
-    if any(char in executable_path for char in dangerous_chars):
-        raise MediaError(
-            "Invalid executable path: contains forbidden characters",
-            context={"path": executable_path},
-            suggestions=[
-                "Use simple executable name (e.g., 'ffmpeg')",
-                "Use absolute path without special characters",
-            ],
-        )
-
-    import shutil
-
-    if shutil.which(executable_path) is None:
-        raise MediaError(
-            f"Executable not found: {executable_path}",
-            context={"path": executable_path},
-            suggestions=[
-                "Install the required executable",
-                "Verify the path is correct",
-                f"Ensure {executable_path} is in PATH",
-            ],
-        )
-
-    return executable_path
 
 
 def _build_ffmpeg_command(
@@ -230,16 +187,11 @@ def extract_audio(
             ],
         )
 
-    # Validate ffmpeg executable path (security: prevent command injection)
-    _validate_executable_path(ffmpeg_path)
-
     # Get total duration for progress callback if needed
     total_duration: float | None = None
     if progress_callback is not None:
         try:
-            media_info = probe(
-                input_path, ffprobe_path=ffmpeg_path.replace("ffmpeg", "ffprobe")
-            )
+            media_info = probe(input_path, ffprobe_path=ffmpeg_path.replace("ffmpeg", "ffprobe"))
             total_duration = media_info.duration
         except Exception as probe_error:
             # If probe fails, progress callback won't work but extraction can continue
@@ -249,9 +201,7 @@ def extract_audio(
     # Create temp file if no output path specified
     created_temp = False
     if output_path is None:
-        temp_file = NamedTemporaryFile(
-            suffix=".wav", delete=False
-        )  # noqa: SIM115 - File must persist for processing
+        temp_file = NamedTemporaryFile(suffix=".wav", delete=False)  # noqa: SIM115 - File must persist for processing
         output_path = Path(temp_file.name)
         temp_file.close()
         created_temp = True
@@ -266,14 +216,18 @@ def extract_audio(
     )
 
     try:
-        result = safe_run(
+        result = subprocess.run(
             command,
+            capture_output=True,
             timeout=timeout,
-            check=False,  # We handle return code manually
+            text=True,
         )
-    except ValueError as e:
+    except FileNotFoundError as e:
+        # Clean up temp file if created
+        if created_temp and output_path.exists():
+            output_path.unlink(missing_ok=True)
         raise MediaError(
-            f"Invalid ffmpeg path: {ffmpeg_path}",
+            f"ffmpeg executable not found: {ffmpeg_path}",
             context={"ffmpeg_path": ffmpeg_path, "input_path": str(input_path)},
             suggestions=[
                 "Install ffmpeg using your package manager",
@@ -316,11 +270,7 @@ def extract_audio(
         )
 
     # Parse progress from stderr if callback provided
-    if (
-        progress_callback is not None
-        and total_duration is not None
-        and total_duration > 0
-    ):
+    if progress_callback is not None and total_duration is not None and total_duration > 0:
         for line in result.stderr.splitlines():
             progress = _parse_progress(line, total_duration)
             if progress is not None:
@@ -357,9 +307,7 @@ def temp_audio_file(suffix: str = ".wav"):
         ...     # Process temp_path
         ... # File automatically deleted after context
     """
-    temp = NamedTemporaryFile(
-        suffix=suffix, delete=False
-    )  # noqa: SIM115 - Must persist for caller usage
+    temp = NamedTemporaryFile(suffix=suffix, delete=False)  # noqa: SIM115 - Must persist for caller usage
     temp_path = Path(temp.name)
     temp.close()
     try:

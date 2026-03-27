@@ -6,14 +6,12 @@ using ffprobe (part of ffmpeg).
 
 import contextlib
 import json
-import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
 
 from audiocore.errors import InvalidInputError, MediaError
 from audiocore.models import MediaInfo
-from audiocore.utils.subprocess_utils import safe_run
 
 
 def _validate_file_exists(file_path: Path) -> None:
@@ -37,44 +35,50 @@ def _validate_file_exists(file_path: Path) -> None:
         )
 
 
-def _validate_executable_path(executable_path: str) -> str:
-    """Validate that executable path is safe and exists.
-
-    Security: Prevents command injection by validating that the path
-    is a simple executable name or absolute path without shell metacharacters.
+def _check_ffprobe_available(ffprobe_path: str) -> None:
+    """Check if ffprobe is available and working.
 
     Args:
-        executable_path: Path or name of executable to validate.
-
-    Returns:
-        Validated executable path.
+        ffprobe_path: Path to ffprobe executable.
 
     Raises:
-        MediaError: If path contains dangerous characters or doesn't exist.
+        MediaError: If ffprobe is not found or not working.
     """
-    dangerous_chars = {"|", "&", ";", "$", "`", "(", ")", "<", ">", "\n", "\r"}
-    if any(char in executable_path for char in dangerous_chars):
-        raise MediaError(
-            "Invalid executable path: contains forbidden characters",
-            context={"path": executable_path},
-            suggestions=[
-                "Use simple executable name (e.g., 'ffprobe')",
-                "Use absolute path without special characters",
-            ],
+    try:
+        result = subprocess.run(
+            [ffprobe_path, "-version"],
+            capture_output=True,
+            timeout=5,
         )
-
-    if shutil.which(executable_path) is None:
+        if result.returncode != 0:
+            raise MediaError(
+                f"ffprobe returned error code {result.returncode}",
+                context={"ffprobe_path": ffprobe_path, "returncode": result.returncode},
+                suggestions=[
+                    "Verify ffprobe installation",
+                    "Check ffprobe is not corrupted",
+                ],
+            )
+    except FileNotFoundError as e:
         raise MediaError(
-            f"Executable not found: {executable_path}",
-            context={"path": executable_path},
+            f"ffprobe not found: {ffprobe_path}",
+            context={"ffprobe_path": ffprobe_path},
             suggestions=[
-                "Install the required executable",
-                "Verify the path is correct",
-                f"Ensure {executable_path} is in PATH",
+                "Install ffmpeg (includes ffprobe)",
+                f"Verify {ffprobe_path} is in PATH or provide full path",
             ],
-        )
-
-    return executable_path
+            cause=e,
+        ) from e
+    except subprocess.TimeoutExpired as e:
+        raise MediaError(
+            "ffprobe timed out during availability check",
+            context={"ffprobe_path": ffprobe_path},
+            suggestions=[
+                "Check if ffprobe is responsive",
+                "Try increasing timeout",
+            ],
+            cause=e,
+        ) from e
 
 
 def probe(
@@ -111,10 +115,6 @@ def probe(
     file_path = Path(file_path)
     _validate_file_exists(file_path)
 
-    # Validate ffprobe executable path (security: prevent command injection)
-    _validate_executable_path(ffprobe_path)
-
-    # Build ffprobe command
     command = [
         ffprobe_path,
         "-v",
@@ -127,14 +127,15 @@ def probe(
     ]
 
     try:
-        result = safe_run(
+        result = subprocess.run(
             command,
+            capture_output=True,
             timeout=timeout,
-            check=False,  # We handle return code manually
+            text=True,
         )
-    except ValueError as e:
+    except FileNotFoundError as e:
         raise MediaError(
-            f"Invalid ffprobe path: {ffprobe_path}",
+            f"ffprobe not found: {ffprobe_path}",
             context={"ffprobe_path": ffprobe_path, "file_path": str(file_path)},
             suggestions=[
                 "Install ffmpeg (includes ffprobe)",
@@ -188,16 +189,13 @@ def probe(
             cause=e,
         ) from e
 
-    # Extract format information
     format_info: dict[str, Any] = data.get("format", {})
     streams: list[dict[str, Any]] = data.get("streams", [])
 
-    # Get duration
     duration: float
     if "duration" in format_info:
         duration = float(format_info["duration"])
     else:
-        # Calculate from streams if not in format
         durations = []
         for stream in streams:
             if "duration" in stream:
@@ -214,10 +212,8 @@ def probe(
                 ],
             )
 
-    # Get format name
     format_name: str = format_info.get("format_name", "unknown")
 
-    # Find audio stream for codec, sample_rate, channels
     codec: str | None = None
     sample_rate: int | None = None
     channels: int | None = None

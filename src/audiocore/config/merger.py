@@ -214,9 +214,7 @@ def load_config(
     # 2. Convert string path to Path if needed
     resolved_path: Path | None = None
     if config_path is not None:
-        resolved_path = (
-            Path(config_path) if isinstance(config_path, str) else config_path
-        )
+        resolved_path = Path(config_path) if isinstance(config_path, str) else config_path
 
     # 3. Load TOML config (returns {} if missing)
     toml_config = load_toml_config(resolved_path)
@@ -270,10 +268,7 @@ def load_config(
     )
     logger.debug(
         "  Env: %s",
-        {
-            k: "***REDACTED***" if k == "openai_api_key" else v
-            for k, v in env_values.items()
-        },
+        {k: "***REDACTED***" if k == "openai_api_key" else v for k, v in env_values.items()},
     )
     logger.debug(
         "  CLI: %s",

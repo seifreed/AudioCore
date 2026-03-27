@@ -130,9 +130,7 @@ def config_path() -> None:
 
     console.print("[cyan]Default configuration path:[/cyan]")
     path_obj = DEFAULT_CONFIG_PATH
-    exists_str = (
-        "[green]✓ exists[/green]" if path_obj.exists() else "[dim](not found)[/dim]"
-    )
+    exists_str = "[green]✓ exists[/green]" if path_obj.exists() else "[dim](not found)[/dim]"
     console.print(f"  {path_obj} {exists_str}")
 
     console.print()

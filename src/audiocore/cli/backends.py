@@ -90,9 +90,7 @@ def check_backends() -> None:
         console.print("[red]✗[/red] No backends available")
         console.print("\nTo configure backends:")
         console.print("  - OpenAI: Set OPENAI_API_KEY environment variable")
-        console.print(
-            "  - Faster Whisper: Install with [cyan]pip install faster-whisper[/cyan]"
-        )
+        console.print("  - Faster Whisper: Install with [cyan]pip install faster-whisper[/cyan]")
         raise typer.Exit(1)
 
 

@@ -126,7 +126,9 @@ class OpenAIBackend(TranscriptionBackend):
             (
                 "config"
                 if config is not None
-                else "api_key" if api_key is not None else "environment"
+                else "api_key"
+                if api_key is not None
+                else "environment"
             ),
         )
 
@@ -302,9 +304,7 @@ class OpenAIBackend(TranscriptionBackend):
             # Build API call parameters
             api_params = {
                 "model": "whisper-1",
-                "file": open(
-                    audio_path, "rb"
-                ),  # noqa: SIM115 - File closed in finally block and error handlers
+                "file": open(audio_path, "rb"),  # noqa: SIM115 - File closed in finally block and error handlers
                 "response_format": "verbose_json",  # Get segments with timestamps
             }
 
@@ -321,9 +321,7 @@ class OpenAIBackend(TranscriptionBackend):
                 "medium": 0.4,
                 "large": 0.6,
             }
-            api_params["temperature"] = temperature_map.get(
-                options.model_size.value, 0.0
-            )
+            api_params["temperature"] = temperature_map.get(options.model_size.value, 0.0)
 
             # Make the API call
             response = client.audio.transcriptions.create(**api_params)  # type: ignore[arg-type]

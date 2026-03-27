@@ -187,9 +187,7 @@ class Pipeline:
                 temp_files.append(audio_path)
 
                 # Step 3: Extract audio to temp file
-                emit_progress(
-                    PipelineStage.EXTRACTING, 0.0, "Starting audio extraction"
-                )
+                emit_progress(PipelineStage.EXTRACTING, 0.0, "Starting audio extraction")
 
                 def extraction_progress(progress: float) -> None:
                     """Forward extraction progress to main callback."""
@@ -200,9 +198,7 @@ class Pipeline:
                     )
 
                 try:
-                    extract_audio(
-                        path, audio_path, progress_callback=extraction_progress
-                    )
+                    extract_audio(path, audio_path, progress_callback=extraction_progress)
                 except MediaError as e:
                     log_cleanup(audio_path, reason="extraction_failure")
                     raise PipelineStageError(
@@ -214,18 +210,12 @@ class Pipeline:
                         },
                         original_error=e,
                     ) from e
-                emit_progress(
-                    PipelineStage.EXTRACTING, 1.0, "Audio extraction complete"
-                )
+                emit_progress(PipelineStage.EXTRACTING, 1.0, "Audio extraction complete")
                 check_cancellation()
 
                 # Step 4: Run VAD to detect speech segments
-                emit_progress(
-                    PipelineStage.VAD, 0.0, "Starting voice activity detection"
-                )
-                vad_config = (
-                    self.config.vad if hasattr(self.config, "vad") else VADConfig()
-                )
+                emit_progress(PipelineStage.VAD, 0.0, "Starting voice activity detection")
+                vad_config = self.config.vad if hasattr(self.config, "vad") else VADConfig()
                 try:
                     segments = detect_speech(
                         audio_path=audio_path,
@@ -238,21 +228,13 @@ class Pipeline:
                         # Re-raise in strict mode - user wants to know about VAD failures
                         raise
                     # Otherwise, fall back to whole-file transcription
-                    logger.warning(
-                        f"VAD failed, falling back to whole-file transcription: {e}"
-                    )
-                    segments = (
-                        []
-                    )  # Empty segments will trigger whole-file transcription
-                emit_progress(
-                    PipelineStage.VAD, 1.0, "Voice activity detection complete"
-                )
+                    logger.warning(f"VAD failed, falling back to whole-file transcription: {e}")
+                    segments = []  # Empty segments will trigger whole-file transcription
+                emit_progress(PipelineStage.VAD, 1.0, "Voice activity detection complete")
                 check_cancellation()
 
                 # Step 5: Select backend
-                emit_progress(
-                    PipelineStage.SELECTING, 0.0, "Selecting transcription backend"
-                )
+                emit_progress(PipelineStage.SELECTING, 0.0, "Selecting transcription backend")
                 try:
                     selected_backend_type = self._selector.select(
                         backend=options.backend,

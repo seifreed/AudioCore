@@ -56,9 +56,7 @@ def get_best_device() -> str:
             device_count = torch.cuda.device_count()
             if device_count > 0:
                 device_name_gpu = torch.cuda.get_device_name(0)
-                logger.debug(
-                    f"CUDA available: {device_count} device(s), using {device_name_gpu}"
-                )
+                logger.debug(f"CUDA available: {device_count} device(s), using {device_name_gpu}")
             return DEVICE_CUDA
 
         # Check MPS (Apple Silicon)
@@ -177,9 +175,7 @@ def validate_device(device: str) -> str:
     # Check for CUDA
     if device_lower == DEVICE_CUDA:
         if device_info["cuda_available"]:
-            logger.info(
-                f"Using CUDA device: {device_info.get('device_name', 'unknown')}"
-            )
+            logger.info(f"Using CUDA device: {device_info.get('device_name', 'unknown')}")
             return DEVICE_CUDA
         # Fall back to MPS if CUDA not available but MPS is
         if device_info["mps_available"]:
