@@ -8,9 +8,12 @@ merging, splitting, and padding.
 from __future__ import annotations
 
 import math
+from typing import TYPE_CHECKING
 
 from audiocore.models import Segment
-from audiocore.vad.config import VADConfig
+
+if TYPE_CHECKING:
+    from audiocore.vad.config import VADConfig
 
 
 def filter_by_confidence(
@@ -65,14 +68,15 @@ def merge_short_segments(
             merged.append((start, end, conf))
 
     # Final pass: merge any remaining short segments
-    if merged and (merged[-1][1] - merged[-1][0]) < min_duration:
+    if (
+        merged and (merged[-1][1] - merged[-1][0]) < min_duration and len(merged) > 1
+    ):  # noqa: SIM102
         # Try to merge last with second-to-last
-        if len(merged) > 1:
-            prev_start, prev_end, prev_conf = merged[-2]
-            gap = merged[-1][0] - prev_end
-            if gap < max_gap:
-                merged[-2] = (prev_start, merged[-1][1], min(prev_conf, merged[-1][2]))
-                merged.pop()
+        prev_start, prev_end, prev_conf = merged[-2]
+        gap = merged[-1][0] - prev_end
+        if gap < max_gap:
+            merged[-2] = (prev_start, merged[-1][1], min(prev_conf, merged[-1][2]))
+            merged.pop()
 
     return merged
 

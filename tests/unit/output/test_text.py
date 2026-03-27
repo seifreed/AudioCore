@@ -38,7 +38,7 @@ def sample_result(sample_media_info: MediaInfo) -> TranscriptionResult:
         ],
         media_info=sample_media_info,
         config_used=TranscriptionOptions(),
-        duration_seconds=15.5,
+        processing_time_seconds=15.5,
         backend_used=BackendType.OPENAI,
     )
 
@@ -112,7 +112,7 @@ class TestFormatText:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Hello")],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -125,7 +125,7 @@ class TestFormatText:
             segments=[],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=0.0,
+            processing_time_seconds=0.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -141,7 +141,7 @@ class TestFormatText:
             ],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=10.0,
+            processing_time_seconds=10.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -160,7 +160,7 @@ class TestFormatText:
             ],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=15.0,
+            processing_time_seconds=15.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -179,7 +179,7 @@ class TestFormatText:
             ],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=15.0,
+            processing_time_seconds=15.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -196,7 +196,7 @@ class TestFormatText:
             ],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -227,7 +227,7 @@ class TestFormatText:
             ],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -242,7 +242,7 @@ class TestFormatText:
             ],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -260,7 +260,7 @@ class TestFormatText:
             segments=segments,
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=300.0,
+            processing_time_seconds=300.0,
             backend_used=BackendType.OPENAI,
         )
 

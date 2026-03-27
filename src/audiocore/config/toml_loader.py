@@ -4,13 +4,11 @@ Provides functions for loading configuration from TOML files with
 path expansion, error handling, and flattened key extraction.
 """
 
+import tomllib
 from pathlib import Path
 from typing import Any
 
-import tomllib
-
 from audiocore.errors import InvalidConfigError
-
 
 DEFAULT_CONFIG_PATH = Path.home() / ".config" / "audiocore" / "config.toml"
 """Default configuration file path: ~/.config/audiocore/config.toml"""

@@ -4,15 +4,64 @@ This module provides functions to extract and convert audio from media files
 using ffmpeg subprocess calls.
 """
 
+import logging
 import re
+import shutil
 import subprocess
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Callable
+from typing import TYPE_CHECKING
 
 from audiocore.errors import InvalidInputError, MediaError
 from audiocore.media.probe import probe
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+logger = logging.getLogger(__name__)
+
+
+def _validate_executable_path(executable_path: str) -> str:
+    """Validate that executable path is safe and exists.
+
+    Security: Prevents command injection by validating that the path
+    is a simple executable name or absolute path without shell metacharacters.
+
+    Args:
+        executable_path: Path or name of executable to validate.
+
+    Returns:
+        Validated executable path.
+
+    Raises:
+        MediaError: If path contains dangerous characters or doesn't exist.
+    """
+    # Check for shell metacharacters that could enable injection
+    dangerous_chars = {"|", "&", ";", "$", "`", "(", ")", "<", ">", "\n", "\r"}
+    if any(char in executable_path for char in dangerous_chars):
+        raise MediaError(
+            "Invalid executable path: contains forbidden characters",
+            context={"path": executable_path},
+            suggestions=[
+                "Use simple executable name (e.g., 'ffmpeg')",
+                "Use absolute path without special characters",
+            ],
+        )
+
+    # Validate existence
+    if shutil.which(executable_path) is None:
+        raise MediaError(
+            f"Executable not found: {executable_path}",
+            context={"path": executable_path},
+            suggestions=[
+                "Install the required executable",
+                "Verify the path is correct",
+                f"Ensure {executable_path} is in PATH",
+            ],
+        )
+
+    return executable_path
 
 
 def _build_ffmpeg_command(
@@ -182,20 +231,28 @@ def extract_audio(
             ],
         )
 
+    # Validate ffmpeg executable path (security: prevent command injection)
+    _validate_executable_path(ffmpeg_path)
+
     # Get total duration for progress callback if needed
     total_duration: float | None = None
     if progress_callback is not None:
         try:
-            media_info = probe(input_path, ffprobe_path=ffmpeg_path.replace("ffmpeg", "ffprobe"))
+            media_info = probe(
+                input_path, ffprobe_path=ffmpeg_path.replace("ffmpeg", "ffprobe")
+            )
             total_duration = media_info.duration
-        except Exception:
+        except Exception as probe_error:
             # If probe fails, progress callback won't work but extraction can continue
-            pass
+            # Log the error for debugging but don't fail the extraction
+            logger.debug(f"Could not probe media for progress: {probe_error}")
 
     # Create temp file if no output path specified
     created_temp = False
     if output_path is None:
-        temp_file = NamedTemporaryFile(suffix=".wav", delete=False)
+        temp_file = NamedTemporaryFile(
+            suffix=".wav", delete=False
+        )  # noqa: SIM115 - File must persist for processing
         output_path = Path(temp_file.name)
         temp_file.close()
         created_temp = True
@@ -228,6 +285,21 @@ def extract_audio(
             cause=e,
         ) from e
     except subprocess.TimeoutExpired as e:
+        # Ensure process is terminated on timeout
+        if e.proc is not None:
+            import contextlib
+
+            with contextlib.suppress(Exception):
+                e.proc.terminate()
+                try:
+                    e.proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    # Force kill if terminate doesn't work
+                    e.proc.kill()
+                    e.proc.wait()
+        # Clean up temp file if created
+        if created_temp and output_path.exists():
+            output_path.unlink(missing_ok=True)
         raise MediaError(
             f"ffmpeg timed out after {timeout} seconds",
             context={"timeout": timeout, "input_path": str(input_path)},
@@ -258,7 +330,11 @@ def extract_audio(
         )
 
     # Parse progress from stderr if callback provided
-    if progress_callback is not None and total_duration is not None and total_duration > 0:
+    if (
+        progress_callback is not None
+        and total_duration is not None
+        and total_duration > 0
+    ):
         for line in result.stderr.splitlines():
             progress = _parse_progress(line, total_duration)
             if progress is not None:
@@ -295,7 +371,9 @@ def temp_audio_file(suffix: str = ".wav"):
         ...     # Process temp_path
         ... # File automatically deleted after context
     """
-    temp = NamedTemporaryFile(suffix=suffix, delete=False)
+    temp = NamedTemporaryFile(
+        suffix=suffix, delete=False
+    )  # noqa: SIM115 - Must persist for caller usage
     temp_path = Path(temp.name)
     temp.close()
     try:

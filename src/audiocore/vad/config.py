@@ -73,7 +73,7 @@ class VADConfig(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_thresholds(self) -> "VADConfig":
+    def validate_thresholds(self) -> VADConfig:
         """Validate threshold relationships.
 
         Ensures speech_threshold > silence_threshold for proper detection.

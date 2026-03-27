@@ -11,10 +11,10 @@ import threading
 from typing import TYPE_CHECKING
 
 from audiocore.errors import BackendUnavailableError
-from audiocore.types import BackendType
 
 if TYPE_CHECKING:
     from audiocore.backends.base import TranscriptionBackend
+    from audiocore.types import BackendType
 
 
 class BackendRegistry:
@@ -46,7 +46,11 @@ class BackendRegistry:
     """
 
     _instance: BackendRegistry | None = None
-    _lock: threading.Lock = threading.Lock()  # Class-level lock for singleton
+    _lock: threading.Lock = threading.Lock()
+    _initialized: bool
+    _instance_lock: threading.Lock
+    _backends: dict[BackendType, type[TranscriptionBackend]]
+    _instances: dict[BackendType, TranscriptionBackend]
 
     def __new__(cls) -> BackendRegistry:
         """Create or return the singleton registry instance.
@@ -73,7 +77,7 @@ class BackendRegistry:
             return
 
         # Instance-level lock for thread-safe backend instance creation
-        self._instance_lock: threading.Lock = threading.Lock()
+        self._instance_lock = threading.Lock()
         # Store backend classes (lazy loading)
         self._backends: dict[BackendType, type[TranscriptionBackend]] = {}
         # Store backend instances (memoization)

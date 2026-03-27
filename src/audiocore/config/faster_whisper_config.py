@@ -19,7 +19,7 @@ Example:
 """
 
 from enum import StrEnum
-from typing import Annotated, Any
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -47,7 +47,7 @@ class ComputeType(StrEnum):
     INT8_FLOAT16 = "int8_float16"
 
     @classmethod
-    def parse(cls, value: str) -> "ComputeType":
+    def parse(cls, value: str) -> ComputeType:
         """Parse a string to ComputeType case-insensitively.
 
         Args:
@@ -64,7 +64,9 @@ class ComputeType(StrEnum):
             return cls(normalized)
         except ValueError:
             valid_options = ", ".join(f"'{m.value}'" for m in cls)
-            raise ValueError(f"Invalid compute type '{value}'. Valid options: {valid_options}")
+            raise ValueError(
+                f"Invalid compute type '{value}'. Valid options: {valid_options}"
+            ) from None
 
 
 class FasterWhisperConfig(BaseModel):
@@ -207,11 +209,13 @@ class FasterWhisperConfig(BaseModel):
         """
         if v is None:
             return v
-        valid_devices = {"cuda", "mps", "cpu"}
+        valid_devices = {"cuda", "mps", "cpu", "auto"}
         if isinstance(v, str):
             normalized = v.lower()
             if normalized not in valid_devices:
-                raise ValueError(f"Invalid device '{v}'. Valid options: None, 'cuda', 'mps', 'cpu'")
+                raise ValueError(
+                    f"Invalid device '{v}'. Valid options: None, 'cuda', 'mps', 'cpu', 'auto'"
+                )
             return normalized
         raise ValueError(f"Invalid device type: {type(v)}")
 
@@ -282,7 +286,7 @@ class FasterWhisperConfig(BaseModel):
         raise ValueError(f"Invalid model size: {v}")
 
     @model_validator(mode="after")
-    def validate_beam_search(self) -> "FasterWhisperConfig":
+    def validate_beam_search(self) -> FasterWhisperConfig:
         """Validate beam_size and best_of relationship.
 
         Returns:
@@ -292,7 +296,9 @@ class FasterWhisperConfig(BaseModel):
             ValueError: If best_of < beam_size
         """
         if self.best_of < self.beam_size:
-            raise ValueError(f"best_of ({self.best_of}) must be >= beam_size ({self.beam_size})")
+            raise ValueError(
+                f"best_of ({self.best_of}) must be >= beam_size ({self.beam_size})"
+            )
         return self
 
     @classmethod

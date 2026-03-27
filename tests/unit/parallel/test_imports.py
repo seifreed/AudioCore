@@ -80,7 +80,7 @@ class TestParallelModuleImports:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Hello world")],
             media_info=MediaInfo(duration=5.0, format="wav", sample_rate=16000, channels=1),
             config_used=TranscriptionOptions(),
-            duration_seconds=2.0,
+            processing_time_seconds=2.0,
             backend_used=BackendType.OPENAI,
         )
 

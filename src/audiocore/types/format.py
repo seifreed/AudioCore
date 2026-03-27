@@ -1,9 +1,9 @@
 """Output format enum for transcription results."""
 
-from enum import Enum
+from enum import StrEnum
 
 
-class OutputFormat(str, Enum):
+class OutputFormat(StrEnum):
     """Valid output formats for transcription results.
 
     Inherits from str and Enum for JSON serialization support.
@@ -15,7 +15,7 @@ class OutputFormat(str, Enum):
     VTT = "vtt"
 
     @classmethod
-    def parse(cls, value: str) -> "OutputFormat":
+    def parse(cls, value: str) -> OutputFormat:
         """Parse a string to OutputFormat case-insensitively.
 
         Supports both format name and file extension:
@@ -49,4 +49,6 @@ class OutputFormat(str, Enum):
             return cls(format_name)
         except ValueError:
             valid_options = ", ".join(f"'{m.value}'" for m in cls)
-            raise ValueError(f"Invalid output format '{value}'. Valid options: {valid_options}")
+            raise ValueError(
+                f"Invalid output format '{value}'. Valid options: {valid_options}"
+            ) from None

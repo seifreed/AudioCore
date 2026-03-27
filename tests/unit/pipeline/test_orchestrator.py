@@ -60,7 +60,7 @@ def mock_transcription_result(mock_media_info):
         ],
         media_info=mock_media_info,
         config_used=TranscriptionOptions(),
-        duration_seconds=5.0,
+        processing_time_seconds=5.0,
         backend_used=BackendType.OPENAI,
     )
 
@@ -373,7 +373,7 @@ class TestPipelineTranscribe:
             segments=mock_segments,
             media_info=mock_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.FASTER_WHISPER,
         )
 
@@ -506,7 +506,7 @@ class TestPipelineTranscribe:
             ],
             media_info=mock_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
         mock_backend.transcribe.return_value = transcription_result
@@ -1325,7 +1325,7 @@ class TestOutputFormatting:
             segments=segments,
             media_info=mock_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=15.0,
+            processing_time_seconds=15.0,
             backend_used=BackendType.OPENAI,
         )
 

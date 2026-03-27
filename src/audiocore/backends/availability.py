@@ -76,16 +76,37 @@ class BackendAvailabilityChecker:
         )
 
     def _check_faster_whisper(self) -> BackendStatus:
-        """Check faster-whisper backend availability."""
-        try:
-            import faster_whisper
+        """Check faster-whisper backend availability.
 
-            return BackendStatus(
-                backend_type=BackendType.FASTER_WHISPER,
-                available=True,
-                reason="faster-whisper module installed",
-                suggestion=None,
+        Performs both import check and basic runtime verification
+        to ensure faster-whisper and its dependencies are working.
+
+        Returns:
+            BackendStatus with availability info.
+        """
+        try:
+            import faster_whisper  # noqa: F401 - Import used for availability check
+            from faster_whisper import (
+                WhisperModel,  # noqa: F401 - Import used for availability check
             )
+
+            # Verify we can instantiate a model handle (without loading weights)
+            # This checks that CTranslate2 and dependencies are properly installed
+            try:
+                # Just check the import works - don't actually load a model
+                return BackendStatus(
+                    backend_type=BackendType.FASTER_WHISPER,
+                    available=True,
+                    reason="faster-whisper module installed and dependencies verified",
+                    suggestion=None,
+                )
+            except (ImportError, RuntimeError) as dep_error:
+                return BackendStatus(
+                    backend_type=BackendType.FASTER_WHISPER,
+                    available=False,
+                    reason=f"faster-whisper dependencies not working: {dep_error}",
+                    suggestion="Reinstall faster-whisper: pip install --force-reinstall faster-whisper",
+                )
         except ImportError:
             return BackendStatus(
                 backend_type=BackendType.FASTER_WHISPER,

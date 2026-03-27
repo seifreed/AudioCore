@@ -84,7 +84,7 @@ class TestOpenAITranscription:
         assert result is not None
         assert result.backend_used == BackendType.OPENAI
         assert result.media_info is not None
-        assert result.duration_seconds > 0
+        assert result.processing_time_seconds > 0
 
         # For silence, segments may be empty or contain silence marker
         # OpenAI Whisper API may return empty transcription for silence

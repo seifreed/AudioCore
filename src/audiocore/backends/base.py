@@ -16,11 +16,13 @@ from __future__ import annotations
 
 import abc
 import logging
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-from audiocore.errors import BackendUnavailableError
-from audiocore.models import TranscriptionOptions, TranscriptionResult
-from audiocore.types import BackendType
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from audiocore.models import TranscriptionOptions, TranscriptionResult
+    from audiocore.types import BackendType
 
 logger = logging.getLogger(__name__)
 

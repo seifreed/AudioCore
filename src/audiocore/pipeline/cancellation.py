@@ -14,12 +14,8 @@ Example:
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING
 
 from audiocore.errors.base import AudioCoreError
-
-if TYPE_CHECKING:
-    pass
 
 
 class CancelledError(AudioCoreError):

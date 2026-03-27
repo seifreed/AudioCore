@@ -13,8 +13,6 @@ Example:
     >>> # audiocore transcribe audio.mp3 --output result.txt
 """
 
-from typing import Optional
-
 import typer
 from rich.console import Console
 

@@ -15,20 +15,29 @@ Key Features:
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from openai import OpenAI
 from openai import (
     APIConnectionError,
+    OpenAI,
+)
+from openai import (
     APIError as OpenAIAPIError,
-    APITimeoutError,
+)
+from openai import (
+    APITimeoutError as OpenAITimeoutError,
+)
+from openai import (
     AuthenticationError as OpenAIAuthenticationError,
+)
+from openai import (
     RateLimitError as OpenAIRateLimitError,
 )
 
-from audiocore.config.openai_config import OpenAIConfig
 from audiocore.errors import (
     APIError,
     APITimeoutError,
@@ -37,10 +46,18 @@ from audiocore.errors import (
     RateLimitError,
     TranscriptionError,
 )
-from audiocore.models import MediaInfo, Segment, TranscriptionOptions, TranscriptionResult
+from audiocore.models import (
+    MediaInfo,
+    Segment,
+    TranscriptionOptions,
+    TranscriptionResult,
+)
 from audiocore.types import BackendType
 
 from .base import TranscriptionBackend
+
+if TYPE_CHECKING:
+    from audiocore.config.openai_config import OpenAIConfig
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +123,11 @@ class OpenAIBackend(TranscriptionBackend):
         # Log initialization status
         logger.debug(
             "OpenAIBackend initialized with %s",
-            "config" if config is not None else "api_key" if api_key is not None else "environment",
+            (
+                "config"
+                if config is not None
+                else "api_key" if api_key is not None else "environment"
+            ),
         )
 
     @property
@@ -254,7 +275,9 @@ class OpenAIBackend(TranscriptionBackend):
 
         # Validate file exists
         if not audio_path.exists():
-            raise TranscriptionError(
+            from audiocore.errors import InvalidInputError
+
+            raise InvalidInputError(
                 f"Audio file not found: {audio_path}",
                 context={"file_path": str(audio_path), "backend": "openai"},
                 suggestions=[
@@ -279,7 +302,9 @@ class OpenAIBackend(TranscriptionBackend):
             # Build API call parameters
             api_params = {
                 "model": "whisper-1",
-                "file": open(audio_path, "rb"),  # Open file in binary mode
+                "file": open(
+                    audio_path, "rb"
+                ),  # noqa: SIM115 - File closed in finally block and error handlers
                 "response_format": "verbose_json",  # Get segments with timestamps
             }
 
@@ -296,7 +321,9 @@ class OpenAIBackend(TranscriptionBackend):
                 "medium": 0.4,
                 "large": 0.6,
             }
-            api_params["temperature"] = temperature_map.get(options.model_size.value, 0.0)
+            api_params["temperature"] = temperature_map.get(
+                options.model_size.value, 0.0
+            )
 
             # Make the API call
             response = client.audio.transcriptions.create(**api_params)  # type: ignore[arg-type]
@@ -306,6 +333,7 @@ class OpenAIBackend(TranscriptionBackend):
 
         except BackendUnavailableError:
             # Re-raise BackendUnavailableError without wrapping
+            self._safe_close_file(api_params)
             raise
 
         except OpenAIAuthenticationError as e:
@@ -329,10 +357,8 @@ class OpenAIBackend(TranscriptionBackend):
             if hasattr(e, "response") and e.response is not None:
                 retry_after_header = e.response.headers.get("retry-after")
                 if retry_after_header:
-                    try:
+                    with contextlib.suppress(ValueError):
                         retry_after = int(retry_after_header)
-                    except ValueError:
-                        pass
 
             context: dict[str, object] = {"backend": "openai"}
             if retry_after:
@@ -342,15 +368,17 @@ class OpenAIBackend(TranscriptionBackend):
                 "OpenAI rate limit exceeded",
                 context=context,
                 suggestions=[
-                    f"Wait {retry_after} seconds before retrying"
-                    if retry_after
-                    else "Wait before retrying",
+                    (
+                        f"Wait {retry_after} seconds before retrying"
+                        if retry_after
+                        else "Wait before retrying"
+                    ),
                     "Consider upgrading API tier",
                     "Implement request throttling",
                 ],
             ) from e
 
-        except APITimeoutError as e:
+        except OpenAITimeoutError as e:
             self._safe_close_file(api_params)
             raise APITimeoutError(
                 "OpenAI API request timed out",
@@ -360,7 +388,6 @@ class OpenAIBackend(TranscriptionBackend):
                     "Check network connection",
                     "Increase timeout configuration",
                 ],
-                cause=e,
             ) from e
 
         except APIConnectionError as e:
@@ -407,7 +434,7 @@ class OpenAIBackend(TranscriptionBackend):
 
         # Process successful response
         end_time = time.time()
-        duration_seconds = end_time - start_time
+        processing_time_seconds = end_time - start_time
 
         try:
             # Extract segments from verbose_json response
@@ -443,7 +470,7 @@ class OpenAIBackend(TranscriptionBackend):
                 segments=segments,
                 media_info=media_info,
                 config_used=options,
-                duration_seconds=duration_seconds,
+                processing_time_seconds=processing_time_seconds,
                 backend_used=BackendType.OPENAI,
             )
 
@@ -451,7 +478,7 @@ class OpenAIBackend(TranscriptionBackend):
                 "OpenAI transcription complete for %s: %d segments, %.2fs processing",
                 audio_path,
                 len(segments),
-                duration_seconds,
+                processing_time_seconds,
             )
 
             return result
@@ -474,7 +501,7 @@ class OpenAIBackend(TranscriptionBackend):
             api_params: API parameters dict that may contain an open file.
         """
         if "file" in api_params:
-            try:
+            import contextlib
+
+            with contextlib.suppress(Exception):
                 api_params["file"].close()  # type: ignore[union-attr]
-            except Exception:
-                pass  # Ignore close errors in error handling

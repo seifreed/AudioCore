@@ -12,14 +12,17 @@ Example:
     ...     ],
     ...     media_info=MediaInfo(...),
     ...     config_used=TranscriptionOptions(),
-    ...     duration_seconds=15.5,
+    ...     processing_time_seconds=15.5,
     ...     backend_used=BackendType.OPENAI
     ... )
     >>> format_text(result, TranscriptionOptions())
     '[00:00:00.000] Hello world\\n[00:05:500] How are you?'
 """
 
-from audiocore.models.transcription import TranscriptionOptions, TranscriptionResult
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from audiocore.models.transcription import TranscriptionOptions, TranscriptionResult
 
 
 def _format_timestamp(seconds: float) -> str:

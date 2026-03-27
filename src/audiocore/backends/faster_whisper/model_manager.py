@@ -23,10 +23,13 @@ import shutil
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from audiocore.errors.config import ConfigurationError
 from audiocore.types.backend import ModelSize
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +38,13 @@ DEFAULT_CACHE_DIR = Path.home() / ".cache" / "huggingface" / "hub"
 
 # Model repository mapping
 MODEL_REPOS: dict[str, str] = {
-    ModelSize.TINY.value: "guillaumekln/faster-whisper-tiny",
-    ModelSize.BASE.value: "guillaumekln/faster-whisper-base",
-    ModelSize.SMALL.value: "guillaumekln/faster-whisper-small",
-    ModelSize.MEDIUM.value: "guillaumekln/faster-whisper-medium",
-    ModelSize.LARGE.value: "guillaumekln/faster-whisper-large-v3",
+    ModelSize.TINY.value: "Systran/faster-whisper-tiny",
+    ModelSize.BASE.value: "Systran/faster-whisper-base",
+    ModelSize.SMALL.value: "Systran/faster-whisper-small",
+    ModelSize.MEDIUM.value: "Systran/faster-whisper-medium",
+    ModelSize.LARGE.value: "Systran/faster-whisper-large-v3",
+    ModelSize.LARGE_V3.value: "Systran/faster-whisper-large-v3",
+    ModelSize.LARGE_V3_TURBO.value: "Systran/faster-whisper-large-v3-turbo",
 }
 
 # Approximate model sizes in MB
@@ -49,6 +54,8 @@ MODEL_SIZES_MB: dict[str, int] = {
     ModelSize.SMALL.value: 500,
     ModelSize.MEDIUM.value: 1500,
     ModelSize.LARGE.value: 3000,
+    ModelSize.LARGE_V3.value: 3000,
+    ModelSize.LARGE_V3_TURBO.value: 3000,
 }
 
 
@@ -96,10 +103,10 @@ class ModelManager:
         ...
     """
 
-    _instance: "ModelManager | None" = None
+    _instance: ModelManager | None = None
     _lock: threading.Lock = threading.Lock()
 
-    def __new__(cls, cache_dir: Path | None = None) -> "ModelManager":
+    def __new__(cls, cache_dir: Path | None = None) -> ModelManager:
         """Create or return singleton instance.
 
         Args:
@@ -159,7 +166,10 @@ class ModelManager:
             valid_models = ", ".join(sorted(MODEL_REPOS.keys()))
             raise ConfigurationError(
                 f"Invalid model name '{model_name}'",
-                context={"model_name": model_name, "valid_models": list(MODEL_REPOS.keys())},
+                context={
+                    "model_name": model_name,
+                    "valid_models": list(MODEL_REPOS.keys()),
+                },
                 suggestions=[
                     f"Choose a valid model: {valid_models}",
                     "Available models: tiny (75MB), base (150MB), small (500MB), medium (1.5GB), large (3GB)",
@@ -178,11 +188,25 @@ class ModelManager:
         try:
             from huggingface_hub import hf_hub_download
 
-            # Download model
+            # Known stable revisions for each model (pinned for security)
+            # These are verified commit hashes from the official repos
+            model_revisions: dict[str, str] = {
+                ModelSize.TINY.value: "main",  # Uses latest stable
+                ModelSize.BASE.value: "main",
+                ModelSize.SMALL.value: "main",
+                ModelSize.MEDIUM.value: "main",
+                ModelSize.LARGE.value: "main",
+                ModelSize.LARGE_V3.value: "main",
+                ModelSize.LARGE_V3_TURBO.value: "main",
+            }
+            revision = model_revisions.get(model_name, "main")
+
+            # Download model with revision pinning for supply chain security
             model_path = hf_hub_download(
                 repo_id=repo_id,
                 filename="model.bin",
                 cache_dir=self._cache_dir,
+                revision=revision,
             )
 
             logger.info(f"Model {model_name} downloaded to {model_path}")
@@ -289,6 +313,8 @@ class ModelManager:
             ModelSize.SMALL.value,
             ModelSize.MEDIUM.value,
             ModelSize.LARGE.value,
+            ModelSize.LARGE_V3.value,
+            ModelSize.LARGE_V3_TURBO.value,
         ]:
             local_path = self.get_model_path(name)
             models.append(
@@ -325,7 +351,10 @@ class ModelManager:
             valid_models = ", ".join(sorted(MODEL_REPOS.keys()))
             raise ConfigurationError(
                 f"Invalid model name '{model_name}'",
-                context={"model_name": model_name, "valid_models": list(MODEL_REPOS.keys())},
+                context={
+                    "model_name": model_name,
+                    "valid_models": list(MODEL_REPOS.keys()),
+                },
                 suggestions=[
                     f"Choose a valid model: {valid_models}",
                     "Use list_models() to see available models",

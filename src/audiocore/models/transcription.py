@@ -1,12 +1,14 @@
 """Transcription request options and result models."""
 
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import BaseModel, Field
 
-from audiocore.models.media import MediaInfo
-from audiocore.models.segment import Segment
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
+
+if TYPE_CHECKING:
+    from audiocore.models.media import MediaInfo
+    from audiocore.models.segment import Segment
 
 
 class TranscriptionOptions(BaseModel):
@@ -21,6 +23,8 @@ class TranscriptionOptions(BaseModel):
         backend: Backend to use, defaults to AUTO for automatic selection.
         output_format: Output format, defaults to TEXT.
         backend_preference: Selection policy for automatic backend selection.
+        strict_vad: If True, raise VADError when VAD fails. If False (default),
+            fall back to whole-file transcription when VAD fails.
 
     Example:
         >>> opts = TranscriptionOptions()
@@ -42,7 +46,8 @@ class TranscriptionOptions(BaseModel):
         description="Model size for transcription (tiny, base, small, medium, large)",
     )
     backend: BackendType = Field(
-        default=BackendType.AUTO, description="Backend to use (openai, faster_whisper, or auto)"
+        default=BackendType.AUTO,
+        description="Backend to use (openai, faster_whisper, or auto)",
     )
     output_format: OutputFormat = Field(
         default=OutputFormat.TEXT, description="Output format (text, srt, vtt, json)"
@@ -50,6 +55,10 @@ class TranscriptionOptions(BaseModel):
     backend_preference: SelectionPolicy = Field(
         default=SelectionPolicy.AUTO,
         description="Policy for automatic backend selection (prefer_local, prefer_cloud, auto)",
+    )
+    strict_vad: bool = Field(
+        default=False,
+        description="If True, raise VADError when VAD fails. If False, fall back to whole-file transcription.",
     )
 
 
@@ -61,9 +70,11 @@ class TranscriptionResult(BaseModel):
 
     Attributes:
         segments: List of time-segmented transcriptions.
-        media_info: Metadata about the source media.
+        media_info: Metadata about the source media (includes media duration).
         config_used: Configuration options used for this transcription.
-        duration_seconds: Processing duration in seconds.
+        processing_time_seconds: Duration of the transcription process in seconds.
+            (Note: This is processing time, not media duration. For media duration,
+            use media_info.duration)
         backend_used: Backend that performed this transcription.
         formatted_output: Formatted transcription output (text or JSON).
         failed_segments: List of segments that failed transcription (if partial failure).
@@ -74,11 +85,15 @@ class TranscriptionResult(BaseModel):
         ...     segments=[Segment(start_time=0.0, end_time=5.0, text='Hello')],
         ...     media_info=MediaInfo(duration=120.0, format='mp4'),
         ...     config_used=TranscriptionOptions(),
-        ...     duration_seconds=15.5,
+        ...     processing_time_seconds=15.5,
         ...     backend_used=BackendType.OPENAI
         ... )
         >>> result.segments[0].text
         'Hello'
+        >>> result.media_info.duration  # Media duration
+        120.0
+        >>> result.processing_time_seconds  # Processing time
+        15.5
     """
 
     model_config = {"strict": True, "extra": "forbid"}
@@ -90,8 +105,13 @@ class TranscriptionResult(BaseModel):
     config_used: TranscriptionOptions = Field(
         description="Configuration options used for this transcription"
     )
-    duration_seconds: float = Field(ge=0, description="Processing duration in seconds")
-    backend_used: BackendType = Field(description="Backend that performed this transcription")
+    processing_time_seconds: float = Field(
+        ge=0,
+        description="Time taken to process the transcription in seconds (not media duration)",
+    )
+    backend_used: BackendType = Field(
+        description="Backend that performed this transcription"
+    )
     formatted_output: str | None = Field(
         default=None,
         description="Formatted transcription output (text or JSON based on output_format)",

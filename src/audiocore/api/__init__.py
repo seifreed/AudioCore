@@ -41,6 +41,10 @@ Example:
 """
 
 # Import exceptions - these don't have circular import issues
+# Note: transcribe and async_transcribe are imported lazily to avoid circular imports
+# They are defined in audiocore.api.transcribe and imported when accessed
+# Import convenience function that handles lazy loading
+from audiocore.api.transcribe import async_transcribe, transcribe
 from audiocore.errors import (
     APIError,
     APITimeoutError,
@@ -66,19 +70,13 @@ from audiocore.errors import (
 
 # Import models - these don't have circular import issues
 from audiocore.models import TranscriptionOptions, TranscriptionResult
-
-# Import types - these don't have circular import issues
-from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
+from audiocore.pipeline.cancellation import CancellationToken
 
 # Import progress types - these don't have circular import issues
 from audiocore.pipeline.progress import PipelineStage, ProgressCallback
-from audiocore.pipeline.cancellation import CancellationToken
 
-# Note: transcribe and async_transcribe are imported lazily to avoid circular imports
-# They are defined in audiocore.api.transcribe and imported when accessed
-
-# Import convenience function that handles lazy loading
-from audiocore.api.transcribe import async_transcribe, transcribe
+# Import types - these don't have circular import issues
+from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
 
 # Note: AppConfig has circular import when loaded early, so import lazily
 # Users should use: from audiocore.config import AppConfig

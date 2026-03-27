@@ -64,7 +64,7 @@ def mock_transcription_result(mock_media_info):
         ],
         media_info=mock_media_info,
         config_used=TranscriptionOptions(),
-        duration_seconds=5.0,
+        processing_time_seconds=5.0,
         backend_used=BackendType.OPENAI,
     )
 
@@ -299,7 +299,7 @@ class TestCleanupOnVADFailure:
             ],
             media_info=mock_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -576,7 +576,7 @@ class TestPartialResultPreservation:
             segments=[Segment(start_time=0.0, end_time=60.0, text="Whole file text")],
             media_info=mock_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
         mock_backend.transcribe.return_value = whole_file_result
@@ -602,7 +602,7 @@ class TestPartialResultPreservation:
             segments=mock_segments,
             media_info=mock_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
             failed_segments=[{"start_time": 10.0, "end_time": 15.0, "error": "Backend timeout"}],
         )
@@ -617,7 +617,7 @@ class TestPartialResultPreservation:
             segments=mock_segments,
             media_info=mock_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
         assert result2.failed_segments == []
@@ -696,7 +696,7 @@ class TestUserFriendlyErrorMessages:
             segments=mock_segments,
             media_info=mock_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -716,7 +716,7 @@ class TestUserFriendlyErrorMessages:
             segments=[Segment(start_time=0.0, end_time=5.0, text="test")],
             media_info=MediaInfo(duration=10.0, format="mp3"),
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
 

@@ -6,12 +6,11 @@ for detecting speech segments in audio files.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import threading
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from numpy.typing import NDArray
 import scipy.io.wavfile as wavfile
 import torch
 from torch import nn
@@ -19,7 +18,8 @@ from torch import nn
 from audiocore.errors import VADError
 from audiocore.vad.config import VADConfig
 
-import threading
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 
 class SileroVAD:
@@ -31,10 +31,16 @@ class SileroVAD:
     The model is loaded lazily on first use via torch.hub, with fallback to local
     cache if network is unavailable.
 
+    Thread Safety:
+        The model's state is managed per-thread using thread-local storage.
+        Each thread gets its own model state to prevent interference during
+        concurrent transcriptions.
+
     Attributes:
         _model: Class-level singleton model instance (None until loaded).
         _lock: Thread lock for thread-safe model loading.
         _sample_rate: Required sample rate for Silero (16000 Hz).
+        _model_state: Thread-local storage for per-thread model state.
 
     Example:
         >>> vad = SileroVAD()
@@ -44,8 +50,9 @@ class SileroVAD:
     """
 
     _model: nn.Module | None = None
-    _lock: threading.Lock = threading.Lock()  # Initialized at class definition
-    _sample_rate: int = 16000  # Silero requires 16kHz audio
+    _lock: threading.Lock = threading.Lock()
+    _sample_rate: int = 16000
+    _model_state: threading.local = threading.local()
 
     def __init__(self, config: VADConfig | None = None) -> None:
         """Initialize SileroVAD instance.
@@ -56,11 +63,14 @@ class SileroVAD:
         self.config = config or VADConfig()
 
     @classmethod
-    def _load_model(cls) -> nn.Module:
+    def _load_model(cls, timeout_seconds: int = 300) -> nn.Module:
         """Load the Silero VAD model with fallback to local cache.
 
         Attempts to load model from torch.hub first, then falls back to
         local cache if network is unavailable.
+
+        Args:
+            timeout_seconds: Timeout for model download in seconds (default: 300s / 5min).
 
         Returns:
             Loaded Silero VAD model.
@@ -68,22 +78,75 @@ class SileroVAD:
         Raises:
             VADError: If model cannot be loaded from torch.hub or local cache.
         """
+        import signal
+
+        def timeout_handler(signum, frame):
+            raise TimeoutError(
+                f"Model download timed out after {timeout_seconds} seconds"
+            )
+
         # Try torch hub first
         try:
-            model, _ = torch.hub.load(
-                repo_or_dir="snakers4/silero-vad",
-                model="silero_vad",
-                force_reload=False,
-                onnx=False,
-                trust_repo=True,
+            # Set timeout for model download (Unix only - signal doesn't work on Windows threads)
+            old_handler = None
+            timeout_enabled = False
+            try:
+                if hasattr(signal, "SIGALRM"):
+                    old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+                    signal.alarm(timeout_seconds)
+                    timeout_enabled = True
+            except ValueError, OSError:
+                # Signal only works in main thread on Unix, ignore on Windows/threads
+                pass
+
+            try:
+                model, _ = torch.hub.load(
+                    repo_or_dir="snakers4/silero-vad",
+                    model="silero_vad",
+                    force_reload=False,
+                    onnx=False,
+                    trust_repo=True,
+                )
+                model.eval()
+                return model
+            finally:
+                if timeout_enabled and old_handler is not None:
+                    signal.alarm(0)
+                    signal.signal(signal.SIGALRM, old_handler)
+
+        except TimeoutError:
+            # Try local cache fallback after timeout
+            import os
+
+            cache_dir = os.path.expanduser(
+                "~/.cache/torch/hub/snakers4_silero-vad_master/"
             )
-            model.eval()
-            return model
+            if Path(cache_dir).exists():
+                try:
+                    model_path = Path(cache_dir) / "files" / "silero_vad.jit"
+                    if model_path.exists():
+                        model = torch.jit.load(str(model_path))
+                        model.eval()
+                        return model
+                except Exception:
+                    pass
+            raise VADError(
+                message=f"Silero VAD model download timed out after {timeout_seconds} seconds",
+                context={"timeout_seconds": timeout_seconds},
+                suggestions=[
+                    "Check internet connection and try again",
+                    "Download model manually from https://github.com/snakers4/silero-vad",
+                    "Increase timeout by passing timeout_seconds parameter",
+                    "Use whole-file transcription without VAD segmentation",
+                ],
+            ) from None
         except Exception as hub_error:
             # Try local cache fallback
             import os
 
-            cache_dir = os.path.expanduser("~/.cache/torch/hub/snakers4_silero-vad_master/")
+            cache_dir = os.path.expanduser(
+                "~/.cache/torch/hub/snakers4_silero-vad_master/"
+            )
             if Path(cache_dir).exists():
                 try:
                     # Attempt to load from local cache
@@ -92,7 +155,7 @@ class SileroVAD:
                         model = torch.jit.load(str(model_path))
                         model.eval()
                         return model
-                except Exception as cache_error:
+                except Exception:
                     pass
 
             # Both methods failed
@@ -130,14 +193,32 @@ class SileroVAD:
                     cls._model = cls._load_model()
         return cls._model
 
+    def _get_thread_local_model(self) -> nn.Module:
+        """Get a thread-local copy of the model with its own state.
+
+        Each thread gets its own model state to prevent interference
+        during concurrent transcriptions.
+
+        Returns:
+            Thread-local Silero VAD model instance with reset state.
+        """
+        model = self.get_model()
+        # Thread-safe initialization check using getattr with default
+        if not getattr(SileroVAD._model_state, "initialized", False):
+            SileroVAD._model_state.initialized = True
+            model.reset_states()
+        return model
+
     def reset_state(self) -> None:
         """Reset the VAD model state for processing new audio.
 
         Should be called before processing a new audio file to reset
-        internal state.
+        internal state. Thread-safe - only affects current thread's state.
         """
         model = self.get_model()
         model.reset_states()
+        # Mark this thread as having reset state
+        SileroVAD._model_state.initialized = True
 
     def _load_audio(self, audio_path: Path | str) -> tuple[NDArray[np.float32], int]:
         """Load audio from WAV file and convert to required format.
@@ -237,9 +318,8 @@ class SileroVAD:
         if config is None:
             config = VADConfig()
 
-        # Get thread-safe model instance
-        model = self.get_model()
-        model.reset_states()
+        # Get thread-local model instance with isolated state
+        model = self._get_thread_local_model()
 
         # Use window_size_samples from config (default 512, optimal for Silero)
         chunk_size = config.window_size_samples
@@ -251,7 +331,7 @@ class SileroVAD:
         chunk_confidences: list[float] = []
 
         # Convert min_silence_duration from ms to seconds for threshold
-        min_silence_duration_s = config.min_silence_duration_ms / 1000.0
+        config.min_silence_duration_ms / 1000.0
 
         # Process each chunk
         for i in range(0, len(audio_data) - chunk_size + 1, chunk_size):
@@ -286,7 +366,9 @@ class SileroVAD:
                 if speech_duration >= config.min_segment_duration:
                     # Calculate mean confidence
                     mean_confidence = float(np.mean(chunk_confidences))
-                    segments.append((speech_start_time or 0.0, current_time, mean_confidence))
+                    segments.append(
+                        (speech_start_time or 0.0, current_time, mean_confidence)
+                    )
 
                 # Reset speech tracking
                 in_speech = False

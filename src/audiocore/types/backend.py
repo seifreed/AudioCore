@@ -1,10 +1,10 @@
 """Backend type and model size enums with CLI/config compatibility."""
 
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import Any
 
 
-class BackendType(str, Enum):
+class BackendType(StrEnum):
     """Valid backend types for audio transcription.
 
     Inherits from str and Enum for JSON serialization support.
@@ -15,7 +15,7 @@ class BackendType(str, Enum):
     AUTO = "auto"
 
     @classmethod
-    def parse(cls, value: str) -> "BackendType":
+    def parse(cls, value: str) -> BackendType:
         """Parse a string to BackendType case-insensitively.
 
         Args:
@@ -32,13 +32,24 @@ class BackendType(str, Enum):
             return cls(normalized)
         except ValueError:
             valid_options = ", ".join(f"'{m.value}'" for m in cls)
-            raise ValueError(f"Invalid backend type '{value}'. Valid options: {valid_options}")
+            raise ValueError(
+                f"Invalid backend type '{value}'. Valid options: {valid_options}"
+            ) from None
 
 
-class ModelSize(str, Enum):
+class ModelSize(StrEnum):
     """Valid model sizes for transcription models.
 
     Inherits from str and Enum for JSON serialization support.
+
+    Available models:
+        - tiny: Fastest, lowest quality (~75MB)
+        - base: Fast, good quality (~150MB)
+        - small: Balanced (~500MB)
+        - medium: Better quality (~1.5GB)
+        - large: Best quality (~3GB, same as large-v3)
+        - large-v3: Latest large model (~3GB)
+        - large-v3-turbo: Fast large model (~3GB, faster inference)
     """
 
     TINY = "tiny"
@@ -46,9 +57,11 @@ class ModelSize(str, Enum):
     SMALL = "small"
     MEDIUM = "medium"
     LARGE = "large"
+    LARGE_V3 = "large-v3"
+    LARGE_V3_TURBO = "large-v3-turbo"
 
     @classmethod
-    def parse(cls, value: str) -> "ModelSize":
+    def parse(cls, value: str) -> ModelSize:
         """Parse a string to ModelSize case-insensitively.
 
         Args:
@@ -61,11 +74,16 @@ class ModelSize(str, Enum):
             ValueError: If value is not a valid model size
         """
         normalized = value.lower().replace("-", "_").replace(" ", "_")
+        # Handle aliases
+        if normalized == "large":
+            normalized = "large"  # Keep as large (alias for large-v3)
         try:
             return cls(normalized)
         except ValueError:
             valid_options = ", ".join(f"'{m.value}'" for m in cls)
-            raise ValueError(f"Invalid model size '{value}'. Valid options: {valid_options}")
+            raise ValueError(
+                f"Invalid model size '{value}'. Valid options: {valid_options}"
+            ) from None
 
 
 def to_json_serializable(obj: Any) -> str:
@@ -77,6 +95,6 @@ def to_json_serializable(obj: Any) -> str:
     Returns:
         String value for JSON serialization
     """
-    if isinstance(obj, str) and isinstance(obj, Enum):
+    if isinstance(obj, Enum):
         return obj.value
     return str(obj)

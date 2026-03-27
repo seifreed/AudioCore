@@ -1,7 +1,5 @@
 """Segment model for transcription time segments with validation."""
 
-from typing import Optional
-
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -33,12 +31,15 @@ class Segment(BaseModel):
         default="",
         description="Transcribed text content for this segment (empty before transcription)",
     )
-    confidence: Optional[float] = Field(
-        default=None, ge=0, le=1, description="Confidence score between 0 and 1 (optional)"
+    confidence: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description="Confidence score between 0 and 1 (optional)",
     )
 
     @model_validator(mode="after")
-    def validate_time_order(self) -> "Segment":
+    def validate_time_order(self) -> Segment:
         """Validate that end_time >= start_time.
 
         Raises:

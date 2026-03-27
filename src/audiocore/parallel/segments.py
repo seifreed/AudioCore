@@ -18,21 +18,26 @@ audiocore.parallel.files.transcribe_files_concurrent() instead.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from audiocore.models import MediaInfo, Segment, TranscriptionOptions, TranscriptionResult
-    from audiocore.types import BackendType
+    from pathlib import Path
+
+    from audiocore.models import (
+        MediaInfo,
+        Segment,
+        TranscriptionOptions,
+        TranscriptionResult,
+    )
 
 
 def transcribe_segments_parallel(
-    segments: list["Segment"],
+    segments: list[Segment],
     audio_path: Path,
-    options: "TranscriptionOptions",
+    options: TranscriptionOptions,
     max_workers: int = 4,
-    media_info: "MediaInfo | None" = None,
-) -> "TranscriptionResult":
+    media_info: MediaInfo | None = None,
+) -> TranscriptionResult:
     """Transcribe audio segments in parallel.
 
     NOTE: This is a placeholder for future implementation.

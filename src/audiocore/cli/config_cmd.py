@@ -11,9 +11,6 @@ Example:
     >>> audiocore config path
 """
 
-from pathlib import Path
-from typing import Annotated
-
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -80,9 +77,9 @@ def show_config() -> None:
     try:
         config = AppConfig()
     except Exception as e:
-        console.print(f"[red]Error:[/red] Failed to load configuration")
+        console.print("[red]Error:[/red] Failed to load configuration")
         console.print(f"[dim]{e}[/dim]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     # Create table for config display
     table = Table(title="AudioCore Configuration")
@@ -133,7 +130,9 @@ def config_path() -> None:
 
     console.print("[cyan]Default configuration path:[/cyan]")
     path_obj = DEFAULT_CONFIG_PATH
-    exists_str = "[green]✓ exists[/green]" if path_obj.exists() else "[dim](not found)[/dim]"
+    exists_str = (
+        "[green]✓ exists[/green]" if path_obj.exists() else "[dim](not found)[/dim]"
+    )
     console.print(f"  {path_obj} {exists_str}")
 
     console.print()

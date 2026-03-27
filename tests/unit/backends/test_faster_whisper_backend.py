@@ -110,11 +110,13 @@ class TestFasterWhisperBackendTranscribe:
     """Test transcription functionality."""
 
     def test_transcribe_raises_error_when_file_not_found(self) -> None:
-        """transcribe should raise TranscriptionError when file not found."""
+        """transcribe should raise InvalidInputError when file not found."""
         backend = FasterWhisperBackend()
         options = TranscriptionOptions()
 
-        with pytest.raises(TranscriptionError) as exc_info:
+        from audiocore.errors import InvalidInputError
+
+        with pytest.raises(InvalidInputError) as exc_info:
             backend.transcribe("/nonexistent/audio.mp3", options)
 
         assert "not found" in str(exc_info.value)
@@ -127,7 +129,9 @@ class TestFasterWhisperBackendTranscribe:
         backend = FasterWhisperBackend()
         options = TranscriptionOptions()
 
-        with pytest.raises(TranscriptionError) as exc_info:
+        from audiocore.errors import InvalidInputError
+
+        with pytest.raises(InvalidInputError) as exc_info:
             backend.transcribe("audio.mp3", options)
 
         error = exc_info.value

@@ -5,7 +5,7 @@ environment variable configuration with AUDIOCORE_ prefix and secure
 API key handling via SecretStr.
 """
 
-from typing import Annotated, Any
+from typing import Any
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -45,7 +45,8 @@ class AppConfig(BaseSettings):
         env_nested_delimiter="__",
     )
 
-    openai_api_key: Annotated[SecretStr, Field(default_factory=lambda: SecretStr(""))] = Field(
+    openai_api_key: SecretStr | None = Field(
+        default=None,
         description="OpenAI API key for cloud transcription. Stored securely.",
     )
     backend: BackendType = Field(
@@ -83,7 +84,7 @@ class AppConfig(BaseSettings):
         description="Voice Activity Detection configuration",
     )
     openai: OpenAIConfig = Field(
-        default_factory=OpenAIConfig,
+        default_factory=lambda: OpenAIConfig(),
         description="OpenAI Whisper API configuration",
     )
 

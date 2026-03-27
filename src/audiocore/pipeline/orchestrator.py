@@ -7,20 +7,34 @@ transcription workflow from media input to formatted output.
 from __future__ import annotations
 
 import logging
-import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from audiocore.backends import BackendRegistry, BackendSelector
 from audiocore.config import AppConfig
-from audiocore.errors import BackendUnavailableError, MediaError, MediaFormatError, VADError
-from audiocore.media import extract_audio, probe, temp_audio_file, validate_format_or_raise
-from audiocore.models import MediaInfo, Segment, TranscriptionOptions, TranscriptionResult
+from audiocore.errors import (
+    BackendUnavailableError,
+    MediaError,
+    MediaFormatError,
+    VADError,
+)
+from audiocore.media import (
+    extract_audio,
+    probe,
+    temp_audio_file,
+    validate_format_or_raise,
+)
+from audiocore.models import (
+    MediaInfo,
+    Segment,
+    TranscriptionOptions,
+    TranscriptionResult,
+)
 from audiocore.output import format_json, format_text
 from audiocore.pipeline.cancellation import CancellationToken, CancelledError
-from audiocore.pipeline.errors import PartialResultError, PipelineStageError
+from audiocore.pipeline.errors import PipelineStageError
 from audiocore.pipeline.progress import PipelineStage, ProgressCallback
-from audiocore.types import BackendType, OutputFormat
+from audiocore.types import OutputFormat
 from audiocore.vad import VADConfig, detect_speech
 
 if TYPE_CHECKING:
@@ -124,7 +138,6 @@ class Pipeline:
             PartialResultError: If transcription fails with partial results available.
             CancelledError: If cancellation is requested during execution.
         """
-        start_time = time.time()
         path = Path(path)
         options = options or TranscriptionOptions()
 
@@ -150,7 +163,7 @@ class Pipeline:
             emit_progress(PipelineStage.PROBING, 0.0, "Validating input format")
             try:
                 validate_format_or_raise(path)
-            except MediaFormatError as e:
+            except MediaFormatError:
                 # No cleanup needed - no temp files created yet
                 raise
             check_cancellation()
@@ -174,30 +187,45 @@ class Pipeline:
                 temp_files.append(audio_path)
 
                 # Step 3: Extract audio to temp file
-                emit_progress(PipelineStage.EXTRACTING, 0.0, "Starting audio extraction")
+                emit_progress(
+                    PipelineStage.EXTRACTING, 0.0, "Starting audio extraction"
+                )
 
                 def extraction_progress(progress: float) -> None:
                     """Forward extraction progress to main callback."""
                     emit_progress(
-                        PipelineStage.EXTRACTING, progress, f"Extracting audio: {progress:.0%}"
+                        PipelineStage.EXTRACTING,
+                        progress,
+                        f"Extracting audio: {progress:.0%}",
                     )
 
                 try:
-                    extract_audio(path, audio_path, progress_callback=extraction_progress)
+                    extract_audio(
+                        path, audio_path, progress_callback=extraction_progress
+                    )
                 except MediaError as e:
                     log_cleanup(audio_path, reason="extraction_failure")
                     raise PipelineStageError(
                         "Failed to extract audio from media file",
                         stage=PipelineStage.EXTRACTING,
-                        context={"input_path": str(path), "output_path": str(audio_path)},
+                        context={
+                            "input_path": str(path),
+                            "output_path": str(audio_path),
+                        },
                         original_error=e,
                     ) from e
-                emit_progress(PipelineStage.EXTRACTING, 1.0, "Audio extraction complete")
+                emit_progress(
+                    PipelineStage.EXTRACTING, 1.0, "Audio extraction complete"
+                )
                 check_cancellation()
 
                 # Step 4: Run VAD to detect speech segments
-                emit_progress(PipelineStage.VAD, 0.0, "Starting voice activity detection")
-                vad_config = self.config.vad if hasattr(self.config, "vad") else VADConfig()
+                emit_progress(
+                    PipelineStage.VAD, 0.0, "Starting voice activity detection"
+                )
+                vad_config = (
+                    self.config.vad if hasattr(self.config, "vad") else VADConfig()
+                )
                 try:
                     segments = detect_speech(
                         audio_path=audio_path,
@@ -205,14 +233,26 @@ class Pipeline:
                         total_duration=media_info.duration,
                     )
                 except VADError as e:
-                    # VAD failed - try whole-file transcription as fallback
-                    logger.warning(f"VAD failed, falling back to whole-file transcription: {e}")
-                    segments = []  # Empty segments will trigger whole-file transcription
-                emit_progress(PipelineStage.VAD, 1.0, "Voice activity detection complete")
+                    # VAD failed - check if strict mode
+                    if options.strict_vad:
+                        # Re-raise in strict mode - user wants to know about VAD failures
+                        raise
+                    # Otherwise, fall back to whole-file transcription
+                    logger.warning(
+                        f"VAD failed, falling back to whole-file transcription: {e}"
+                    )
+                    segments = (
+                        []
+                    )  # Empty segments will trigger whole-file transcription
+                emit_progress(
+                    PipelineStage.VAD, 1.0, "Voice activity detection complete"
+                )
                 check_cancellation()
 
                 # Step 5: Select backend
-                emit_progress(PipelineStage.SELECTING, 0.0, "Selecting transcription backend")
+                emit_progress(
+                    PipelineStage.SELECTING, 0.0, "Selecting transcription backend"
+                )
                 try:
                     selected_backend_type = self._selector.select(
                         backend=options.backend,
@@ -230,7 +270,9 @@ class Pipeline:
                         original_error=e,
                     ) from e
                 emit_progress(
-                    PipelineStage.SELECTING, 1.0, f"Backend selected: {selected_backend_type.value}"
+                    PipelineStage.SELECTING,
+                    1.0,
+                    f"Backend selected: {selected_backend_type.value}",
                 )
                 check_cancellation()
 
@@ -260,11 +302,7 @@ class Pipeline:
                 emit_progress(PipelineStage.TRANSCRIBING, 1.0, "Transcription complete")
                 check_cancellation()
 
-            # Calculate processing duration
-            duration_seconds = time.time() - start_time
-
-            # Update result with metadata
-            result.duration_seconds = duration_seconds
+            # Update result with backend type (processing_time is already set by backend)
             result.backend_used = selected_backend_type
 
             # Step 7: Format output

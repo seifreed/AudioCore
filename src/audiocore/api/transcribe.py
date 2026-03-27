@@ -8,18 +8,24 @@ for end-users, wrapping the Pipeline class with convenient defaults.
 from __future__ import annotations
 
 import asyncio
+import atexit
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 from typing import TYPE_CHECKING
 
+from audiocore.backends import register_builtin_backends
 from audiocore.errors import AudioCoreError
 from audiocore.models import TranscriptionOptions, TranscriptionResult
 from audiocore.pipeline import Pipeline
-from audiocore.pipeline.cancellation import CancellationToken
-from audiocore.pipeline.progress import ProgressCallback
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from audiocore.config import AppConfig
+    from audiocore.pipeline.cancellation import CancellationToken
+    from audiocore.pipeline.progress import ProgressCallback
+
+# Register backends on module load
+register_builtin_backends()
 
 # Thread pool for async transcribe
 _executor: ThreadPoolExecutor | None = None
@@ -33,10 +39,22 @@ def _get_executor() -> ThreadPoolExecutor:
     return _executor
 
 
+def _cleanup_executor() -> None:
+    """Shutdown the thread pool executor on program exit."""
+    global _executor
+    if _executor is not None:
+        _executor.shutdown(wait=False)
+        _executor = None
+
+
+# Register cleanup on module load
+atexit.register(_cleanup_executor)
+
+
 def transcribe(
     path: str | Path,
     options: TranscriptionOptions | None = None,
-    config: "AppConfig | None" = None,
+    config: AppConfig | None = None,
     progress_callback: ProgressCallback | None = None,
     cancellation_token: CancellationToken | None = None,
 ) -> TranscriptionResult:
@@ -111,7 +129,7 @@ def transcribe(
 async def async_transcribe(
     path: str | Path,
     options: TranscriptionOptions | None = None,
-    config: "AppConfig | None" = None,
+    config: AppConfig | None = None,
     progress_callback: ProgressCallback | None = None,
     cancellation_token: CancellationToken | None = None,
 ) -> TranscriptionResult:

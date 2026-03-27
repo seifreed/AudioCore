@@ -165,11 +165,11 @@ class TestTranscriptionResultCreation:
             segments=[],
             media_info=MediaInfo(duration=120.0, format="mp4"),
             config_used=TranscriptionOptions(),
-            duration_seconds=15.5,
+            processing_time_seconds=15.5,
             backend_used=BackendType.OPENAI,
         )
         assert len(result.segments) == 0
-        assert result.duration_seconds == 15.5
+        assert result.processing_time_seconds == 15.5
         assert result.backend_used == BackendType.OPENAI
 
     def test_create_result_with_segments(self) -> None:
@@ -182,7 +182,7 @@ class TestTranscriptionResultCreation:
             segments=segments,
             media_info=MediaInfo(duration=60.0, format="wav"),
             config_used=TranscriptionOptions(),
-            duration_seconds=10.0,
+            processing_time_seconds=10.0,
             backend_used=BackendType.FASTER_WHISPER,
         )
         assert len(result.segments) == 2
@@ -202,7 +202,7 @@ class TestTranscriptionResultCreation:
             segments=[Segment(start_time=0.0, end_time=5.0, text="test")],
             media_info=MediaInfo(duration=30.0, format="mp3"),
             config_used=config,
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
         assert result.config_used.language == "en"
@@ -219,7 +219,7 @@ class TestTranscriptionResultValidation:
                 segments=[],
                 media_info=MediaInfo(duration=10.0, format="mp4"),
                 config_used=TranscriptionOptions(),
-                duration_seconds=-5.0,
+                processing_time_seconds=-5.0,
                 backend_used=BackendType.OPENAI,
             )
 
@@ -229,10 +229,10 @@ class TestTranscriptionResultValidation:
             segments=[],
             media_info=MediaInfo(duration=10.0, format="mp4"),
             config_used=TranscriptionOptions(),
-            duration_seconds=0.0,
+            processing_time_seconds=0.0,
             backend_used=BackendType.OPENAI,
         )
-        assert result.duration_seconds == 0.0
+        assert result.processing_time_seconds == 0.0
 
     def test_strict_mode_rejects_string_duration(self) -> None:
         """Strict mode rejects string for duration_seconds."""
@@ -241,7 +241,7 @@ class TestTranscriptionResultValidation:
                 segments=[],
                 media_info=MediaInfo(duration=10.0, format="mp4"),
                 config_used=TranscriptionOptions(),
-                duration_seconds="5.0",  # type: ignore
+                processing_time_seconds="5.0",  # type: ignore
                 backend_used=BackendType.OPENAI,
             )
 
@@ -252,7 +252,7 @@ class TestTranscriptionResultValidation:
                 segments=[Segment(start_time=10.0, end_time=5.0, text="invalid")],  # end < start
                 media_info=MediaInfo(duration=10.0, format="mp4"),
                 config_used=TranscriptionOptions(),
-                duration_seconds=5.0,
+                processing_time_seconds=5.0,
                 backend_used=BackendType.OPENAI,
             )
 
@@ -266,7 +266,7 @@ class TestTranscriptionResultSerialization:
             segments=[Segment(start_time=0.0, end_time=5.0, text="test")],
             media_info=MediaInfo(duration=60.0, format="mp4"),
             config_used=TranscriptionOptions(),
-            duration_seconds=10.0,
+            processing_time_seconds=10.0,
             backend_used=BackendType.OPENAI,
         )
         data = result.model_dump()
@@ -308,7 +308,7 @@ class TestTranscriptionResultSerialization:
             segments=[],
             media_info=MediaInfo(duration=30.0, format="mp3"),
             config_used=TranscriptionOptions(),
-            duration_seconds=2.0,
+            processing_time_seconds=2.0,
             backend_used=BackendType.FASTER_WHISPER,
         )
         json_str = result.model_dump_json()
@@ -338,14 +338,14 @@ class TestTranscriptionResultEquality:
             segments=[Segment(start_time=0.0, end_time=5.0, text="test")],
             media_info=MediaInfo(duration=10.0, format="mp4"),
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
         r2 = TranscriptionResult(
             segments=[Segment(start_time=0.0, end_time=5.0, text="test")],
             media_info=MediaInfo(duration=10.0, format="mp4"),
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
         assert r1 == r2

@@ -16,6 +16,7 @@ Example:
     cuda
 """
 
+import contextlib
 import logging
 from enum import StrEnum
 from typing import Any
@@ -52,11 +53,12 @@ def get_best_device() -> str:
 
         # Check CUDA (NVIDIA GPU)
         if torch.cuda.is_available():
-            device_name = DEVICE_CUDA
             device_count = torch.cuda.device_count()
             if device_count > 0:
                 device_name_gpu = torch.cuda.get_device_name(0)
-                logger.debug(f"CUDA available: {device_count} device(s), using {device_name_gpu}")
+                logger.debug(
+                    f"CUDA available: {device_count} device(s), using {device_name_gpu}"
+                )
             return DEVICE_CUDA
 
         # Check MPS (Apple Silicon)
@@ -116,10 +118,8 @@ def get_device_info() -> dict[str, Any]:
             if info["device_count"] > 0:
                 info["device_name"] = torch.cuda.get_device_name(0)
                 # Try to get CUDA version
-                try:
+                with contextlib.suppress(AttributeError):
                     info["cuda_version"] = torch.version.cuda
-                except AttributeError:
-                    pass
             return info
 
         # Check MPS
@@ -177,7 +177,9 @@ def validate_device(device: str) -> str:
     # Check for CUDA
     if device_lower == DEVICE_CUDA:
         if device_info["cuda_available"]:
-            logger.info(f"Using CUDA device: {device_info.get('device_name', 'unknown')}")
+            logger.info(
+                f"Using CUDA device: {device_info.get('device_name', 'unknown')}"
+            )
             return DEVICE_CUDA
         # Fall back to MPS if CUDA not available but MPS is
         if device_info["mps_available"]:

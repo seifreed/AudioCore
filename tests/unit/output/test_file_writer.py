@@ -247,7 +247,7 @@ class TestFormatAndWrite:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Hello")],
             media_info=MediaInfo(duration=5.0, format="wav"),
             config_used=TranscriptionOptions(),
-            duration_seconds=1.0,
+            processing_time_seconds=1.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -265,7 +265,7 @@ class TestFormatAndWrite:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Hello")],
             media_info=MediaInfo(duration=5.0, format="wav"),
             config_used=TranscriptionOptions(),
-            duration_seconds=1.0,
+            processing_time_seconds=1.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -283,7 +283,7 @@ class TestFormatAndWrite:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Hello")],
             media_info=MediaInfo(duration=5.0, format="wav"),
             config_used=TranscriptionOptions(),
-            duration_seconds=1.0,
+            processing_time_seconds=1.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -300,7 +300,7 @@ class TestFormatAndWrite:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Hello")],
             media_info=MediaInfo(duration=5.0, format="wav"),
             config_used=TranscriptionOptions(),
-            duration_seconds=1.0,
+            processing_time_seconds=1.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -316,7 +316,7 @@ class TestFormatAndWrite:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Hello")],
             media_info=MediaInfo(duration=5.0, format="wav"),
             config_used=TranscriptionOptions(),
-            duration_seconds=1.0,
+            processing_time_seconds=1.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -335,7 +335,7 @@ class TestFormatAndWrite:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Hello")],
             media_info=MediaInfo(duration=5.0, format="wav"),
             config_used=TranscriptionOptions(),
-            duration_seconds=1.0,
+            processing_time_seconds=1.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -355,7 +355,7 @@ class TestFormatAndWrite:
             segments=[Segment(start_time=0.0, end_time=10.0, text="New")],
             media_info=MediaInfo(duration=10.0, format="wav"),
             config_used=TranscriptionOptions(),
-            duration_seconds=1.0,
+            processing_time_seconds=1.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -377,7 +377,7 @@ class TestFormatAndWrite:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Test")],
             media_info=MediaInfo(duration=5.0, format="wav"),
             config_used=TranscriptionOptions(),
-            duration_seconds=1.0,
+            processing_time_seconds=1.0,
             backend_used=BackendType.OPENAI,
         )
 

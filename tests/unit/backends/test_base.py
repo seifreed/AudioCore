@@ -78,7 +78,7 @@ class MockTranscriptionBackend(TranscriptionBackend):
                 channels=1,
             ),
             config_used=options,
-            duration_seconds=0.5,
+            processing_time_seconds=0.5,
             backend_used=self._backend_type,
         )
 
@@ -399,7 +399,7 @@ class TestIsBackendAvailableHelper:
                         channels=1,
                     ),
                     config_used=options,
-                    duration_seconds=0.0,
+                    processing_time_seconds=0.0,
                     backend_used=self.backend_type,
                 )
 
@@ -441,7 +441,7 @@ class TestIsBackendAvailableHelper:
                         channels=1,
                     ),
                     config_used=options,
-                    duration_seconds=0.0,
+                    processing_time_seconds=0.0,
                     backend_used=self.backend_type,
                 )
 

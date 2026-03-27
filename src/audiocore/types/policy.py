@@ -1,10 +1,10 @@
 """Selection policy enum for automatic backend selection."""
 
 import re
-from enum import Enum
+from enum import StrEnum
 
 
-class SelectionPolicy(str, Enum):
+class SelectionPolicy(StrEnum):
     """Policy for automatic backend selection.
 
     Inherits from str and Enum for JSON serialization support.
@@ -15,7 +15,7 @@ class SelectionPolicy(str, Enum):
     AUTO = "auto"
 
     @classmethod
-    def parse(cls, value: str) -> "SelectionPolicy":
+    def parse(cls, value: str) -> SelectionPolicy:
         """Parse a string to SelectionPolicy case-insensitively.
 
         Args:
@@ -37,4 +37,6 @@ class SelectionPolicy(str, Enum):
             return cls(normalized)
         except ValueError:
             valid_options = ", ".join(f"'{m.value}'" for m in cls)
-            raise ValueError(f"Invalid selection policy '{value}'. Valid options: {valid_options}")
+            raise ValueError(
+                f"Invalid selection policy '{value}'. Valid options: {valid_options}"
+            ) from None

@@ -17,7 +17,22 @@ Exception categories:
 - Output: OutputFileExistsError (AUD-600)
 """
 
+from audiocore.errors.api import (
+    APIError,
+    APITimeoutError,
+    AuthenticationError,
+    RateLimitError,
+)
+from audiocore.errors.backend import (
+    BackendError,
+    BackendUnavailableError,
+    TranscriptionError,
+)
 from audiocore.errors.base import AudioCoreError
+from audiocore.errors.config import (
+    ConfigurationError,
+    InvalidConfigError,
+)
 
 # Import exception subclasses
 from audiocore.errors.input import (
@@ -25,31 +40,15 @@ from audiocore.errors.input import (
     InvalidInputError,
     MediaFormatError,
 )
-from audiocore.errors.config import (
-    ConfigurationError,
-    InvalidConfigError,
-)
-from audiocore.errors.backend import (
-    BackendError,
-    BackendUnavailableError,
-    TranscriptionError,
-)
-from audiocore.errors.api import (
-    APIError,
-    AuthenticationError,
-    RateLimitError,
-    APITimeoutError,
-)
+from audiocore.errors.output import OutputFileExistsError
 from audiocore.errors.processing import (
+    MediaError,
     ProcessingError,
     VADError,
-    MediaError,
 )
-from audiocore.errors.output import OutputFileExistsError
 
 # Note: CancelledError (AUD-500) is in audiocore.pipeline.cancellation
 # to avoid circular imports. Import from audiocore.pipeline.cancellation directly.
-
 # Pipeline-specific exceptions (AUD-501 to AUD-504)
 # These are imported here for convenience, but defined in audiocore.pipeline.errors
 # to avoid circular imports with PipelineStage.

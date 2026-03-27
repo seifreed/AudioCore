@@ -20,20 +20,28 @@ Example:
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
-from typing import Annotated, Optional
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 from rich.console import Console
-from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
-from audiocore.config import AppConfig
 from audiocore.errors import AudioCoreError
 from audiocore.models import TranscriptionOptions
 from audiocore.parallel import FileResult, transcribe_files_concurrent
 from audiocore.pipeline import Pipeline
-from audiocore.pipeline.progress import PipelineStage
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from audiocore.pipeline.progress import PipelineStage
 
 app = typer.Typer(help="Transcribe audio/video files")
 
@@ -53,7 +61,9 @@ def parse_backend_type(value: str) -> BackendType:
     try:
         return BackendType.parse(value)
     except ValueError as e:
-        valid_options = ", ".join(f"'{m.value}'" for m in BackendType if m != BackendType.AUTO)
+        valid_options = ", ".join(
+            f"'{m.value}'" for m in BackendType if m != BackendType.AUTO
+        )
         raise typer.BadParameter(f"{e}. Valid options: {valid_options}") from e
 
 
@@ -151,7 +161,7 @@ def transcribe(
         ),
     ],
     output: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--output",
             "-o",
@@ -177,7 +187,7 @@ def transcribe(
         ),
     ] = "auto",
     language: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--language",
             "-l",
@@ -203,7 +213,7 @@ def transcribe(
         ),
     ] = "auto",
     output_dir: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--output-dir",
             "-d",
@@ -261,13 +271,15 @@ def transcribe(
         input_files = validate_input_files(input_files)
     except typer.BadParameter as e:
         console.print(f"[red]Error:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     # Build transcription options
     options = TranscriptionOptions(
         language=language,
         model_size=model if isinstance(model, ModelSize) else ModelSize.parse(model),
-        backend=backend if isinstance(backend, BackendType) else BackendType.parse(backend),
+        backend=(
+            backend if isinstance(backend, BackendType) else BackendType.parse(backend)
+        ),
         output_format=(
             output_format
             if isinstance(output_format, OutputFormat)
@@ -343,7 +355,9 @@ def _run_single_transcription(
         final_output_path = output_path
     elif output_dir:
         # Generate output filename based on input
-        final_output_path = output_dir / input_file.with_suffix(f".{output_format.value}").name
+        final_output_path = (
+            output_dir / input_file.with_suffix(f".{output_format.value}").name
+        )
     else:
         final_output_path = None
 
@@ -397,7 +411,9 @@ def _run_single_transcription(
 
             file_config = OutputFileConfig(overwrite=True, create_dirs=True)
             format_and_write(result, options, final_output_path, file_config)
-            console.print(f"[green]✓[/green] Transcription saved to: {final_output_path}")
+            console.print(
+                f"[green]✓[/green] Transcription saved to: {final_output_path}"
+            )
         else:
             # Print to stdout
             if result.formatted_output:
@@ -465,7 +481,9 @@ def _run_batch_transcription(
         nonlocal completed_count
         completed_count = completed
 
-    console.print(f"[cyan]Processing {total_files} file(s) with {max_workers} workers...[/cyan]")
+    console.print(
+        f"[cyan]Processing {total_files} file(s) with {max_workers} workers...[/cyan]"
+    )
 
     async def run_batch() -> list[FileResult]:
         """Run batch transcription asynchronously."""
@@ -489,10 +507,13 @@ def _run_batch_transcription(
                 # Determine output path
                 if output_dir:
                     output_path = (
-                        output_dir / result.path.with_suffix(f".{output_format.value}").name
+                        output_dir
+                        / result.path.with_suffix(f".{output_format.value}").name
                     )
                     format_and_write(result.result, options, output_path, file_config)
-                    console.print(f"[green]✓[/green] {result.path.name} -> {output_path}")
+                    console.print(
+                        f"[green]✓[/green] {result.path.name} -> {output_path}"
+                    )
                 else:
                     # Print to console
                     console.print(f"\n[green]--- {result.path.name} ---[/green]")
@@ -516,7 +537,9 @@ def _run_batch_transcription(
             )
             return 1
         else:
-            console.print(f"\n[green]✓ All {total_files} files transcribed successfully[/green]")
+            console.print(
+                f"\n[green]✓ All {total_files} files transcribed successfully[/green]"
+            )
             return 0
 
     except AudioCoreError as e:

@@ -206,7 +206,7 @@ class TestTranscribeSuccess:
         assert result.segments[1].text == "This is a test"
         assert result.media_info.duration == 10.0
         assert result.backend_used == BackendType.OPENAI
-        assert result.duration_seconds >= 0
+        assert result.processing_time_seconds >= 0
 
     @patch("audiocore.backends.openai_backend.OpenAI")
     def test_transcribe_with_language_option(self, mock_openai: MagicMock, tmp_path: Path) -> None:
@@ -268,15 +268,17 @@ class TestTranscribeSuccess:
             assert call_kwargs["temperature"] == expected_temp
 
     @patch("audiocore.backends.openai_backend.OpenAI")
-    def test_transcribe_file_not_found_raises_transcription_error(
+    def test_transcribe_file_not_found_raises_invalid_input_error(
         self, mock_openai: MagicMock
     ) -> None:
-        """Verify transcribe raises TranscriptionError for missing file."""
+        """Verify transcribe raises InvalidInputError for missing file."""
+        from audiocore.errors import InvalidInputError
+
         # Don't need to setup OpenAI mock - file check happens first
         backend = OpenAIBackend(api_key="sk-test123")
         options = TranscriptionOptions()
 
-        with pytest.raises(TranscriptionError) as exc_info:
+        with pytest.raises(InvalidInputError) as exc_info:
             backend.transcribe("/nonexistent/file.mp3", options)
 
         assert "not found" in str(exc_info.value).lower()

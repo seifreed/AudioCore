@@ -23,15 +23,15 @@ Example:
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
 from audiocore.backends.base import TranscriptionBackend
 from audiocore.backends.faster_whisper import (
     ModelManager,
-    get_best_device,
 )
-from audiocore.config.faster_whisper_config import ComputeType, FasterWhisperConfig
+from audiocore.config.faster_whisper_config import FasterWhisperConfig
 from audiocore.errors import BackendUnavailableError, TranscriptionError
 from audiocore.models import Segment, TranscriptionOptions, TranscriptionResult
 from audiocore.types import BackendType
@@ -130,12 +130,60 @@ class FasterWhisperBackend(TranscriptionBackend):
     def _get_device(self) -> str:
         """Resolve device from config or auto-detect.
 
+        Note: faster-whisper (CTranslate2) only supports CUDA and CPU.
+        MPS (Apple Silicon) GPU is NOT supported by CTranslate2.
+        If MPS is detected or requested, falls back to CPU.
+
         Returns:
-            Device string: "cuda", "mps", or "cpu".
+            Device string: "cuda" or "cpu".
         """
-        if self.config.device is None or self.config.device.lower() == "auto":
-            return get_best_device()
-        return self.config.device.lower()
+        device = self.config.device
+
+        # Auto-detect device
+        if device is None or device.lower() == "auto":
+            from audiocore.backends.faster_whisper import get_best_device
+
+            detected = get_best_device()
+            # CTranslate2 doesn't support MPS, fallback to CPU
+            if detected == "mps":
+                logger.info(
+                    "MPS detected but faster-whisper (CTranslate2) only supports CUDA/CPU. Using CPU."
+                )
+                return "cpu"
+            return detected
+
+        # Normalize device string
+        device_lower = device.lower()
+
+        # Validate device string
+        if device_lower not in ("cuda", "mps", "cpu", "auto"):
+            logger.warning(f"Unknown device '{device}', falling back to CPU")
+            return "cpu"
+
+        # Handle MPS: CTranslate2 doesn't support it, use CPU
+        if device_lower == "mps":
+            logger.info(
+                "MPS requested but faster-whisper (CTranslate2) only supports CUDA/CPU. Using CPU."
+            )
+            return "cpu"
+
+        # Handle CUDA: check if available
+        if device_lower == "cuda":
+            try:
+                import torch
+
+                if torch.cuda.is_available():
+                    return "cuda"
+                else:
+                    logger.warning(
+                        "CUDA requested but not available, falling back to CPU"
+                    )
+                    return "cpu"
+            except ImportError:
+                logger.warning("torch not installed, falling back to CPU")
+                return "cpu"
+
+        return device_lower
 
     def _load_model(self) -> Any:
         """Load model lazily.
@@ -161,28 +209,20 @@ class FasterWhisperBackend(TranscriptionBackend):
                         "Install faster-whisper: pip install faster-whisper",
                         "Or install audiocore with extras: pip install audiocore[faster-whisper]",
                     ],
-                )
+                ) from None
 
             # Get device and compute type
             device = self._get_device()
             compute_type = self.config.compute_type.value
 
-            # Download model from HuggingFace Hub
+            # Load model (WhisperModel handles download automatically via HuggingFace Hub)
             model_name = self.config.model_size.value
             logger.info("Loading faster-whisper model: %s on %s", model_name, device)
 
             try:
-                # Download model (uses cache if already downloaded)
-                model_path = self._model_manager.download_model(model_name)
-
-                # Load model into memory
-                logger.debug(
-                    "Loading model from %s with compute_type=%s",
-                    model_path,
-                    compute_type,
-                )
+                # WhisperModel downloads all necessary files automatically
                 self._model = WhisperModel(
-                    str(model_path.parent),  # WhisperModel needs directory
+                    model_name,
                     device=device,
                     compute_type=compute_type,
                 )
@@ -192,7 +232,11 @@ class FasterWhisperBackend(TranscriptionBackend):
             except Exception as e:
                 raise TranscriptionError(
                     f"Failed to load faster-whisper model: {e}",
-                    context={"model": model_name, "device": device, "compute_type": compute_type},
+                    context={
+                        "model": model_name,
+                        "device": device,
+                        "compute_type": compute_type,
+                    },
                     suggestions=[
                         "Check internet connection for model download",
                         f"Try downloading model manually: huggingface-cli download guillaumekln/faster-whisper-{model_name}",
@@ -225,7 +269,9 @@ class FasterWhisperBackend(TranscriptionBackend):
 
         # Validate file exists
         if not audio_path.exists():
-            raise TranscriptionError(
+            from audiocore.errors import InvalidInputError
+
+            raise InvalidInputError(
                 f"Audio file not found: {audio_path}",
                 context={"file_path": str(audio_path), "backend": "faster_whisper"},
                 suggestions=[
@@ -272,6 +318,8 @@ class FasterWhisperBackend(TranscriptionBackend):
             params,
         )
 
+        start_time = time.time()
+
         try:
             # Perform transcription
             segments, info = model.transcribe(str(audio_path), **params)
@@ -287,8 +335,14 @@ class FasterWhisperBackend(TranscriptionBackend):
                     )
                 )
 
+            # Calculate processing time
+            end_time = time.time()
+            processing_time_seconds = end_time - start_time
+
             # Get duration from info
-            duration = info.duration if hasattr(info, "duration") and info.duration else 0.0
+            duration = (
+                info.duration if hasattr(info, "duration") and info.duration else 0.0
+            )
 
             # Use minimum duration if zero (MediaInfo requires duration > 0)
             media_duration = duration if duration > 0 else 0.01
@@ -305,15 +359,15 @@ class FasterWhisperBackend(TranscriptionBackend):
                 segments=segment_list,
                 media_info=media_info,
                 config_used=options,
-                duration_seconds=duration,
+                processing_time_seconds=processing_time_seconds,
                 backend_used=BackendType.FASTER_WHISPER,
             )
 
             logger.debug(
-                "Faster-whisper transcription complete for %s: %d segments, %.2fs duration",
+                "Faster-whisper transcription complete for %s: %d segments, %.2fs processing time",
                 audio_path,
                 len(segment_list),
-                duration,
+                processing_time_seconds,
             )
 
             return result

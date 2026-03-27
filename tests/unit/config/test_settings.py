@@ -41,10 +41,10 @@ class TestAppConfigDefaults:
         config = AppConfig()
         assert config.backend_preference == SelectionPolicy.AUTO
 
-    def test_default_api_key_empty(self) -> None:
-        """Default API key should be empty SecretStr."""
+    def test_default_api_key_none(self) -> None:
+        """Default API key should be None (no key configured)."""
         config = AppConfig()
-        assert config.openai_api_key.get_secret_value() == ""
+        assert config.openai_api_key is None
 
 
 class TestEnvironmentVariableLoading:
@@ -85,6 +85,7 @@ class TestEnvironmentVariableLoading:
         monkeypatch.setenv("AUDIOCORE_OPENAI_API_KEY", "sk-test-key-123")
         config = AppConfig()
         # SecretStr.get_secret_value() returns the actual value
+        assert config.openai_api_key is not None
         assert config.openai_api_key.get_secret_value() == "sk-test-key-123"
 
 

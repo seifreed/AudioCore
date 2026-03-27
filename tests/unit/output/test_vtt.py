@@ -38,7 +38,7 @@ def sample_result(sample_media_info: MediaInfo) -> TranscriptionResult:
         ],
         media_info=sample_media_info,
         config_used=TranscriptionOptions(),
-        duration_seconds=15.5,
+        processing_time_seconds=15.5,
         backend_used=BackendType.OPENAI,
     )
 
@@ -102,7 +102,7 @@ class TestFormatVtt:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Hello")],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -115,7 +115,7 @@ class TestFormatVtt:
             segments=[],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=0.0,
+            processing_time_seconds=0.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -156,7 +156,7 @@ class TestFormatVtt:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Hello")],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -176,7 +176,7 @@ class TestFormatVtt:
             segments=segments,
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=25.0,
+            processing_time_seconds=25.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -199,7 +199,7 @@ class TestFormatVtt:
             ],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=10.0,
+            processing_time_seconds=10.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -219,7 +219,7 @@ class TestFormatVtt:
             ],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=10.0,
+            processing_time_seconds=10.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -237,7 +237,7 @@ class TestFormatVtt:
             ],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=15.0,
+            processing_time_seconds=15.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -254,7 +254,7 @@ class TestFormatVtt:
             ],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=10.0,
+            processing_time_seconds=10.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -271,7 +271,7 @@ class TestFormatVtt:
             ],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -299,7 +299,7 @@ class TestFormatVtt:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Hello")],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -315,7 +315,7 @@ class TestFormatVtt:
             ],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=7340.0,
+            processing_time_seconds=7340.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -334,7 +334,7 @@ class TestFormatVtt:
             segments=segments,
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=300.0,
+            processing_time_seconds=300.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -356,7 +356,7 @@ class TestFormatVtt:
             ],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=6.0,
+            processing_time_seconds=6.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -376,7 +376,7 @@ class TestFormatVtt:
             ],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=10.0,
+            processing_time_seconds=10.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -395,7 +395,7 @@ class TestFormatVtt:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Hello")],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -416,7 +416,7 @@ class TestFormatVtt:
             ],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=6.0,
+            processing_time_seconds=6.0,
             backend_used=BackendType.OPENAI,
         )
 

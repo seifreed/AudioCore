@@ -13,7 +13,7 @@ Example:
     ...     segments=[Segment(start_time=0.0, end_time=5.0, text="Hello")],
     ...     media_info=MediaInfo(...),
     ...     config_used=TranscriptionOptions(),
-    ...     duration_seconds=5.0,
+    ...     processing_time_seconds=5.0,
     ...     backend_used=BackendType.OPENAI
     ... )
     >>> json_output = format_json(result, TranscriptionOptions())
@@ -25,9 +25,10 @@ Example:
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from audiocore.models.transcription import TranscriptionOptions, TranscriptionResult
+if TYPE_CHECKING:
+    from audiocore.models.transcription import TranscriptionOptions, TranscriptionResult
 
 
 def _serialize_value(value: Any) -> Any:
@@ -53,9 +54,10 @@ def _serialize_value(value: Any) -> Any:
         return str(value)
 
     # Handle float special values
-    if isinstance(value, float):
-        if value == float("inf") or value == float("-inf") or value != value:  # NaN check
-            return None
+    if isinstance(value, float) and (
+        value == float("inf") or value == float("-inf") or value != value
+    ):  # noqa: SIM102
+        return None
 
     return value
 
@@ -93,7 +95,7 @@ def format_json(
     - segments: Array of all transcription segments with timing and text
     - media_info: Source media metadata
     - config_used: Configuration options used for transcription
-    - duration_seconds: Processing duration
+    - processing_time_seconds: Processing duration
     - backend_used: Backend that performed the transcription
 
     All datetime, Path, and Enum types are converted to JSON-serializable
@@ -119,7 +121,7 @@ def format_json(
           ],
           "media_info": {...},
           "config_used": {...},
-          "duration_seconds": 5.0,
+          "processing_time_seconds": 5.0,
           "backend_used": "openai"
         }
     """

@@ -17,17 +17,19 @@ Example:
 import sys
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
 from audiocore.errors.output import OutputFileExistsError
-from audiocore.models.transcription import TranscriptionOptions
-from audiocore.models.transcription import TranscriptionResult
 from audiocore.output.json import format_json
 from audiocore.output.srt import format_srt
 from audiocore.output.text import format_text
 from audiocore.output.vtt import format_vtt
 from audiocore.types.format import OutputFormat
+
+if TYPE_CHECKING:
+    from audiocore.models.transcription import TranscriptionOptions, TranscriptionResult
 
 
 class OutputFileConfig(BaseModel):

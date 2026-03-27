@@ -30,7 +30,7 @@ class TestConfigPriorityChain:
         assert config.language is None
         assert config.output_format == OutputFormat.TEXT
         assert config.backend_preference == SelectionPolicy.AUTO
-        assert config.openai_api_key.get_secret_value() == ""
+        assert config.openai_api_key is None
 
     def test_toml_only_no_env_no_cli(self, tmp_path: Path) -> None:
         """TOML values should be used when no env or CLI overrides."""

@@ -142,7 +142,7 @@ class TestRegister:
                     segments=[],
                     media_info=MediaInfo(duration=1.0, format="wav", sample_rate=16000, channels=1),
                     config_used=options,
-                    duration_seconds=0.0,
+                    processing_time_seconds=0.0,
                     backend_used=self.backend_type,
                 )
 
@@ -337,7 +337,7 @@ class TestIsAvailable:
                     segments=[],
                     media_info=MediaInfo(duration=1.0, format="wav", sample_rate=16000, channels=1),
                     config_used=options,
-                    duration_seconds=0.0,
+                    processing_time_seconds=0.0,
                     backend_used=self.backend_type,
                 )
 
@@ -383,7 +383,7 @@ class TestIsAvailable:
                     segments=[],
                     media_info=MediaInfo(duration=1.0, format="wav", sample_rate=16000, channels=1),
                     config_used=options,
-                    duration_seconds=0.0,
+                    processing_time_seconds=0.0,
                     backend_used=self.backend_type,
                 )
 

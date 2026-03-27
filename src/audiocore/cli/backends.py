@@ -11,15 +11,12 @@ Example:
     >>> audiocore backends check
 """
 
-from typing import Annotated
-
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from audiocore.backends.availability import BackendAvailabilityChecker, BackendStatus
+from audiocore.backends.availability import BackendAvailabilityChecker
 from audiocore.config import AppConfig
-from audiocore.types import BackendType
 
 app = typer.Typer(help="Manage and check backend availability")
 console = Console()
@@ -93,7 +90,9 @@ def check_backends() -> None:
         console.print("[red]✗[/red] No backends available")
         console.print("\nTo configure backends:")
         console.print("  - OpenAI: Set OPENAI_API_KEY environment variable")
-        console.print("  - Faster Whisper: Install with [cyan]pip install faster-whisper[/cyan]")
+        console.print(
+            "  - Faster Whisper: Install with [cyan]pip install faster-whisper[/cyan]"
+        )
         raise typer.Exit(1)
 
 

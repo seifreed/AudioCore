@@ -78,7 +78,7 @@ class TestProbeIntegration:
         result = probe(mp3_path)
 
         assert result.format_name == "mp3"
-        assert result.duration_seconds > 0
+        assert result.processing_time_seconds > 0
         assert result.sample_rate is not None
         assert result.sample_rate > 0
 
@@ -89,7 +89,7 @@ class TestProbeIntegration:
         result = probe(wav_path)
 
         assert result.format_name == "wav"
-        assert result.duration_seconds > 0
+        assert result.processing_time_seconds > 0
 
     @pytest.mark.skipif(not has_fixture_file("test.mp4"), reason="test.mp4 fixture not available")
     def test_probe_real_mp4_file(self) -> None:
@@ -99,7 +99,7 @@ class TestProbeIntegration:
 
         # MP4 may have video stream
         assert result.format_name in {"mov,mp4,m4a,3gp,3g2,mj2", "mp4"}
-        assert result.duration_seconds > 0
+        assert result.processing_time_seconds > 0
 
     def test_probe_missing_file(self) -> None:
         """Test probing a non-existent file raises error."""
@@ -161,12 +161,12 @@ class TestExtractAudioIntegration:
         output_path = tmp_path / "output.wav"
         mp3_path = FIXTURES_DIR / "test.mp3"
 
-        extract_audio(mp3_path, output_path, duration_seconds=2.0)
+        extract_audio(mp3_path, output_path, processing_time_seconds=2.0)
 
         assert output_path.exists()
         probe_result = probe(output_path)
         # Should be approximately 2 seconds (or slightly less due to encoding)
-        assert probe_result.duration_seconds <= 2.5  # Allow some tolerance
+        assert probe_result.processing_time_seconds <= 2.5  # Allow some tolerance
 
 
 # ============================================================================

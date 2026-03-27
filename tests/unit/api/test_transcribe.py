@@ -35,7 +35,7 @@ class TestSyncTranscribe:
             ],
             media_info=MediaInfo(duration=5.0, format="wav"),
             config_used=TranscriptionOptions(),
-            duration_seconds=1.0,
+            processing_time_seconds=1.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -64,7 +64,7 @@ class TestSyncTranscribe:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Test")],
             media_info=MediaInfo(duration=5.0, format="wav"),
             config_used=TranscriptionOptions(backend=BackendType.OPENAI),
-            duration_seconds=1.0,
+            processing_time_seconds=1.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -104,7 +104,7 @@ class TestSyncTranscribe:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Test")],
             media_info=MediaInfo(duration=5.0, format="wav"),
             config_used=TranscriptionOptions(),
-            duration_seconds=1.0,
+            processing_time_seconds=1.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -132,7 +132,7 @@ class TestAsyncTranscribe:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Async test")],
             media_info=MediaInfo(duration=5.0, format="wav"),
             config_used=TranscriptionOptions(),
-            duration_seconds=1.0,
+            processing_time_seconds=1.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -152,7 +152,7 @@ class TestAsyncTranscribe:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Options test")],
             media_info=MediaInfo(duration=5.0, format="wav"),
             config_used=TranscriptionOptions(backend=BackendType.OPENAI),
-            duration_seconds=1.0,
+            processing_time_seconds=1.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -187,14 +187,14 @@ class TestAsyncTranscribe:
             segments=[Segment(start_time=0.0, end_time=5.0, text="File 1")],
             media_info=MediaInfo(duration=5.0, format="wav"),
             config_used=TranscriptionOptions(),
-            duration_seconds=1.0,
+            processing_time_seconds=1.0,
             backend_used=BackendType.OPENAI,
         )
         mock_result_2 = TranscriptionResult(
             segments=[Segment(start_time=0.0, end_time=5.0, text="File 2")],
             media_info=MediaInfo(duration=5.0, format="wav"),
             config_used=TranscriptionOptions(),
-            duration_seconds=1.0,
+            processing_time_seconds=1.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -252,7 +252,7 @@ class TestShutdownExecutor:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Test")],
             media_info=MediaInfo(duration=5.0, format="wav"),
             config_used=TranscriptionOptions(),
-            duration_seconds=1.0,
+            processing_time_seconds=1.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -305,7 +305,7 @@ class TestConfigLoading:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Auto config")],
             media_info=MediaInfo(duration=5.0, format="wav"),
             config_used=TranscriptionOptions(),
-            duration_seconds=1.0,
+            processing_time_seconds=1.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -327,7 +327,7 @@ class TestConfigLoading:
             segments=[Segment(start_time=0.0, end_time=5.0, text="Default options")],
             media_info=MediaInfo(duration=5.0, format="wav"),
             config_used=TranscriptionOptions(),
-            duration_seconds=1.0,
+            processing_time_seconds=1.0,
             backend_used=BackendType.OPENAI,
         )
 

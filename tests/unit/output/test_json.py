@@ -40,7 +40,7 @@ def sample_result(sample_media_info: MediaInfo) -> TranscriptionResult:
         ],
         media_info=sample_media_info,
         config_used=TranscriptionOptions(),
-        duration_seconds=15.5,
+        processing_time_seconds=15.5,
         backend_used=BackendType.OPENAI,
     )
 
@@ -156,7 +156,7 @@ class TestFormatJson:
             ],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=10.0,
+            processing_time_seconds=10.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -175,7 +175,7 @@ class TestFormatJson:
             segments=[],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=0.0,
+            processing_time_seconds=0.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -195,7 +195,7 @@ class TestFormatJson:
             segments=[],
             media_info=sample_media_info,
             config_used=sample_options,
-            duration_seconds=0.0,
+            processing_time_seconds=0.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -226,7 +226,7 @@ class TestFormatJson:
             segments=[],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=0.0,
+            processing_time_seconds=0.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -242,7 +242,7 @@ class TestFormatJson:
                 segments=[],
                 media_info=sample_media_info,
                 config_used=TranscriptionOptions(),
-                duration_seconds=0.0,
+                processing_time_seconds=0.0,
                 backend_used=backend,
             )
 
@@ -260,7 +260,7 @@ class TestFormatJson:
             ],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=10.0,
+            processing_time_seconds=10.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -278,7 +278,7 @@ class TestFormatJson:
             ],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -304,7 +304,7 @@ class TestFormatJson:
             segments=[],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=42.7,
+            processing_time_seconds=42.7,
             backend_used=BackendType.OPENAI,
         )
 
@@ -334,7 +334,7 @@ class TestFormatJson:
             ],
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=5.0,
+            processing_time_seconds=5.0,
             backend_used=BackendType.OPENAI,
         )
 
@@ -354,7 +354,7 @@ class TestFormatJson:
             segments=segments,
             media_info=sample_media_info,
             config_used=TranscriptionOptions(),
-            duration_seconds=3000.0,
+            processing_time_seconds=3000.0,
             backend_used=BackendType.OPENAI,
         )
 

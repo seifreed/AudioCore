@@ -18,7 +18,7 @@ from typing import Annotated
 
 import typer
 from rich.console import Console
-from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from rich.table import Table
 
 from audiocore.backends.faster_whisper.model_manager import ModelManager
@@ -95,7 +95,7 @@ def download_model(
         str,
         typer.Argument(
             ...,
-            help="Model size to download (tiny, base, small, medium, large)",
+            help="Model size to download (tiny, base, small, medium, large, large-v3, large-v3-turbo)",
             callback=parse_model_size,
         ),
     ],
@@ -106,6 +106,7 @@ def download_model(
 
     Example:
         >>> audiocore models download base
+        >>> audiocore models download large-v3
     """
     manager = ModelManager()
 
@@ -147,7 +148,7 @@ def download_model(
     except Exception as e:
         console.print(f"[red]Error:[/red] Failed to download model '{model}'")
         console.print(f"[dim]{e}[/dim]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command("remove")
@@ -156,7 +157,7 @@ def remove_model(
         str,
         typer.Argument(
             ...,
-            help="Model size to remove (tiny, base, small, medium, large)",
+            help="Model size to remove (tiny, base, small, medium, large, large-v3, large-v3-turbo)",
             callback=parse_model_size,
         ),
     ],
@@ -171,7 +172,7 @@ def remove_model(
 
     Example:
         >>> audiocore models remove base
-        >>> audiocore models remove base --force
+        >>> audiocore models remove large-v3 --force
     """
     manager = ModelManager()
 
@@ -192,9 +193,7 @@ def remove_model(
         size_str = (
             f"{size_mb} MB"
             if size_mb and size_mb < 1000
-            else f"{size_mb / 1000:.1f} GB"
-            if size_mb
-            else ""
+            else f"{size_mb / 1000:.1f} GB" if size_mb else ""
         )
         confirm = typer.confirm(
             f"Remove model '{model}' ({size_str})?",
@@ -211,7 +210,7 @@ def remove_model(
     except Exception as e:
         console.print(f"[red]Error:[/red] Failed to remove model '{model}'")
         console.print(f"[dim]{e}[/dim]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 if __name__ == "__main__":

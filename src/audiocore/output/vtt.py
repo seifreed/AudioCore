@@ -15,7 +15,7 @@ Example:
     ...     ],
     ...     media_info=MediaInfo(...),
     ...     config_used=TranscriptionOptions(),
-    ...     duration_seconds=15.5,
+    ...     processing_time_seconds=15.5,
     ...     backend_used=BackendType.OPENAI
     ... )
     >>> print(format_vtt(result, TranscriptionOptions()))
@@ -29,7 +29,10 @@ Example:
     <BLANKLINE>
 """
 
-from audiocore.models.transcription import TranscriptionOptions, TranscriptionResult
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from audiocore.models.transcription import TranscriptionOptions, TranscriptionResult
 
 
 def _format_vtt_timestamp(seconds: float) -> str:

@@ -13,7 +13,7 @@ from typing import Any
 from pydantic import SecretStr
 
 from audiocore.config.settings import AppConfig
-from audiocore.config.toml_loader import DEFAULT_CONFIG_PATH, load_toml_config
+from audiocore.config.toml_loader import load_toml_config
 
 
 def _get_defaults() -> dict[str, Any]:
@@ -36,7 +36,7 @@ def _get_defaults() -> dict[str, Any]:
     for field_name, field_info in AppConfig.model_fields.items():
         if field_info.default_factory is not None:
             # Has a default_factory, call it to get default
-            defaults[field_name] = field_info.default_factory()
+            defaults[field_name] = field_info.default_factory()  # type: ignore[misc]
         elif field_info.default is not None:
             # Has a direct default value
             defaults[field_name] = field_info.default
@@ -121,13 +121,13 @@ def merge_configs(
     """
     # Field name mapping: TOML/config uses model_size, AppConfig uses model
     # TOML loader already outputs model_size, we need to map to model field
-    _FIELD_ALIASES = {"model_size": "model"}
+    field_aliases = {"model_size": "model"}
 
     def _normalize_keys(d: dict[str, Any]) -> dict[str, Any]:
         """Map aliased field names to actual AppConfig field names."""
         result: dict[str, Any] = {}
         for key, value in d.items():
-            actual_key = _FIELD_ALIASES.get(key, key)
+            actual_key = field_aliases.get(key, key)
             result[actual_key] = value
         return result
 
@@ -214,7 +214,9 @@ def load_config(
     # 2. Convert string path to Path if needed
     resolved_path: Path | None = None
     if config_path is not None:
-        resolved_path = Path(config_path) if isinstance(config_path, str) else config_path
+        resolved_path = (
+            Path(config_path) if isinstance(config_path, str) else config_path
+        )
 
     # 3. Load TOML config (returns {} if missing)
     toml_config = load_toml_config(resolved_path)
@@ -245,11 +247,11 @@ def load_config(
 
     # 5. CLI overrides (highest priority)
     # Also map model_size to model for CLI
-    _FIELD_ALIASES = {"model_size": "model"}
+    field_aliases = {"model_size": "model"}
     cli_config: dict[str, Any] = {}
     if cli_overrides:
         for key, value in cli_overrides.items():
-            actual_key = _FIELD_ALIASES.get(key, key)
+            actual_key = field_aliases.get(key, key)
             cli_config[actual_key] = value
 
     # 6. Merge all sources
@@ -259,16 +261,24 @@ def load_config(
     # Never log API keys in plain text
     logger.debug("Configuration loaded:")
     logger.debug(
-        "  Defaults: %s", {k: v for k, v in mask_secrets(defaults).items() if v is not None}
+        "  Defaults: %s",
+        {k: v for k, v in mask_secrets(defaults).items() if v is not None},
     )
     logger.debug(
-        "  TOML: %s", {k: v for k, v in mask_secrets(toml_config).items() if v is not None}
+        "  TOML: %s",
+        {k: v for k, v in mask_secrets(toml_config).items() if v is not None},
     )
     logger.debug(
         "  Env: %s",
-        {k: "***REDACTED***" if k == "openai_api_key" else v for k, v in env_values.items()},
+        {
+            k: "***REDACTED***" if k == "openai_api_key" else v
+            for k, v in env_values.items()
+        },
     )
-    logger.debug("  CLI: %s", {k: v for k, v in mask_secrets(cli_config).items() if v is not None})
+    logger.debug(
+        "  CLI: %s",
+        {k: v for k, v in mask_secrets(cli_config).items() if v is not None},
+    )
 
     # Track source of each value for debugging
     source_tracking: dict[str, str] = {}

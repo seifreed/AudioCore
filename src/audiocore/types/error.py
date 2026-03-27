@@ -1,9 +1,9 @@
 """Error classification enum for model and processing errors."""
 
-from enum import Enum
+from enum import StrEnum
 
 
-class ModelErrorType(str, Enum):
+class ModelErrorType(StrEnum):
     """Classification of errors that can occur during transcription.
 
     Inherits from str and Enum for JSON serialization support.
@@ -29,7 +29,7 @@ class ModelErrorType(str, Enum):
     API_TIMEOUT = "api_timeout"
 
     @classmethod
-    def parse(cls, value: str) -> "ModelErrorType":
+    def parse(cls, value: str) -> ModelErrorType:
         """Parse a string to ModelErrorType case-insensitively.
 
         Args:
@@ -46,7 +46,9 @@ class ModelErrorType(str, Enum):
             return cls(normalized)
         except ValueError:
             valid_options = ", ".join(f"'{m.value}'" for m in cls)
-            raise ValueError(f"Invalid error type '{value}'. Valid options: {valid_options}")
+            raise ValueError(
+                f"Invalid error type '{value}'. Valid options: {valid_options}"
+            ) from None
 
     def is_input_error(self) -> bool:
         """Check if this is an input-related error."""

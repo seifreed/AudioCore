@@ -11,14 +11,15 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from audiocore.api.transcribe import transcribe
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+    from pathlib import Path
+
     from audiocore.models import TranscriptionOptions, TranscriptionResult
-    from audiocore.pipeline.progress import ProgressCallback
 
 
 @dataclass
@@ -44,16 +45,16 @@ class FileResult:
 
     path: Path
     success: bool
-    result: "TranscriptionResult | None"
+    result: TranscriptionResult | None
     error: str | None
 
 
 async def transcribe_files_concurrent(
     files: list[Path],
-    options: "TranscriptionOptions",
+    options: TranscriptionOptions,
     max_workers: int = 4,
     continue_on_error: bool = True,
-    progress_callback: "Callable[[int, int, Path], None] | None" = None,
+    progress_callback: Callable[[int, int, Path], None] | None = None,
 ) -> list[FileResult]:
     """Transcribe multiple files concurrently with controlled parallelism.
 
@@ -96,6 +97,7 @@ async def transcribe_files_concurrent(
     results: list[FileResult | None] = [None] * len(files)
     completed_count = 0
     total_count = len(files)
+    counter_lock = asyncio.Lock()
 
     async def transcribe_single_file(
         index: int,
@@ -122,10 +124,12 @@ async def transcribe_files_concurrent(
                     lambda: transcribe(path=file_path, options=options),
                 )
 
-                # Call progress callback if provided
+                # Call progress callback if provided (thread-safe counter update)
                 if progress_callback:
-                    completed_count += 1
-                    progress_callback(completed_count, total_count, file_path)
+                    async with counter_lock:
+                        completed_count += 1
+                        current_count = completed_count
+                    progress_callback(current_count, total_count, file_path)
 
                 return FileResult(
                     path=file_path,
@@ -142,10 +146,12 @@ async def transcribe_files_concurrent(
                     # Re-raise to stop all processing
                     raise
 
-                # Update progress even for failures
+                # Update progress even for failures (thread-safe counter update)
                 if progress_callback:
-                    completed_count += 1
-                    progress_callback(completed_count, total_count, file_path)
+                    async with counter_lock:
+                        completed_count += 1
+                        current_count = completed_count
+                    progress_callback(current_count, total_count, file_path)
 
                 return FileResult(
                     path=file_path,
@@ -155,7 +161,10 @@ async def transcribe_files_concurrent(
                 )
 
     # Create tasks for all files
-    tasks = [asyncio.create_task(transcribe_single_file(i, file)) for i, file in enumerate(files)]
+    tasks = [
+        asyncio.create_task(transcribe_single_file(i, file))
+        for i, file in enumerate(files)
+    ]
 
     # Run all tasks concurrently
     try:
@@ -185,8 +194,16 @@ async def transcribe_files_concurrent(
                     error="Processing interrupted by error",
                 )
 
-    # Assert all results are populated (for mypy)
-    assert all(r is not None for r in results), "All results should be populated"
+    # Validate all results are populated before returning
+    for i, result in enumerate(results):
+        if result is None:
+            # This should never happen, but handle gracefully
+            results[i] = FileResult(
+                path=files[i],
+                success=False,
+                result=None,
+                error="Internal error: result was not populated",
+            )
 
     return list(results)  # type: ignore[return-value]
 

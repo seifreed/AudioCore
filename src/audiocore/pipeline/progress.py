@@ -15,11 +15,11 @@ Example:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Protocol
 
 
-class PipelineStage(str, Enum):
+class PipelineStage(StrEnum):
     """Stages of the transcription pipeline.
 
     Each stage represents a distinct phase in the transcription process,
