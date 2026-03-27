@@ -71,7 +71,7 @@ AudioCore uses `ffmpeg` for media processing, supporting:
 
 ### Prerequisites
 
-1. **Python 3.14+**
+1. **Python 3.11+**
 2. **ffmpeg** (for media processing)
    ```bash
    # macOS
@@ -677,7 +677,7 @@ audiocore/
 
 | Requirement | Version | Purpose |
 |-------------|---------|---------|
-| Python | ≥3.14 | Runtime |
+| Python | ≥3.11 | Runtime |
 | ffmpeg | System | Media processing |
 | Pydantic | ≥2.0 | Data validation |
 | openai | ≥1.0 | OpenAI API client |

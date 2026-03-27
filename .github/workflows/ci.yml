@@ -13,10 +13,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Set up Python 3.14
+      - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:
-          python-version: "3.14"
+          python-version: "3.13"
       
       - name: Install dependencies
         run: |
@@ -36,23 +36,19 @@ jobs:
         run: bandit -r src/audiocore --skip B101
 
   test:
-    name: Test ${{ matrix.os }} (${{ matrix.arch }})
+    name: Test ${{ matrix.os }} (${{ matrix.arch }}) - Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         arch: [x64]
-        python-version: ["3.14"]
+        python-version: ["3.11", "3.12", "3.13"]
         include:
           # ARM64 for macOS (M-series chips)
           - os: macos-latest
             arch: arm64
-            python-version: "3.14"
-          # ARM64 for Linux (AWS Graviton, etc.)
-          - os: ubuntu-24.04-arm
-            arch: arm64
-            python-version: "3.14"
+            python-version: "3.13"
     
     steps:
       - uses: actions/checkout@v4
@@ -89,7 +85,7 @@ jobs:
           pytest tests/ -v --cov=src/audiocore --cov-report=xml --cov-report=html
       
       - name: Upload coverage to Codecov
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'x64'
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage.xml
@@ -102,10 +98,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Set up Python 3.14
+      - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:
-          python-version: "3.14"
+          python-version: "3.13"
       
       - name: Install build tools
         run: |

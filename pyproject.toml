@@ -8,7 +8,7 @@ version = "1.0.0"
 description = "Python audio/video transcription engine with dual backend support"
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.14"
+requires-python = ">=3.11"
 authors = [
     { name = "Marc Rivero", email = "mriverolopez@gmail.com" },
 ]
@@ -22,7 +22,9 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Multimedia :: Sound/Audio :: Speech",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -85,7 +87,7 @@ exclude_lines = [
 ]
 
 [tool.ruff]
-target-version = "py314"
+target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
@@ -93,7 +95,7 @@ select = ["E", "F", "I", "N", "UP", "B", "C4", "SIM", "TCH"]
 ignore = ["E501", "SIM115"]
 
 [tool.mypy]
-python_version = "3.14"
+python_version = "3.11"
 strict = false
 warn_return_any = false
 warn_unused_ignores = false
