@@ -84,23 +84,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   test-install:
-    name: Test Installation (${{ matrix.os }}, ${{ matrix.arch }})
+    name: Test Installation (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: publish-pypi
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        arch: [x64]
-        include:
-          - os: macos-latest
-            arch: arm64
     
     steps:
       - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-          architecture: ${{ matrix.arch }}
       
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'

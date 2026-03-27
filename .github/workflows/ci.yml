@@ -36,19 +36,13 @@ jobs:
         run: bandit -r src/audiocore --skip B101
 
   test:
-    name: Test ${{ matrix.os }} (${{ matrix.arch }}) - Python ${{ matrix.python-version }}
+    name: Test ${{ matrix.os }} - Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        arch: [x64]
         python-version: ["3.11", "3.12", "3.13"]
-        include:
-          # ARM64 for macOS (M-series chips)
-          - os: macos-latest
-            arch: arm64
-            python-version: "3.13"
     
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +51,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          architecture: ${{ matrix.arch }}
       
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
