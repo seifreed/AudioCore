@@ -1,12 +1,11 @@
 """Tests for processing-related exceptions."""
 
-import pytest
 
 from audiocore.errors.base import AudioCoreError
 from audiocore.errors.processing import (
+    MediaError,
     ProcessingError,
     VADError,
-    MediaError,
 )
 
 

@@ -23,7 +23,6 @@ from audiocore.errors import AuthenticationError
 from audiocore.models import TranscriptionOptions
 from audiocore.types import BackendType
 
-
 # Skip all tests in this module if no API key
 pytestmark = pytest.mark.skipif(
     not os.environ.get("OPENAI_API_KEY"),
@@ -48,8 +47,8 @@ def sample_audio_file(tmp_path: Path) -> Path:
     This is sufficient for testing the OpenAI API without
     incurring significant costs.
     """
-    import wave
     import struct
+    import wave
 
     audio_path = tmp_path / "test_audio.wav"
 

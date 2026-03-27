@@ -11,13 +11,12 @@ from audiocore.vad.config import VADConfig
 from audiocore.vad.segments import (
     filter_by_confidence,
     merge_short_segments,
-    split_long_segments,
     pad_segments,
-    validate_segments,
-    to_segment_models,
     process_segments,
+    split_long_segments,
+    to_segment_models,
+    validate_segments,
 )
-
 
 # =============================================================================
 # Test fixtures

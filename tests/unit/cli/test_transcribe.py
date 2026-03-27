@@ -13,11 +13,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from audiocore.cli.transcribe import app, transcribe
+from audiocore.cli.transcribe import app
 from audiocore.models import MediaInfo, Segment, TranscriptionOptions, TranscriptionResult
-from audiocore.pipeline.progress import PipelineStage
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
-
 
 runner = CliRunner()
 
@@ -370,7 +368,6 @@ class TestBatchTranscription:
 
     def test_multiple_files_batch_mode(self, tmp_path: Path) -> None:
         """Test multiple files enables batch mode."""
-        import asyncio
 
         from audiocore.parallel.files import FileResult
 

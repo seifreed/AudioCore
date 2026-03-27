@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from audiocore.errors.input import MediaFormatError
 from audiocore.media import (
     SUPPORTED_AUDIO_FORMATS,
     SUPPORTED_FORMATS,
@@ -18,8 +19,6 @@ from audiocore.media import (
     probe,
     validate_format_or_raise,
 )
-from audiocore.errors.input import MediaFormatError
-
 
 # Fixture directory for test media files
 FIXTURES_DIR = Path(__file__).parent.parent.parent / "fixtures" / "media"

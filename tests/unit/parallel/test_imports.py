@@ -5,7 +5,6 @@ Tests verify:
 - Exported items match expected names and types
 """
 
-import pytest
 
 
 class TestParallelModuleImports:

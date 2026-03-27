@@ -9,18 +9,12 @@ This module tests the progress callback system including:
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING
-
-import pytest
 
 from audiocore.pipeline.progress import (
     PipelineStage,
     ProgressCallback,
     ProgressEvent,
 )
-
-if TYPE_CHECKING:
-    pass
 
 
 class TestPipelineStage:
@@ -109,10 +103,9 @@ class TestProgressCallback:
     def test_progress_callback_can_be_none(self) -> None:
         """Progress callback is optional (can be None)."""
         # This is for type checking - callback is optional
-        from typing import Optional
 
         def pipeline_function(
-            progress_callback: Optional[ProgressCallback] = None,
+            progress_callback: ProgressCallback | None = None,
         ) -> None:
             if progress_callback:
                 progress_callback(PipelineStage.PROBING, 0.0, "Starting")

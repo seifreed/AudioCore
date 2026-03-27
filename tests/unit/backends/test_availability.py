@@ -1,14 +1,14 @@
 """Tests for backend availability checking."""
 
 import os
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from audiocore.backends.availability import BackendStatus, BackendAvailabilityChecker
-from audiocore.types import BackendType
+from pydantic import SecretStr
+
+from audiocore.backends.availability import BackendAvailabilityChecker, BackendStatus
 from audiocore.config import AppConfig
 from audiocore.config.openai_config import OpenAIConfig
-from pydantic import SecretStr
+from audiocore.types import BackendType
 
 
 class TestBackendStatus:

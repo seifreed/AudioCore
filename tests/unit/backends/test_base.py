@@ -9,16 +9,14 @@ These tests verify:
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, patch
 import logging
+from pathlib import Path
 
 import pytest
 
 from audiocore.backends.base import TranscriptionBackend, is_backend_available
 from audiocore.errors import BackendUnavailableError
-from audiocore.models import TranscriptionOptions, TranscriptionResult, MediaInfo, Segment
+from audiocore.models import MediaInfo, Segment, TranscriptionOptions, TranscriptionResult
 from audiocore.types import BackendType
 
 

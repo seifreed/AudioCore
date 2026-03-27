@@ -13,8 +13,7 @@ import pytest
 from typer.testing import CliRunner
 
 from audiocore.backends.faster_whisper.model_manager import ModelInfo
-from audiocore.cli.models import app, download_model, list_models, remove_model
-
+from audiocore.cli.models import app
 
 runner = CliRunner()
 

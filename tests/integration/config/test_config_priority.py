@@ -4,15 +4,11 @@ Tests the full integration: TOML file + environment variables + CLI overrides
 with correct priority: CLI > ENV > TOML > defaults.
 """
 
-import os
-import tempfile
 from pathlib import Path
 
 import pytest
-from pydantic import SecretStr
 
 from audiocore.config import load_config
-from audiocore.config.merger import mask_secrets
 from audiocore.config.settings import AppConfig
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
 
@@ -232,8 +228,8 @@ class TestConfigSourceTracking:
 
     def test_toml_values_logged_as_toml(self, tmp_path: Path) -> None:
         """TOML values should be tracked as TOML source."""
-        from unittest.mock import patch
         import logging
+        from unittest.mock import patch
 
         config_file = tmp_path / "config.toml"
         config_file.write_text(
@@ -255,8 +251,8 @@ backend = "faster_whisper"
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Environment values should be tracked as ENV source."""
-        from unittest.mock import patch
         import logging
+        from unittest.mock import patch
 
         monkeypatch.setenv("AUDIOCORE_BACKEND", "openai")
 

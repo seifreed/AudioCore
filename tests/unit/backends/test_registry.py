@@ -15,18 +15,16 @@ Tests verify:
 from __future__ import annotations
 
 import threading
-from typing import Any
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from typing import Any
 
 import pytest
 
 from audiocore.backends import BackendRegistry
 from audiocore.backends.base import TranscriptionBackend
 from audiocore.errors import BackendUnavailableError
-from audiocore.models import TranscriptionOptions, TranscriptionResult, MediaInfo, Segment
+from audiocore.models import MediaInfo, TranscriptionOptions, TranscriptionResult
 from audiocore.types import BackendType
-
 
 # Import MockTranscriptionBackend from test_base for testing
 from tests.unit.backends.test_base import MockTranscriptionBackend
@@ -703,7 +701,7 @@ class TestRegisterBuiltinBackends:
 
     def test_register_builtin_backends_registers_faster_whisper_if_available(self) -> None:
         """Test that register_builtin_backends() registers FasterWhisper backend if available."""
-        from audiocore.backends import register_builtin_backends, FasterWhisperBackend
+        from audiocore.backends import FasterWhisperBackend, register_builtin_backends
 
         registry = BackendRegistry()
         registry.clear()

@@ -8,17 +8,13 @@ Tests error handling, partial result preservation, and temp file cleanup:
 """
 
 import logging
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from audiocore.backends import BackendRegistry
 from audiocore.config import AppConfig
 from audiocore.errors import (
-    BackendUnavailableError,
     MediaError,
-    MediaFormatError,
     VADError,
 )
 from audiocore.models import MediaInfo, Segment, TranscriptionOptions, TranscriptionResult

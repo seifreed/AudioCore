@@ -11,11 +11,10 @@ Run with: pytest tests/integration/backends/test_faster_whisper_integration.py -
 
 from __future__ import annotations
 
-import time
-from pathlib import Path
-import tempfile
-import wave
 import struct
+import time
+import wave
+from pathlib import Path
 
 import pytest
 
@@ -179,18 +178,19 @@ class TestFasterWhisperIntegration:
 class TestModelManagerIntegration:
     """Integration tests for ModelManager."""
 
-    def test_list_available_models(self) -> None:
+    def test_list_models(self) -> None:
         """Test listing available models."""
         manager = ModelManager()
 
-        models = manager.list_available_models()
+        models = manager.list_models()
 
         # Should have at least tiny, base, small, medium, large
-        assert "tiny" in models
-        assert "base" in models
-        assert "small" in models
-        assert "medium" in models
-        assert "large" in models
+        model_names = [m.name for m in models]
+        assert "tiny" in model_names
+        assert "base" in model_names
+        assert "small" in model_names
+        assert "medium" in model_names
+        assert "large" in model_names
 
     def test_get_model_path(self) -> None:
         """Test getting model path."""

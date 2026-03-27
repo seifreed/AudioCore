@@ -1,13 +1,12 @@
 """Tests for backend-related exceptions."""
 
-import pytest
 
-from audiocore.errors.base import AudioCoreError
 from audiocore.errors.backend import (
     BackendError,
     BackendUnavailableError,
     TranscriptionError,
 )
+from audiocore.errors.base import AudioCoreError
 
 
 class TestBackendError:

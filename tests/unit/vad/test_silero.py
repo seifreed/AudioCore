@@ -6,21 +6,19 @@ Integration tests that actually load the model are skipped by default.
 
 from __future__ import annotations
 
+import tempfile
 import threading
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
-import tempfile
 
 import numpy as np
-from numpy.typing import NDArray
 import pytest
 import scipy.io.wavfile as wavfile
 import torch
 
 from audiocore.errors import VADError
 from audiocore.vad.silero import SileroVAD
-from audiocore.vad.config import VADConfig
 
 
 class TestModelLoading:

@@ -1,6 +1,5 @@
 """Tests for AudioCoreError base class."""
 
-import pytest
 
 from audiocore.errors.base import AudioCoreError
 

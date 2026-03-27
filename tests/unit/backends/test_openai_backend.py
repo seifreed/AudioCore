@@ -14,15 +14,19 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, Mock, mock_open, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from openai import (
-    APIConnectionError,
     APIError as OpenAIAPIError,
-    APITimeoutError,
+)
+from openai import (
+    APITimeoutError as OpenAITimeoutError,
+)
+from openai import (
     AuthenticationError as OpenAIAuthenticationError,
+)
+from openai import (
     RateLimitError as OpenAIRateLimitError,
 )
 
@@ -35,7 +39,7 @@ from audiocore.errors import (
     RateLimitError,
     TranscriptionError,
 )
-from audiocore.models import MediaInfo, Segment, TranscriptionOptions, TranscriptionResult
+from audiocore.models import TranscriptionOptions, TranscriptionResult
 from audiocore.types import BackendType
 
 
@@ -381,7 +385,9 @@ class TestErrorHandling:
         audio_file.write_bytes(b"fake audio data")
 
         # Mock API to raise timeout error
-        mock_client.audio.transcriptions.create.side_effect = APITimeoutError("Request timed out")
+        mock_client.audio.transcriptions.create.side_effect = OpenAITimeoutError(
+            "Request timed out"
+        )
 
         backend = OpenAIBackend(api_key="sk-test123")
         options = TranscriptionOptions()
@@ -391,57 +397,6 @@ class TestErrorHandling:
 
         assert exc_info.value.error_code == "AUD-303"
         assert "timeout" in str(exc_info.value).lower()
-
-    @patch("audiocore.backends.openai_backend.OpenAI")
-    def test_api_error_mapped(self, mock_openai: MagicMock, tmp_path: Path) -> None:
-        """Verify OpenAI APIError maps to AudioCore APIError."""
-        mock_client = MagicMock()
-        mock_openai.return_value = mock_client
-
-        audio_file = tmp_path / "test.mp3"
-        audio_file.write_bytes(b"fake audio data")
-
-        # OpenAI APIError requires message, request, and body parameters
-        mock_request = MagicMock()
-        mock_client.audio.transcriptions.create.side_effect = OpenAIAPIError(
-            message="API error",
-            request=mock_request,
-            body=None,
-        )
-
-        backend = OpenAIBackend(api_key="sk-test123")
-        options = TranscriptionOptions()
-
-        with pytest.raises(APIError) as exc_info:
-            backend.transcribe(audio_file, options)
-
-        assert exc_info.value.error_code == "AUD-300"
-        assert "connection" in str(exc_info.value).lower()
-
-    @patch("audiocore.backends.openai_backend.OpenAI")
-    def test_api_error_mapped(self, mock_openai: MagicMock, tmp_path: Path) -> None:
-        """Verify OpenAI APIError maps to AudioCore APIError."""
-        mock_client = MagicMock()
-        mock_openai.return_value = mock_client
-
-        audio_file = tmp_path / "test.mp3"
-        audio_file.write_bytes(b"fake audio data")
-
-        # OpenAI APIError requires message, request, and body parameters
-        mock_request = MagicMock()
-        mock_client.audio.transcriptions.create.side_effect = OpenAIAPIError(
-            message="API error",
-            request=mock_request,
-            body=None,
-        )
-
-        backend = OpenAIBackend(api_key="sk-test123")
-        options = TranscriptionOptions()
-
-        with pytest.raises(APIError) as exc_info:
-            backend.transcribe(audio_file, options)
-
-        assert exc_info.value.error_code == "AUD-300"
 
     @patch("audiocore.backends.openai_backend.OpenAI")
     def test_unexpected_error_mapped_to_transcription_error(

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from audiocore.errors.input import MediaFormatError
 from audiocore.media.formats import (
     SUPPORTED_AUDIO_FORMATS,
     SUPPORTED_FORMATS,
@@ -15,8 +16,6 @@ from audiocore.media.formats import (
     is_format_supported,
     validate_format_or_raise,
 )
-from audiocore.errors.input import MediaFormatError
-
 
 # ============================================================================
 # Test format constants

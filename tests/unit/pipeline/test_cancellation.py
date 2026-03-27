@@ -10,15 +10,11 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import TYPE_CHECKING
 
 import pytest
 
 from audiocore.errors.base import AudioCoreError
-from audiocore.pipeline.cancellation import CancelledError, CancellationToken
-
-if TYPE_CHECKING:
-    pass
+from audiocore.pipeline.cancellation import CancellationToken, CancelledError
 
 
 class TestCancelledError:

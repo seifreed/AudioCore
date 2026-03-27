@@ -69,7 +69,7 @@ output_format = "json"
 
     def test_permission_denied_raises_error(self, tmp_path: Path) -> None:
         """Permission denied should raise InvalidConfigError."""
-        from unittest.mock import mock_open, patch
+        from unittest.mock import patch
 
         config_file = tmp_path / "readonly.toml"
         config_file.write_text('[backend]\nbackend = "openai"')

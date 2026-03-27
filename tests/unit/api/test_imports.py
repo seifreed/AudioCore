@@ -5,15 +5,10 @@ This module tests that all public symbols are importable and that
 the error hierarchy is properly organized.
 """
 
-import pytest
 
 from audiocore import (
     AudioCoreError,
     BackendError,
-    BackendType,
-    ModelSize,
-    OutputFormat,
-    SelectionPolicy,
     TranscriptionOptions,
     TranscriptionResult,
     transcribe,
@@ -188,7 +183,7 @@ class TestPublicAPIImports:
 
     def test_main_functions_importable(self):
         """Verify transcribe and async_transcribe are importable."""
-        from audiocore.api import async_transcribe, transcribe
+        from audiocore.api import transcribe
 
         assert callable(transcribe)
         assert callable(async_transcribe)
@@ -225,7 +220,6 @@ class TestPublicAPIImports:
 
     def test_async_transcribe_importable_from_api(self):
         """Verify async_transcribe is in api module's __all__."""
-        from audiocore.api import async_transcribe
 
         assert "async_transcribe" in async_transcribe.__module__ or True  # Function exists
 

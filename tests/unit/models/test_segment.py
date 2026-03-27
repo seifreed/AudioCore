@@ -57,11 +57,10 @@ class TestSegmentValidation:
             Segment(start_time=10.0, end_time=5.0, text="test")
         assert "end_time" in str(exc_info.value).lower()
 
-    def test_reject_empty_text(self) -> None:
-        """Reject empty text."""
-        with pytest.raises(ValidationError) as exc_info:
-            Segment(start_time=0.0, end_time=5.0, text="")
-        assert "text" in str(exc_info.value)
+    def test_accepts_empty_text(self) -> None:
+        """Accept empty text (valid before transcription)."""
+        segment = Segment(start_time=0.0, end_time=5.0, text="")
+        assert segment.text == ""
 
     def test_reject_confidence_above_one(self) -> None:
         """Reject confidence > 1."""

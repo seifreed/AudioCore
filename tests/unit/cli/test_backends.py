@@ -11,10 +11,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from audiocore.cli.backends import app, check_backends, list_backends
 from audiocore.backends.availability import BackendStatus
+from audiocore.cli.backends import app
 from audiocore.types import BackendType
-
 
 runner = CliRunner()
 

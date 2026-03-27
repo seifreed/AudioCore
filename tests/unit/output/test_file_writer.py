@@ -1,7 +1,6 @@
 """Unit tests for file_writer module."""
 
 import sys
-import tempfile
 from io import StringIO
 from pathlib import Path
 

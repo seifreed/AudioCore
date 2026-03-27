@@ -4,13 +4,12 @@ Tests default values, SecretStr handling, validation, and integration
 with OpenAIBackend and AppConfig.
 """
 
-from pydantic import SecretStr
 import pytest
+from pydantic import SecretStr
 
+from audiocore.backends.openai_backend import OpenAIBackend
 from audiocore.config.openai_config import OpenAIConfig
 from audiocore.config.settings import AppConfig
-from audiocore.backends.openai_backend import OpenAIBackend
-from audiocore.types import BackendType
 
 
 class TestOpenAIConfigDefaults:

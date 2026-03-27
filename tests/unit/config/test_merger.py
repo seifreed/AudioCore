@@ -4,8 +4,6 @@ Tests priority chain merging, None value handling,
 SecretStr masking, and default value extraction.
 """
 
-import os
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -17,7 +15,6 @@ from audiocore.config.merger import (
     mask_secrets,
     merge_configs,
 )
-from audiocore.config.settings import AppConfig
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
 
 
@@ -60,11 +57,10 @@ class TestGetDefaults:
         defaults = _get_defaults()
         assert defaults["backend_preference"] == SelectionPolicy.AUTO
 
-    def test_returns_empty_secret_str_for_api_key(self) -> None:
-        """Default API key should be empty SecretStr."""
+    def test_returns_none_for_api_key(self) -> None:
+        """Default API key should be None."""
         defaults = _get_defaults()
-        assert isinstance(defaults["openai_api_key"], SecretStr)
-        assert defaults["openai_api_key"].get_secret_value() == ""
+        assert defaults["openai_api_key"] is None
 
 
 class TestMaskSecrets:

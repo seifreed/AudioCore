@@ -22,10 +22,9 @@ from audiocore.config import AppConfig
 from audiocore.errors import BackendUnavailableError, MediaError, MediaFormatError
 from audiocore.models import MediaInfo, Segment, TranscriptionOptions, TranscriptionResult
 from audiocore.pipeline import Pipeline, transcribe
-from audiocore.pipeline.orchestrator import Pipeline as PipelineClass
 from audiocore.pipeline.cancellation import CancelledError
+from audiocore.pipeline.errors import PipelineStageError
 from audiocore.pipeline.progress import PipelineStage
-from audiocore.pipeline.errors import PipelineStageError, PartialResultError
 from audiocore.types import BackendType, OutputFormat, SelectionPolicy
 
 
@@ -440,10 +439,8 @@ class TestPipelineTranscribe:
     @patch("audiocore.pipeline.orchestrator.extract_audio")
     @patch("audiocore.pipeline.orchestrator.detect_speech")
     @patch("audiocore.pipeline.orchestrator.temp_audio_file")
-    @patch("audiocore.pipeline.orchestrator.time")
     def test_transcribe_sets_backend_used(
         self,
-        mock_time,
         mock_temp_file,
         mock_detect_speech,
         mock_extract_audio,
@@ -459,7 +456,6 @@ class TestPipelineTranscribe:
         mock_validate.return_value = None
         mock_probe.return_value = mock_media_info
         mock_detect_speech.return_value = mock_segments
-        mock_time.time.return_value = 0.0
 
         # Setup temp file context manager
         temp_path = tmp_path / "temp.wav"
@@ -659,7 +655,6 @@ class TestPipelineTranscribe:
         tmp_path,
     ):
         """transcribe() wraps MediaError in PipelineStageError on probe failure."""
-        from audiocore.pipeline.errors import PipelineStageError
 
         # Setup mocks
         mock_validate.return_value = None
@@ -698,7 +693,6 @@ class TestPipelineTranscribe:
         tmp_path,
     ):
         """transcribe() wraps BackendUnavailableError in PipelineStageError."""
-        from audiocore.pipeline.errors import PipelineStageError
 
         # Setup mocks
         mock_validate.return_value = None

@@ -277,7 +277,6 @@ class TestShutdownExecutor:
         import importlib
 
         # Get the actual transcribe module, not the lazy-loaded function
-        import audiocore.api.transcribe
 
         transcribe_module = importlib.import_module("audiocore.api.transcribe")
 

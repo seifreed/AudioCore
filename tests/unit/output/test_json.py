@@ -7,7 +7,7 @@ import pytest
 from audiocore.models.media import MediaInfo
 from audiocore.models.segment import Segment
 from audiocore.models.transcription import TranscriptionOptions, TranscriptionResult
-from audiocore.output.json import format_json, _prepare_for_json, _serialize_value
+from audiocore.output.json import _prepare_for_json, _serialize_value, format_json
 from audiocore.types import BackendType, ModelSize, OutputFormat
 
 

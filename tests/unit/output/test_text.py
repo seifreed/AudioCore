@@ -5,7 +5,7 @@ import pytest
 from audiocore.models.media import MediaInfo
 from audiocore.models.segment import Segment
 from audiocore.models.transcription import TranscriptionOptions, TranscriptionResult
-from audiocore.output.text import format_text, _format_timestamp
+from audiocore.output.text import _format_timestamp, format_text
 from audiocore.types import BackendType
 
 

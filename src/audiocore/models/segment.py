@@ -16,7 +16,7 @@ class Segment(BaseModel):
     Attributes:
         start_time: Start time in seconds (must be >= 0).
         end_time: End time in seconds (must be >= 0 and >= start_time).
-        text: The transcribed text content (must not be empty).
+        text: The transcribed text content (may be empty before transcription).
         confidence: Optional confidence score between 0 and 1.
 
     Example:
@@ -33,7 +33,7 @@ class Segment(BaseModel):
     end_time: float = Field(ge=0, description="End time of the segment in seconds")
     text: str = Field(
         default="",
-        description="Transcribed text content for this segment (empty before transcription)",
+        description="Transcribed text content for this segment",
     )
     confidence: float | None = Field(
         default=None,

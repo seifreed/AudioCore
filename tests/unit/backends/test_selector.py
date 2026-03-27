@@ -1,17 +1,17 @@
 """Tests for backend selection."""
 
-import pytest
-import logging
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from audiocore.backends.selector import BackendSelector, select_backend
+import pytest
+from pydantic import SecretStr
+
 from audiocore.backends.availability import BackendStatus
+from audiocore.backends.selector import BackendSelector, select_backend
 from audiocore.config import AppConfig
 from audiocore.config.openai_config import OpenAIConfig
-from audiocore.types import BackendType, SelectionPolicy
 from audiocore.errors import BackendUnavailableError
-from pydantic import SecretStr
+from audiocore.types import BackendType, SelectionPolicy
 
 
 class TestBackendSelector:

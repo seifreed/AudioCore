@@ -1,6 +1,5 @@
 """Unit tests for output module imports."""
 
-import pytest
 
 from audiocore.output import (
     OutputFileConfig,
@@ -69,11 +68,11 @@ class TestOutputImports:
     def test_direct_import(self) -> None:
         """Formatters can be imported directly from module files."""
         # Verify the actual module names work
-        import audiocore.output.text as text_mod
+        import audiocore.output.file_writer as file_writer_mod
         import audiocore.output.json as json_mod
         import audiocore.output.srt as srt_mod
+        import audiocore.output.text as text_mod
         import audiocore.output.vtt as vtt_mod
-        import audiocore.output.file_writer as file_writer_mod
 
         assert hasattr(text_mod, "format_text")
         assert hasattr(json_mod, "format_json")

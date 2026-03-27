@@ -1,14 +1,13 @@
 """Tests for API-related exceptions."""
 
-import pytest
 
-from audiocore.errors.base import AudioCoreError
 from audiocore.errors.api import (
     APIError,
+    APITimeoutError,
     AuthenticationError,
     RateLimitError,
-    APITimeoutError,
 )
+from audiocore.errors.base import AudioCoreError
 
 
 class TestAPIError:

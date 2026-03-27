@@ -4,7 +4,6 @@ Tests environment variable loading, default values, enum coercion,
 and SecretStr masking for secure API key handling.
 """
 
-import os
 
 import pytest
 from pydantic import ValidationError

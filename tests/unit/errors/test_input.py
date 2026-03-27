@@ -1,6 +1,5 @@
 """Tests for input-related exceptions."""
 
-import pytest
 
 from audiocore.errors.base import AudioCoreError
 from audiocore.errors.input import (

@@ -6,17 +6,14 @@ Tests verify:
 - Config path output
 """
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from pydantic import SecretStr
 from typer.testing import CliRunner
 
-from audiocore.cli.config_cmd import app, config_path, mask_api_key, mask_secret_str, show_config
+from audiocore.cli.config_cmd import app, mask_api_key, mask_secret_str
 from audiocore.config import AppConfig
-from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
-
+from audiocore.types import BackendType
 
 runner = CliRunner()
 
