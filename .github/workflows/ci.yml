@@ -23,11 +23,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install ruff black mypy bandit
         
-      - name: Run Ruff
+      - name: Run Ruff (lint)
         run: ruff check src/audiocore
       
-      - name: Run Black
-        run: black src/audiocore --check
+      - name: Run Ruff (format)
+        run: ruff format --check src/audiocore
       
       - name: Run Mypy
         run: mypy src/audiocore --ignore-missing-imports
