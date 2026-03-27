@@ -1,6 +1,9 @@
 """Output format enum for transcription results."""
 
+from __future__ import annotations
+
 from enum import StrEnum
+from typing import Self
 
 
 class OutputFormat(StrEnum):
@@ -15,7 +18,7 @@ class OutputFormat(StrEnum):
     VTT = "vtt"
 
     @classmethod
-    def parse(cls, value: str) -> OutputFormat:
+    def parse(cls, value: str) -> Self:
         """Parse a string to OutputFormat case-insensitively.
 
         Supports both format name and file extension:

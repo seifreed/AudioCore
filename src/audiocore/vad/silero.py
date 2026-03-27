@@ -95,7 +95,7 @@ class SileroVAD:
                     old_handler = signal.signal(signal.SIGALRM, timeout_handler)
                     signal.alarm(timeout_seconds)
                     timeout_enabled = True
-            except ValueError, OSError:
+            except (ValueError, OSError):
                 # Signal only works in main thread on Unix, ignore on Windows/threads
                 pass
 

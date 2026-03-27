@@ -19,10 +19,7 @@ Example:
     '[00:00:00.000] Hello world\\n[00:05:500] How are you?'
 """
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from audiocore.models.transcription import TranscriptionOptions, TranscriptionResult
+from audiocore.models.transcription import TranscriptionOptions, TranscriptionResult
 
 
 def _format_timestamp(seconds: float) -> str:

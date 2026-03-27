@@ -1,14 +1,14 @@
 """Transcription request options and result models."""
 
-from typing import TYPE_CHECKING, Annotated, Any
+from __future__ import annotations
+
+from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
 
+from audiocore.models.media import MediaInfo
+from audiocore.models.segment import Segment
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
-
-if TYPE_CHECKING:
-    from audiocore.models.media import MediaInfo
-    from audiocore.models.segment import Segment
 
 
 class TranscriptionOptions(BaseModel):

@@ -4,20 +4,19 @@ This module provides functions to extract and convert audio from media files
 using ffmpeg subprocess calls.
 """
 
+from __future__ import annotations
+
 import logging
 import re
 import shutil
 import subprocess
+from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import TYPE_CHECKING
 
 from audiocore.errors import InvalidInputError, MediaError
 from audiocore.media.probe import probe
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 

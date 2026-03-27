@@ -1,5 +1,9 @@
 """Segment model for transcription time segments with validation."""
 
+from __future__ import annotations
+
+from typing import Self
+
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -39,7 +43,7 @@ class Segment(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_time_order(self) -> Segment:
+    def validate_time_order(self) -> Self:
         """Validate that end_time >= start_time.
 
         Raises:

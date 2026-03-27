@@ -23,12 +23,13 @@ Example:
     'Hello'
 """
 
+from __future__ import annotations
+
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    from audiocore.models.transcription import TranscriptionOptions, TranscriptionResult
+from audiocore.models.transcription import TranscriptionOptions, TranscriptionResult
 
 
 def _serialize_value(value: Any) -> Any:

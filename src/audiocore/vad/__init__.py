@@ -4,14 +4,11 @@ Provides high-level speech detection and segment processing.
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
+from audiocore.models import Segment
 from audiocore.vad.config import VADConfig
 from audiocore.vad.segments import process_segments
 from audiocore.vad.silero import SileroVAD
-
-if TYPE_CHECKING:
-    from audiocore.models import Segment
 
 __all__ = [
     "VADConfig",

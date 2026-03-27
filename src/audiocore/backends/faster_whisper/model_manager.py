@@ -18,18 +18,18 @@ Example:
     /home/user/.cache/huggingface/hub/models--guillaumekln--faster-whisper-base/...
 """
 
+from __future__ import annotations
+
 import logging
 import shutil
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from audiocore.errors.config import ConfigurationError
 from audiocore.types.backend import ModelSize
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 

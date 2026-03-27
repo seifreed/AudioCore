@@ -1,7 +1,10 @@
 """Selection policy enum for automatic backend selection."""
 
+from __future__ import annotations
+
 import re
 from enum import StrEnum
+from typing import Self
 
 
 class SelectionPolicy(StrEnum):
@@ -15,7 +18,7 @@ class SelectionPolicy(StrEnum):
     AUTO = "auto"
 
     @classmethod
-    def parse(cls, value: str) -> SelectionPolicy:
+    def parse(cls, value: str) -> Self:
         """Parse a string to SelectionPolicy case-insensitively.
 
         Args:

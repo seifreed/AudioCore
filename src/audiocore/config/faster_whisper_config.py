@@ -18,8 +18,10 @@ Example:
     <ModelSize.BASE: 'base'>
 """
 
+from __future__ import annotations
+
 from enum import StrEnum
-from typing import Any
+from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -47,7 +49,7 @@ class ComputeType(StrEnum):
     INT8_FLOAT16 = "int8_float16"
 
     @classmethod
-    def parse(cls, value: str) -> ComputeType:
+    def parse(cls, value: str) -> Self:
         """Parse a string to ComputeType case-insensitively.
 
         Args:
@@ -286,7 +288,7 @@ class FasterWhisperConfig(BaseModel):
         raise ValueError(f"Invalid model size: {v}")
 
     @model_validator(mode="after")
-    def validate_beam_search(self) -> FasterWhisperConfig:
+    def validate_beam_search(self) -> Self:
         """Validate beam_size and best_of relationship.
 
         Returns:

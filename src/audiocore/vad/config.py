@@ -4,6 +4,10 @@ This module provides VADConfig for configuring Silero VAD parameters
 for speech detection and segmentation.
 """
 
+from __future__ import annotations
+
+from typing import Self
+
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -73,7 +77,7 @@ class VADConfig(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_thresholds(self) -> VADConfig:
+    def validate_thresholds(self) -> Self:
         """Validate threshold relationships.
 
         Ensures speech_threshold > silence_threshold for proper detection.

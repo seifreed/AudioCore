@@ -1,6 +1,9 @@
 """Error classification enum for model and processing errors."""
 
+from __future__ import annotations
+
 from enum import StrEnum
+from typing import Self
 
 
 class ModelErrorType(StrEnum):
@@ -29,7 +32,7 @@ class ModelErrorType(StrEnum):
     API_TIMEOUT = "api_timeout"
 
     @classmethod
-    def parse(cls, value: str) -> ModelErrorType:
+    def parse(cls, value: str) -> Self:
         """Parse a string to ModelErrorType case-insensitively.
 
         Args:

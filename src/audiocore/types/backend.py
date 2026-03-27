@@ -1,7 +1,9 @@
 """Backend type and model size enums with CLI/config compatibility."""
 
+from __future__ import annotations
+
 from enum import Enum, StrEnum
-from typing import Any
+from typing import Any, Self
 
 
 class BackendType(StrEnum):
@@ -15,7 +17,7 @@ class BackendType(StrEnum):
     AUTO = "auto"
 
     @classmethod
-    def parse(cls, value: str) -> BackendType:
+    def parse(cls, value: str) -> Self:
         """Parse a string to BackendType case-insensitively.
 
         Args:
@@ -61,7 +63,7 @@ class ModelSize(StrEnum):
     LARGE_V3_TURBO = "large-v3-turbo"
 
     @classmethod
-    def parse(cls, value: str) -> ModelSize:
+    def parse(cls, value: str) -> Self:
         """Parse a string to ModelSize case-insensitively.
 
         Args:
