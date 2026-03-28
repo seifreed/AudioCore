@@ -212,6 +212,10 @@ class TestOutputFileExistsError:
 class TestAtomicWriteFailure:
     """Tests for atomic write failure handling."""
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Windows does not support Unix-style chmod for read-only directories",
+    )
     def test_temp_file_cleaned_on_write_failure(self, tmp_path: Path) -> None:
         """Temp file is cleaned up if write fails."""
         # Create a read-only directory to force write failure

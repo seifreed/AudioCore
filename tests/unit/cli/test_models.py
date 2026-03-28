@@ -276,7 +276,7 @@ class TestModelInfo:
         assert info.name == "base"
         assert info.size_mb == 150
         assert info.downloaded is True
-        assert "/cache/faster-whisper-base" in str(info.local_path)
+        assert Path(info.local_path) == Path("/cache/faster-whisper-base")
 
     def test_model_info_not_downloaded(self) -> None:
         """Test ModelInfo for not downloaded model."""

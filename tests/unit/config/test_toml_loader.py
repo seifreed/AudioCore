@@ -101,7 +101,7 @@ temp_path = "/tmp/audiocore"
         assert isinstance(result["model_cache_path"], Path)
         assert isinstance(result["temp_path"], Path)
         assert "~" not in str(result["model_cache_path"])
-        assert str(result["temp_path"]) == "/tmp/audiocore"
+        assert Path(result["temp_path"]) == Path("/tmp/audiocore")
 
     def test_empty_file_returns_empty_dict(self, tmp_path: Path) -> None:
         """Empty TOML file should return empty dict."""

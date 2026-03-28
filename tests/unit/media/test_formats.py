@@ -220,10 +220,14 @@ class TestValidateFormatOrRaise:
         validate_format_or_raise(Path("audio.mp3"))
 
         # Invalid format should raise with correct path in context
+        test_path = Path("/path/to/file.xyz")
         with pytest.raises(MediaFormatError) as exc_info:
-            validate_format_or_raise(Path("/path/to/file.xyz"))
+            validate_format_or_raise(test_path)
 
-        assert "/path/to/file.xyz" in exc_info.value.context["file_path"]
+        assert (
+            str(test_path) in str(exc_info.value.context["file_path"])
+            or Path(exc_info.value.context["file_path"]) == test_path
+        )
 
     def test_validate_format_or_raise_lists_all_supported_formats(self) -> None:
         """Error should list all supported formats in context."""

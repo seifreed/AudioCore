@@ -64,7 +64,7 @@ class TestSerializeValue:
         from pathlib import Path
 
         result = _serialize_value(Path("/tmp/test.txt"))
-        assert result == "/tmp/test.txt"
+        assert Path(result) == Path("/tmp/test.txt")
 
     def test_string_passthrough(self) -> None:
         """Strings pass through unchanged."""
