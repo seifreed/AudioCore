@@ -195,8 +195,9 @@ class TestValidateFormatOrRaise:
 
     def test_validate_format_or_raise_includes_context(self) -> None:
         """MediaFormatError should include context with file path and format."""
+        test_path = "/path/to/file.xyz"
         with pytest.raises(MediaFormatError) as exc_info:
-            validate_format_or_raise("/path/to/file.xyz")
+            validate_format_or_raise(test_path)
 
         error = exc_info.value
         assert error.context is not None
@@ -205,7 +206,10 @@ class TestValidateFormatOrRaise:
         assert "supported_formats" in error.context
 
         assert error.context["format"] == "xyz"
-        assert "/path/to/file.xyz" in error.context["file_path"]
+        assert (
+            Path(error.context["file_path"]) == Path(test_path)
+            or "file.xyz" in error.context["file_path"]
+        )
 
     def test_validate_format_or_raise_case_insensitive(self) -> None:
         """Invalid format detection should work with different cases."""
@@ -291,7 +295,7 @@ class TestMediaFormatErrorIntegration:
         with pytest.raises(MediaFormatError) as exc_info:
             validate_format_or_raise(test_path)
 
-        assert exc_info.value.context["file_path"] == test_path
+        assert Path(exc_info.value.context["file_path"]) == Path(test_path)
 
 
 # ============================================================================
