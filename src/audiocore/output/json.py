@@ -78,13 +78,14 @@ def _prepare_for_json(result: TranscriptionResult) -> dict[str, Any]:
     data = result.model_dump()
 
     # Recursively process values to handle any non-serializable types (enums, paths, etc.)
-    def process_dict(d: dict[str, Any]) -> dict[str, Any]:
-        return {
-            k: _serialize_value(v) if not isinstance(v, dict) else process_dict(v)
-            for k, v in d.items()
-        }
+    def process_value(v: Any) -> Any:
+        if isinstance(v, dict):
+            return {k: process_value(val) for k, val in v.items()}
+        if isinstance(v, list):
+            return [process_value(item) for item in v]
+        return _serialize_value(v)
 
-    return process_dict(data)
+    return process_value(data)
 
 
 def format_json(

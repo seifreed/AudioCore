@@ -121,16 +121,12 @@ class OpenAIBackend(TranscriptionBackend):
             self._api_key = api_key
 
         # Log initialization status
-        logger.debug(
-            "OpenAIBackend initialized with %s",
-            (
-                "config"
-                if config is not None
-                else "api_key"
-                if api_key is not None
-                else "environment"
-            ),
+        init_source = (
+            "config"
+            if config is not None
+            else ("api_key" if api_key is not None else "environment")
         )
+        logger.debug("OpenAIBackend initialized with %s", init_source)
 
     @property
     def backend_type(self) -> BackendType:
@@ -297,14 +293,17 @@ class OpenAIBackend(TranscriptionBackend):
         start_time = time.time()
         # Initialize api_params for error handling (file opened in try block)
         api_params: dict[str, object] = {}
+        audio_file = None
 
         try:
             client = self._get_client()
 
             # Build API call parameters
+            # SIM115: File handle closed in finally block and error handlers
+            audio_file = open(audio_path, "rb")  # noqa: SIM115
             api_params = {
                 "model": "whisper-1",
-                "file": open(audio_path, "rb"),  # noqa: SIM115 - File closed in finally block and error handlers
+                "file": audio_file,
                 "response_format": "verbose_json",  # Get segments with timestamps
             }
 
@@ -326,16 +325,11 @@ class OpenAIBackend(TranscriptionBackend):
             # Make the API call
             response = client.audio.transcriptions.create(**api_params)  # type: ignore[arg-type]
 
-            # Close file handle
-            api_params["file"].close()  # type: ignore[union-attr]
-
         except BackendUnavailableError:
             # Re-raise BackendUnavailableError without wrapping
-            self._safe_close_file(api_params)
             raise
 
         except OpenAIAuthenticationError as e:
-            self._safe_close_file(api_params)
             message = self._redact_api_key(str(e))
             raise AuthenticationError(
                 f"OpenAI authentication failed: {message}",
@@ -349,7 +343,6 @@ class OpenAIBackend(TranscriptionBackend):
             ) from e
 
         except OpenAIRateLimitError as e:
-            self._safe_close_file(api_params)
             # Extract retry_after from response if available
             retry_after = None
             if hasattr(e, "response") and e.response is not None:
@@ -377,7 +370,6 @@ class OpenAIBackend(TranscriptionBackend):
             ) from e
 
         except OpenAITimeoutError as e:
-            self._safe_close_file(api_params)
             raise APITimeoutError(
                 "OpenAI API request timed out",
                 context={"backend": "openai", "file_path": str(audio_path)},
@@ -389,7 +381,6 @@ class OpenAIBackend(TranscriptionBackend):
             ) from e
 
         except APIConnectionError as e:
-            self._safe_close_file(api_params)
             message = self._redact_api_key(str(e))
             raise APIError(
                 f"OpenAI connection error: {message}",
@@ -403,7 +394,6 @@ class OpenAIBackend(TranscriptionBackend):
             ) from e
 
         except OpenAIAPIError as e:
-            self._safe_close_file(api_params)
             message = self._redact_api_key(str(e))
             raise APIError(
                 f"OpenAI API error: {message}",
@@ -417,7 +407,6 @@ class OpenAIBackend(TranscriptionBackend):
             ) from e
 
         except Exception as e:
-            self._safe_close_file(api_params)
             message = self._redact_api_key(str(e))
             raise TranscriptionError(
                 f"OpenAI transcription failed: {message}",
@@ -429,6 +418,12 @@ class OpenAIBackend(TranscriptionBackend):
                 ],
                 cause=e,
             ) from e
+
+        finally:
+            # Always close the file handle, whether the API call succeeded or failed
+            if audio_file is not None:
+                with contextlib.suppress(Exception):
+                    audio_file.close()
 
         # Process successful response
         end_time = time.time()
@@ -491,15 +486,3 @@ class OpenAIBackend(TranscriptionBackend):
                 ],
                 cause=e,
             ) from e
-
-    def _safe_close_file(self, api_params: dict[str, object]) -> None:
-        """Safely close file handle in error cases.
-
-        Args:
-            api_params: API parameters dict that may contain an open file.
-        """
-        if "file" in api_params:
-            import contextlib
-
-            with contextlib.suppress(Exception):
-                api_params["file"].close()  # type: ignore[union-attr]

@@ -100,10 +100,11 @@ class BackendRegistry:
         Example:
             >>> registry.register(BackendType.OPENAI, OpenAIBackend)
         """
-        self._backends[backend_type] = backend_class
-        # Clear cached instance if backend is re-registered
-        if backend_type in self._instances:
-            del self._instances[backend_type]
+        with self._instance_lock:
+            self._backends[backend_type] = backend_class
+            # Clear cached instance if backend is re-registered
+            if backend_type in self._instances:
+                del self._instances[backend_type]
 
     def get_backend(self, backend_type: BackendType) -> TranscriptionBackend:
         """Get a backend instance for the given type.

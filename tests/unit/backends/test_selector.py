@@ -226,3 +226,55 @@ class TestSelectBackendFunction:
         """Test select_backend with PREFER_LOCAL policy."""
         result = select_backend(policy=SelectionPolicy.PREFER_LOCAL)
         assert result == BackendType.FASTER_WHISPER
+
+    @patch.dict("sys.modules", {"faster_whisper": MagicMock()})
+    def test_select_auto_prefers_gpu_over_cloud(self):
+        """Regression: AUTO selection should prefer GPU faster-whisper over OpenAI.
+
+        The documented priority is: CUDA/MPS faster-whisper > OpenAI > CPU faster-whisper.
+        When GPU is available, faster-whisper should be selected even if OpenAI is also available.
+        """
+        config = AppConfig(openai=OpenAIConfig(api_key=SecretStr("test-key")))
+        selector = BackendSelector(config=config)
+
+        with patch.object(selector, "_has_gpu", return_value=True):
+            result = selector.select(backend=BackendType.AUTO, policy=SelectionPolicy.AUTO)
+            assert result == BackendType.FASTER_WHISPER
+
+    @patch.dict("sys.modules", {"faster_whisper": MagicMock()})
+    def test_select_auto_prefers_cloud_over_cpu(self):
+        """Regression: AUTO selection should prefer OpenAI over CPU faster-whisper.
+
+        When no GPU is available, OpenAI should be selected over CPU faster-whisper.
+        """
+        config = AppConfig(openai=OpenAIConfig(api_key=SecretStr("test-key")))
+        selector = BackendSelector(config=config)
+
+        with patch.object(selector, "_has_gpu", return_value=False):
+            result = selector.select(backend=BackendType.AUTO, policy=SelectionPolicy.AUTO)
+            assert result == BackendType.OPENAI
+
+    def test_select_auto_cpu_fallback(self):
+        """Regression: CPU faster-whisper is selected when OpenAI is unavailable and no GPU."""
+        config = AppConfig(openai=OpenAIConfig())
+        selector = BackendSelector(config=config)
+
+        with patch.dict(os.environ, {}, clear=True):
+            with patch.object(selector, "_has_gpu", return_value=False):
+                with patch.object(selector._checker, "check_backend") as mock_check:
+                    def check_side_effect(backend_type):
+                        if backend_type == BackendType.OPENAI:
+                            return BackendStatus(
+                                backend_type=BackendType.OPENAI,
+                                available=False,
+                                reason="No API key",
+                            )
+                        else:
+                            return BackendStatus(
+                                backend_type=BackendType.FASTER_WHISPER,
+                                available=True,
+                                reason="Module installed",
+                            )
+                    mock_check.side_effect = check_side_effect
+                    result = selector.select(policy=SelectionPolicy.AUTO)
+                    assert result == BackendType.FASTER_WHISPER

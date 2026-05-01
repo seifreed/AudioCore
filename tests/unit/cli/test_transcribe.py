@@ -258,6 +258,44 @@ class TestTranscribeErrorHandling:
 
         assert result.exit_code == 3
 
+    def test_backend_error_with_config_in_message(self, audio_file: Path) -> None:
+        """Regression: BackendError with 'config' in message must not be misclassified.
+
+        Previously, string-based classification checked "config" in str(e).lower(),
+        so BackendUnavailableError("Backend configuration failed") was misclassified
+        as exit_code=2 (config) instead of exit_code=4 (backend).
+        Now uses isinstance checks for correct classification.
+        """
+        from audiocore.errors import BackendUnavailableError
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.transcribe.side_effect = BackendUnavailableError(
+            "Backend configuration failed",
+            context={},
+            suggestions=["Check backend setup"],
+        )
+
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file)])
+
+        assert result.exit_code == 4
+
+    def test_config_error_with_backend_in_message(self, audio_file: Path) -> None:
+        """Regression: ConfigurationError with 'backend' in message stays exit_code=2."""
+        from audiocore.errors import ConfigurationError
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.transcribe.side_effect = ConfigurationError(
+            "Invalid backend configuration",
+            context={},
+            suggestions=["Fix config"],
+        )
+
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file)])
+
+        assert result.exit_code == 2
+
 
 class TestTranscribeProgress:
     """Test progress display in transcribe command."""

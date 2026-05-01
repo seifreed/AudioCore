@@ -68,7 +68,8 @@ def merge_short_segments(
             merged.append((start, end, conf))
 
     # Final pass: merge any remaining short segments
-    if merged and (merged[-1][1] - merged[-1][0]) < min_duration and len(merged) > 1:  # noqa: SIM102
+    # SIM102: intentionally nested if for readability of merge logic
+    if merged and (merged[-1][1] - merged[-1][0]) < min_duration and len(merged) > 1:
         # Try to merge last with second-to-last
         prev_start, prev_end, prev_conf = merged[-2]
         gap = merged[-1][0] - prev_end
@@ -167,6 +168,7 @@ def validate_segments(
     Checks:
     - Segments are in chronological order
     - No overlapping segments
+    - No segments extending beyond total_duration
     - No gaps larger than min_silence_duration_ms * 2
 
     Raises:
@@ -179,6 +181,8 @@ def validate_segments(
     for i, (start, end, _) in enumerate(segments):
         if end < start:
             raise ValueError(f"Segment {i}: end ({end}) < start ({start})")
+        if end > total_duration:
+            raise ValueError(f"Segment {i}: end ({end}) exceeds total duration ({total_duration})")
         if i > 0:
             prev_start, prev_end, _ = segments[i - 1]
             if start < prev_end:

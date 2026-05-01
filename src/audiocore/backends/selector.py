@@ -125,6 +125,16 @@ class BackendSelector:
             ],
         )
 
+    @staticmethod
+    def _has_gpu() -> bool:
+        """Check whether CUDA or MPS GPU is available for faster-whisper."""
+        try:
+            from audiocore.backends.faster_whisper.device import get_best_device
+
+            return get_best_device() != "cpu"
+        except Exception:
+            return False
+
     def _select_auto(self) -> BackendType:
         """Select fastest available backend automatically.
 
@@ -136,13 +146,20 @@ class BackendSelector:
         fw_status = self._checker.check_backend(BackendType.FASTER_WHISPER)
         openai_status = self._checker.check_backend(BackendType.OPENAI)
 
-        if fw_status.available:
-            logger.debug("Selected faster-whisper (auto selection)")
+        # Tier 1: GPU-accelerated faster-whisper
+        if fw_status.available and self._has_gpu():
+            logger.debug("Selected faster-whisper with GPU (auto selection)")
             return BackendType.FASTER_WHISPER
 
+        # Tier 2: OpenAI cloud (if API key configured)
         if openai_status.available:
             logger.debug("Selected OpenAI (auto selection)")
             return BackendType.OPENAI
+
+        # Tier 3: CPU faster-whisper
+        if fw_status.available:
+            logger.debug("Selected faster-whisper on CPU (auto selection)")
+            return BackendType.FASTER_WHISPER
 
         raise BackendUnavailableError(
             message="No backends available",

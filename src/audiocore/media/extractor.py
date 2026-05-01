@@ -121,6 +121,7 @@ def _parse_progress(stderr_line: str, total_duration: float) -> float | None:
         current_time = hours * 3600 + minutes * 60 + seconds
         if total_duration > 0:
             return min(100.0, (current_time / total_duration) * 100)
+        return None
 
     # Also match decimal time format: time=123.45
     time_match_decimal = re.search(r"time=(\d+\.?\d*)", stderr_line)
@@ -191,7 +192,12 @@ def extract_audio(
     total_duration: float | None = None
     if progress_callback is not None:
         try:
-            media_info = probe(input_path, ffprobe_path=ffmpeg_path.replace("ffmpeg", "ffprobe"))
+            # Derive ffprobe path from ffmpeg path by replacing only the filename
+            ffmpeg_path_obj = Path(ffmpeg_path)
+            ffprobe_path = str(
+                ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace("ffmpeg", "ffprobe")
+            )
+            media_info = probe(input_path, ffprobe_path=ffprobe_path)
             total_duration = media_info.duration
         except Exception as probe_error:
             # If probe fails, progress callback won't work but extraction can continue
@@ -228,19 +234,33 @@ def extract_audio(
 
         if progress_callback is not None and total_duration is not None and total_duration > 0:
             # Stream stderr line by line for real-time progress
-            assert process.stderr is not None
-            for line in process.stderr:
-                stderr_lines.append(line)
-                progress = _parse_progress(line, total_duration)
-                if progress is not None:
-                    progress_callback(progress)
+            # Use communicate with timeout so the process doesn't hang indefinitely
+            communicate_timeout = timeout if timeout > 0 else None
+            try:
+                assert process.stderr is not None
+                for line in process.stderr:
+                    stderr_lines.append(line)
+                    progress = _parse_progress(line, total_duration)
+                    if progress is not None:
+                        progress_callback(progress)
 
-            stdout, _ = process.communicate()
+                stdout, _ = process.communicate(timeout=communicate_timeout)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+                raise
+
+            returncode = process.returncode
         else:
-            stdout, stderr_data = process.communicate()
+            communicate_timeout = timeout if timeout > 0 else None
+            try:
+                stdout, stderr_data = process.communicate(timeout=communicate_timeout)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+                raise
             stderr_lines = stderr_data.splitlines() if stderr_data else []
-
-        returncode = process.wait(timeout=max(0, timeout) if timeout > 0 else None)
+            returncode = process.returncode
 
         # Build a result-like object for error checking
         class _ProcessResult:

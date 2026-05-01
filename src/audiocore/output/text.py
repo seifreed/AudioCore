@@ -16,7 +16,7 @@ Example:
     ...     backend_used=BackendType.OPENAI
     ... )
     >>> format_text(result, TranscriptionOptions())
-    '[00:00:00.000] Hello world\\n[00:05:500] How are you?'
+    '[00:00:00.000] Hello world\\n[00:00:05.500] How are you?'
 """
 
 from audiocore.models.transcription import TranscriptionOptions, TranscriptionResult
@@ -67,8 +67,8 @@ def format_text(result: TranscriptionResult, options: TranscriptionOptions) -> s
         >>> text = format_text(result, TranscriptionOptions())
         >>> print(text)
         [00:00:00.000] Hello world
-        [00:05:500] How are you?
-        [00:10:250] I'm doing great
+        [00:00:05.500] How are you?
+        [00:00:10.250] I'm doing great
     """
     lines = []
 

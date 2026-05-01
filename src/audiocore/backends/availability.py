@@ -86,7 +86,9 @@ class BackendAvailabilityChecker:
         """
         try:
             import faster_whisper  # noqa: F401 - Import used for availability check
-            from faster_whisper import WhisperModel  # noqa: F401 - Import used for availability check
+            from faster_whisper import (
+                WhisperModel,  # noqa: F401 - Import used for availability check
+            )
 
             # Verify CTranslate2 is functional by checking the backend attribute
             try:

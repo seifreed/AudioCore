@@ -94,6 +94,28 @@ class TestSerializeValue:
         result = _serialize_value(float("nan"))
         assert result is None
 
+    def test_enum_in_list_is_serialized(self) -> None:
+        """Regression: enums nested inside lists must be serialized.
+
+        Previously process_dict() only recursed into dict values, skipping
+        list values. An enum inside a list remained unconverted, causing
+        json.dumps() to raise TypeError.
+        """
+        # The backend_used field is an enum; model_dump() keeps it as enum
+        # in nested structures. format_json must convert it to string.
+        media = MediaInfo(duration=1.0, format="wav", sample_rate=16000, channels=1)
+        result = TranscriptionResult(
+            segments=[],
+            media_info=media,
+            config_used=TranscriptionOptions(),
+            processing_time_seconds=0.0,
+            backend_used=BackendType.OPENAI,
+        )
+        json_str = format_json(result, TranscriptionOptions())
+        parsed = json.loads(json_str)
+        assert isinstance(parsed["backend_used"], str)
+        assert parsed["backend_used"] == "openai"
+
 
 class TestPrepareForJson:
     """Tests for _prepare_for_json function."""

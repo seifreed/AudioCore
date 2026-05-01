@@ -34,7 +34,7 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from audiocore.errors import AudioCoreError
+from audiocore.errors import AudioCoreError, BackendError, ConfigurationError, OutputFileExistsError
 from audiocore.models import TranscriptionOptions
 from audiocore.parallel import FileResult, transcribe_files_concurrent
 from audiocore.pipeline import Pipeline
@@ -424,13 +424,13 @@ def _run_single_transcription(
         console.print(f"[red]Error:[/red] Permission denied: {e}")
         exit_code = 1
     except AudioCoreError as e:
-        if "config" in str(e).lower():
+        if isinstance(e, ConfigurationError):
             console.print(f"[red]Configuration Error:[/red] {e}")
             exit_code = 2
-        elif "backend" in str(e).lower():
+        elif isinstance(e, BackendError):
             console.print(f"[red]Backend Error:[/red] {e}")
             exit_code = 4
-        elif "format" in str(e).lower():
+        elif isinstance(e, OutputFileExistsError):
             console.print(f"[red]Output Error:[/red] {e}")
             exit_code = 5
         else:
@@ -528,12 +528,15 @@ def _run_batch_transcription(
             return 0
 
     except AudioCoreError as e:
-        if "config" in str(e).lower():
+        if isinstance(e, ConfigurationError):
             console.print(f"[red]Configuration Error:[/red] {e}")
             return 2
-        elif "backend" in str(e).lower():
+        elif isinstance(e, BackendError):
             console.print(f"[red]Backend Error:[/red] {e}")
             return 4
+        elif isinstance(e, OutputFileExistsError):
+            console.print(f"[red]Output Error:[/red] {e}")
+            return 5
         else:
             console.print(f"[red]Processing Error:[/red] {e}")
             return 3

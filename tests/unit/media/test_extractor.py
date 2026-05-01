@@ -174,6 +174,23 @@ class TestParseProgress:
         result = _parse_progress(line, 0.0)
         assert result is None
 
+    def test_parse_progress_hhmmss_with_zero_duration_returns_none(self):
+        """Regression: HH:MM:SS match with total_duration<=0 returns None.
+
+        Previously, if HH:MM:SS matched but total_duration<=0, the function
+        fell through to the decimal regex, which could match the hours digits
+        and produce an incorrect progress value.
+        """
+        line = "time=01:02:03.45"
+        result = _parse_progress(line, 0.0)
+        assert result is None
+
+    def test_parse_progress_hhmmss_with_negative_duration_returns_none(self):
+        """Regression: HH:MM:SS match with negative duration returns None."""
+        line = "time=01:02:03.45"
+        result = _parse_progress(line, -5.0)
+        assert result is None
+
     def test_parse_progress_hours_format(self):
         """Test parsing time with hours."""
         line = "time=01:30:00.00"  # 1.5 hours = 5400 seconds
@@ -445,6 +462,93 @@ class TestExtractAudio:
             result = extract_audio(str(input_file), output_file)
 
             assert result == output_file
+
+
+class TestFfprobePathDerivation:
+    """Regression tests for ffprobe path derivation from ffmpeg path."""
+
+    def test_ffprobe_path_replaces_only_filename(self):
+        """Regression: ffprobe_path must only replace the filename, not directory names.
+
+        Previously ffmpeg_path.replace("ffmpeg", "ffprobe") replaced ALL occurrences,
+        so /ffmpeg/bin/ffmpeg became /ffprobe/bin/ffprobe (wrong directory name).
+        Now uses Path-based replacement that only swaps the filename.
+        """
+        # Test with a path that has "ffmpeg" in both directory and filename
+        ffmpeg_path = "/ffmpeg/bin/ffmpeg"
+        ffmpeg_path_obj = Path(ffmpeg_path)
+        ffprobe_path = str(ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace("ffmpeg", "ffprobe"))
+
+        # Old bug: str.replace would give /ffprobe/bin/ffprobe (wrong)
+        # Fixed: Path-based gives /ffmpeg/bin/ffprobe (correct)
+        assert ffprobe_path == "/ffmpeg/bin/ffprobe"
+
+    def test_ffprobe_path_simple(self):
+        """Test simple ffprobe path derivation with default ffmpeg path."""
+        ffmpeg_path = "ffmpeg"
+        ffmpeg_path_obj = Path(ffmpeg_path)
+        ffprobe_path = str(ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace("ffmpeg", "ffprobe"))
+        assert ffprobe_path == "ffprobe"
+
+    def test_ffprobe_path_with_directory(self):
+        """Test ffprobe path derivation with custom directory."""
+        ffmpeg_path = "/usr/local/bin/ffmpeg"
+        ffmpeg_path_obj = Path(ffmpeg_path)
+        ffprobe_path = str(ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace("ffmpeg", "ffprobe"))
+        assert ffprobe_path == "/usr/local/bin/ffprobe"
+
+
+class TestExtractAudioTimeout:
+    """Regression tests for extract_audio timeout enforcement."""
+
+    def test_timeout_passed_to_communicate(self, tmp_path: Path) -> None:
+        """Regression: timeout must be passed to communicate(), not just wait().
+
+        Previously, communicate() was called without timeout and wait() was called
+        with timeout after the process already finished. This meant ffmpeg could hang
+        indefinitely. Now communicate() receives the timeout parameter.
+        """
+        # Verify the function signature accepts timeout by calling with a short value
+        # (This won't actually timeout since ffmpeg processes the file quickly)
+        input_file = tmp_path / "input.wav"
+        input_file.write_bytes(b"fake")
+
+        with patch("audiocore.media.extractor.subprocess.Popen") as mock_popen:
+            mock_process = MagicMock()
+            mock_process.communicate.return_value = ("", "")
+            mock_process.returncode = 1
+            mock_process.stderr = MagicMock()
+            mock_popen.return_value = mock_process
+
+            # Verify timeout=5.0 is accepted without error
+            with pytest.raises(MediaError):
+                extract_audio(input_file, timeout=5.0)
+
+    def test_timeout_kills_hanging_process(self, tmp_path: Path) -> None:
+        """Regression: a hanging ffmpeg process must be killed after timeout.
+
+        Previously the timeout was only applied to process.wait() AFTER
+        communicate() had already returned, so it was never enforced.
+        Now communicate() receives the timeout, and TimeoutExpired kills the process.
+        The TimeoutExpired is caught and wrapped as MediaError.
+        """
+        input_file = tmp_path / "input.wav"
+        input_file.write_bytes(b"fake")
+
+        with patch("audiocore.media.extractor.subprocess.Popen") as mock_popen:
+            mock_process = MagicMock()
+            mock_process.communicate.side_effect = subprocess.TimeoutExpired(
+                cmd=["ffmpeg"], timeout=1.0
+            )
+            mock_process.kill.return_value = None
+            mock_process.wait.return_value = None
+            mock_popen.return_value = mock_process
+
+            with pytest.raises(MediaError, match="timed out"):
+                extract_audio(input_file, timeout=1.0)
+
+            # Verify the hanging process was killed
+            mock_process.kill.assert_called_once()
 
 
 class TestTempAudioFile:

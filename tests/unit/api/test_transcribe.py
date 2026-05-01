@@ -294,6 +294,45 @@ class TestShutdownExecutor:
         # Verify executor is None
         assert transcribe_module._executor is None
 
+    def test_get_executor_thread_safety(self):
+        """Regression: _get_executor must be thread-safe.
+
+        Previously, _get_executor() had no lock, so concurrent calls could
+        create multiple executors and leak all but the last.
+        """
+        import importlib
+        import threading
+
+        transcribe_module = importlib.import_module("audiocore.api.transcribe")
+
+        # Reset executor state
+        transcribe_module._executor = None
+
+        executors = []
+        errors = []
+
+        def get_executor():
+            try:
+                ex = transcribe_module._get_executor()
+                executors.append(id(ex))
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=get_executor) for _ in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert not errors, f"Errors during concurrent _get_executor: {errors}"
+        # All threads must get the same executor instance
+        assert len(set(executors)) == 1, (
+            f"Expected single executor instance, got {len(set(executors))} different ones"
+        )
+
+        # Clean up
+        transcribe_module.shutdown_executor()
+
 
 class TestConfigLoading:
     """Tests for configuration loading."""

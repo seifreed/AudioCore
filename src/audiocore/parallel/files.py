@@ -13,7 +13,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from audiocore.api.transcribe import transcribe
+from audiocore.api.transcribe import _get_executor, transcribe
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -116,11 +116,10 @@ async def transcribe_files_concurrent(
 
         async with semaphore:
             try:
-                # Run synchronous transcribe in thread pool
-                # The transcribe function is synchronous, so we need to
-                # run it in an executor for async compatibility
+                # Run synchronous transcribe in the shared thread pool executor
+                # to avoid creating too many threads when used alongside async_transcribe
                 result = await asyncio.get_running_loop().run_in_executor(
-                    None,  # Use default executor
+                    _get_executor(),
                     lambda: transcribe(path=file_path, options=options),
                 )
 
@@ -163,11 +162,10 @@ async def transcribe_files_concurrent(
     # Create tasks for all files
     tasks = [asyncio.create_task(transcribe_single_file(i, file)) for i, file in enumerate(files)]
 
-    # Run all tasks concurrently
-    try:
+    if continue_on_error:
+        # Run all tasks to completion, collecting exceptions as results
         task_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Process results maintaining order
         for i, task_result in enumerate(task_results):
             if isinstance(task_result, Exception):
                 results[i] = FileResult(
@@ -178,23 +176,24 @@ async def transcribe_files_concurrent(
                 )
             else:
                 results[i] = task_result
-
-    except Exception:
-        # If continue_on_error is False and one failed, gather returns the exception
-        # We need to handle partial results
-        for i, result in enumerate(results):
-            if result is None:
-                results[i] = FileResult(
-                    path=files[i],
-                    success=False,
-                    result=None,
-                    error="Processing interrupted by error",
-                )
+    else:
+        # Stop on first error: let exceptions propagate from gather
+        try:
+            task_results = await asyncio.gather(*tasks)
+            for i, task_result in enumerate(task_results):
+                results[i] = task_result
+        except Exception:
+            # Cancel any still-running tasks before re-raising
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            # Wait for cancellations to complete (suppress CancelledError)
+            await asyncio.gather(*tasks, return_exceptions=True)
+            raise
 
     # Validate all results are populated before returning
     for i, result in enumerate(results):
         if result is None:
-            # This should never happen, but handle gracefully
             results[i] = FileResult(
                 path=files[i],
                 success=False,

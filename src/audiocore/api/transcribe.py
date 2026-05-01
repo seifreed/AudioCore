@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
@@ -29,22 +30,26 @@ register_builtin_backends()
 
 # Thread pool for async transcribe
 _executor: ThreadPoolExecutor | None = None
+_executor_lock = threading.Lock()
 
 
 def _get_executor() -> ThreadPoolExecutor:
     """Get or create the thread pool executor for async operations."""
     global _executor
     if _executor is None:
-        _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="audiocore-")
+        with _executor_lock:
+            if _executor is None:
+                _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="audiocore-")
     return _executor
 
 
 def _cleanup_executor() -> None:
     """Shutdown the thread pool executor on program exit."""
     global _executor
-    if _executor is not None:
-        _executor.shutdown(wait=False)
-        _executor = None
+    with _executor_lock:
+        if _executor is not None:
+            _executor.shutdown(wait=False)
+            _executor = None
 
 
 # Register cleanup on module load
@@ -220,9 +225,10 @@ def shutdown_executor() -> None:
     After calling this, async_transcribe will create a new executor.
     """
     global _executor
-    if _executor is not None:
-        _executor.shutdown(wait=True)
-        _executor = None
+    with _executor_lock:
+        if _executor is not None:
+            _executor.shutdown(wait=True)
+            _executor = None
 
 
 __all__ = [

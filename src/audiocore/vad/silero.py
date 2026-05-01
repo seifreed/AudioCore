@@ -381,7 +381,9 @@ class SileroVAD:
                     # Only record if above minimum duration
                     if speech_duration >= config.min_segment_duration:
                         mean_confidence = float(np.mean(chunk_confidences))
-                        segments.append((speech_start_time or 0.0, silence_start_time, mean_confidence))
+                        segments.append(
+                            (speech_start_time or 0.0, silence_start_time, mean_confidence)
+                        )
 
                     # Reset speech tracking
                     in_speech = False

@@ -364,6 +364,16 @@ class TestValidateSegments:
         """Empty list should pass validation."""
         validate_segments([], total_duration=10.0, config=default_config)
 
+    def test_validate_raises_for_segment_exceeding_duration(self, default_config: VADConfig) -> None:
+        """Regression: segment end_time exceeding total_duration must raise.
+
+        Previously, validate_segments accepted total_duration but never
+        validated that segments don't extend beyond it.
+        """
+        segments = [(0.0, 15.0, 0.80)]
+        with pytest.raises(ValueError, match="exceeds total duration"):
+            validate_segments(segments, total_duration=10.0, config=default_config)
+
 
 # =============================================================================
 # to_segment_models tests

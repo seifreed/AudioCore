@@ -343,6 +343,36 @@ class TestTranscribeFilesConcurrentErrors:
         assert "No backend available" in results[0].error
 
     @pytest.mark.asyncio
+    async def test_continue_on_error_false_stops_on_failure(
+        self,
+        tmp_path: Path,
+        transcription_options: TranscriptionOptions,
+        mock_transcription_result: TranscriptionResult,
+    ) -> None:
+        """Regression: continue_on_error=False should propagate exceptions.
+
+        Previously, return_exceptions=True in asyncio.gather prevented
+        exceptions from propagating, making continue_on_error=False a no-op.
+        Now exceptions propagate correctly from gather.
+        """
+        files = []
+        for i in range(3):
+            audio_file = tmp_path / f"test{i}.wav"
+            audio_file.write_bytes(b"fake audio")
+            files.append(audio_file)
+
+        with patch("audiocore.parallel.files.transcribe") as mock_transcribe:
+            mock_transcribe.side_effect = RuntimeError("Simulated failure")
+
+            with pytest.raises(RuntimeError, match="Simulated failure"):
+                await transcribe_files_concurrent(
+                    files=files,
+                    options=transcription_options,
+                    max_workers=1,
+                    continue_on_error=False,
+                )
+
+    @pytest.mark.asyncio
     async def test_empty_file_list(
         self,
         transcription_options: TranscriptionOptions,
