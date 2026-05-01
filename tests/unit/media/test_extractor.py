@@ -2,7 +2,7 @@
 
 import subprocess
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -14,6 +14,16 @@ from audiocore.media.extractor import (
     extract_audio,
     temp_audio_file,
 )
+
+
+def _make_mock_popen(returncode: int = 0, stderr: str = "", stdout: str = "") -> MagicMock:
+    """Create a mock Popen object with the expected interface."""
+    mock_proc = MagicMock()
+    mock_proc.returncode = returncode
+    mock_proc.wait.return_value = returncode
+    mock_proc.communicate.return_value = (stdout, stderr)
+    mock_proc.stderr = []  # iterable lines for streaming path
+    return mock_proc
 
 
 class TestBuildFfmpegCommand:
@@ -183,9 +193,9 @@ class TestExtractAudio:
         def mock_subprocess(*args, **kwargs):
             # Simulate ffmpeg creating the output file
             output_file.write_bytes(b"fake wav content")
-            return Mock(returncode=0, stderr="")
+            return _make_mock_popen()
 
-        with patch("audiocore.media.extractor.subprocess.run") as mock_run:
+        with patch("audiocore.media.extractor.subprocess.Popen") as mock_run:
             mock_run.side_effect = mock_subprocess
 
             result = extract_audio(input_file, output_file)
@@ -204,9 +214,9 @@ class TestExtractAudio:
 
         def mock_subprocess(*args, **kwargs):
             output_file.write_bytes(b"fake wav content")
-            return Mock(returncode=0, stderr="")
+            return _make_mock_popen()
 
-        with patch("audiocore.media.extractor.subprocess.run") as mock_run:
+        with patch("audiocore.media.extractor.subprocess.Popen") as mock_run:
             mock_run.side_effect = mock_subprocess
 
             extract_audio(input_file, output_file, ffmpeg_path="/custom/ffmpeg")
@@ -230,7 +240,7 @@ class TestExtractAudio:
         input_file.write_bytes(b"fake video content")
         output_file = tmp_path / "output.wav"
 
-        with patch("audiocore.media.extractor.subprocess.run") as mock_run:
+        with patch("audiocore.media.extractor.subprocess.Popen") as mock_run:
             mock_run.side_effect = FileNotFoundError("ffmpeg not found")
 
             with pytest.raises(MediaError) as exc_info:
@@ -244,8 +254,8 @@ class TestExtractAudio:
         input_file.write_bytes(b"fake video content")
         output_file = tmp_path / "output.wav"
 
-        with patch("audiocore.media.extractor.subprocess.run") as mock_run:
-            mock_run.return_value = Mock(
+        with patch("audiocore.media.extractor.subprocess.Popen") as mock_popen:
+            mock_popen.return_value = _make_mock_popen(
                 returncode=1,
                 stderr="ffmpeg error: Invalid data found when processing input",
             )
@@ -261,7 +271,7 @@ class TestExtractAudio:
         input_file.write_bytes(b"fake video content")
         output_file = tmp_path / "output.wav"
 
-        with patch("audiocore.media.extractor.subprocess.run") as mock_run:
+        with patch("audiocore.media.extractor.subprocess.Popen") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired(cmd=["ffmpeg"], timeout=1.0)
 
             with pytest.raises(MediaError) as exc_info:
@@ -277,9 +287,9 @@ class TestExtractAudio:
 
         def mock_subprocess(*args, **kwargs):
             output_file.write_bytes(b"fake wav content")
-            return Mock(returncode=0, stderr="")
+            return _make_mock_popen()
 
-        with patch("audiocore.media.extractor.subprocess.run") as mock_run:
+        with patch("audiocore.media.extractor.subprocess.Popen") as mock_run:
             mock_run.side_effect = mock_subprocess
 
             extract_audio(input_file, output_file, start_time=30.0)
@@ -296,9 +306,9 @@ class TestExtractAudio:
 
         def mock_subprocess(*args, **kwargs):
             output_file.write_bytes(b"fake wav content")
-            return Mock(returncode=0, stderr="")
+            return _make_mock_popen()
 
-        with patch("audiocore.media.extractor.subprocess.run") as mock_run:
+        with patch("audiocore.media.extractor.subprocess.Popen") as mock_run:
             mock_run.side_effect = mock_subprocess
 
             extract_audio(input_file, output_file, duration=60.0)
@@ -312,14 +322,14 @@ class TestExtractAudio:
         input_file = tmp_path / "input.mp4"
         input_file.write_bytes(b"fake video content")
 
-        with patch("audiocore.media.extractor.subprocess.run") as mock_run:
-            # Ensure the temp file exists after subprocess.run
+        with patch("audiocore.media.extractor.subprocess.Popen") as mock_run:
+            # Ensure the temp file exists after subprocess.Popen
             def create_output(*args, **kwargs):
                 # Get the output path from the command
                 cmd = args[0]
                 output_path = Path(cmd[-1])
                 output_path.write_bytes(b"fake wav content")
-                return Mock(returncode=0, stderr="")
+                return _make_mock_popen()
 
             mock_run.side_effect = create_output
 
@@ -343,15 +353,21 @@ class TestExtractAudio:
         mock_media_info = Mock()
         mock_media_info.duration = 100.0
 
+        # Create mock Popen that streams stderr lines for progress
+        stderr_lines = [
+            "frame=  30 fps=30 time=00:00:10.00\n",
+            "time=20.0\n",
+            "frame=  60 fps=30 time=00:00:20.00\n",
+        ]
+        mock_proc = _make_mock_popen(returncode=0, stdout="")
+        mock_proc.stderr = stderr_lines
+
         with (
             patch("audiocore.media.extractor.probe") as mock_probe,
-            patch("audiocore.media.extractor.subprocess.run") as mock_run,
+            patch("audiocore.media.extractor.subprocess.Popen") as mock_popen,
         ):
             mock_probe.return_value = mock_media_info
-            mock_run.return_value = Mock(
-                returncode=0,
-                stderr="frame=  30 fps=30 time=00:00:10.00\ntime=20.0\nframe=  60 fps=30 time=00:00:20.00",
-            )
+            mock_popen.return_value = mock_proc
 
             extract_audio(input_file, output_file, progress_callback=progress_callback)
 
@@ -376,10 +392,10 @@ class TestExtractAudio:
 
         with (
             patch("audiocore.media.extractor.probe") as mock_probe,
-            patch("audiocore.media.extractor.subprocess.run") as mock_run,
+            patch("audiocore.media.extractor.subprocess.Popen") as mock_run,
         ):
             mock_probe.return_value = mock_media_info
-            mock_run.return_value = Mock(returncode=0, stderr="")
+            mock_run.return_value = _make_mock_popen(returncode=0, stderr="")
 
             extract_audio(
                 input_file,
@@ -398,10 +414,10 @@ class TestExtractAudio:
 
         with (
             patch("audiocore.media.extractor.probe") as mock_probe,
-            patch("audiocore.media.extractor.subprocess.run") as mock_run,
+            patch("audiocore.media.extractor.subprocess.Popen") as mock_run,
         ):
             mock_probe.side_effect = Exception("probe failed")
-            mock_run.return_value = Mock(returncode=0, stderr="")
+            mock_run.return_value = _make_mock_popen(returncode=0, stderr="")
 
             # Should not raise - continues without progress
             result = extract_audio(
@@ -420,9 +436,9 @@ class TestExtractAudio:
 
         def mock_subprocess(*args, **kwargs):
             output_file.write_bytes(b"fake wav content")
-            return Mock(returncode=0, stderr="")
+            return _make_mock_popen()
 
-        with patch("audiocore.media.extractor.subprocess.run") as mock_run:
+        with patch("audiocore.media.extractor.subprocess.Popen") as mock_run:
             mock_run.side_effect = mock_subprocess
 
             # Should accept string path

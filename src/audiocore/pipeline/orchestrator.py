@@ -30,7 +30,7 @@ from audiocore.models import (
     TranscriptionOptions,
     TranscriptionResult,
 )
-from audiocore.output import format_json, format_text
+from audiocore.output import format_json, format_srt, format_text, format_vtt
 from audiocore.pipeline.cancellation import CancellationToken, CancelledError
 from audiocore.pipeline.errors import PipelineStageError
 from audiocore.pipeline.progress import PipelineStage, ProgressCallback
@@ -320,10 +320,14 @@ class Pipeline:
             options: Transcription options with output_format setting.
 
         Returns:
-            Formatted string (text or JSON).
+            Formatted string in the requested output format.
         """
         if options.output_format == OutputFormat.JSON:
             return format_json(result, options)
+        elif options.output_format == OutputFormat.SRT:
+            return format_srt(result, options)
+        elif options.output_format == OutputFormat.VTT:
+            return format_vtt(result, options)
         else:
             # Default to text format
             return format_text(result, options)

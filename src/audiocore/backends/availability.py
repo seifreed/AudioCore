@@ -86,14 +86,12 @@ class BackendAvailabilityChecker:
         """
         try:
             import faster_whisper  # noqa: F401 - Import used for availability check
-            from faster_whisper import (
-                WhisperModel,  # noqa: F401 - Import used for availability check
-            )
+            from faster_whisper import WhisperModel  # noqa: F401 - Import used for availability check
 
-            # Verify we can instantiate a model handle (without loading weights)
-            # This checks that CTranslate2 and dependencies are properly installed
+            # Verify CTranslate2 is functional by checking the backend attribute
             try:
-                # Just check the import works - don't actually load a model
+                from ctranslate2 import get_supported_compute_types  # noqa: F401
+
                 return BackendStatus(
                     backend_type=BackendType.FASTER_WHISPER,
                     available=True,

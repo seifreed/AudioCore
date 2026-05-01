@@ -8,6 +8,7 @@ import pytest
 from audiocore.config.toml_loader import (
     DEFAULT_CONFIG_PATH,
     _flatten_toml_section,
+    _unflatten_nested,
     load_toml_config,
 )
 from audiocore.errors import InvalidConfigError
@@ -52,7 +53,7 @@ output_format = "json"
         result = load_toml_config(config_file)
 
         assert result["backend"] == "openai"
-        assert result["model_size"] == "medium"
+        assert result["model"] == "medium"
         assert result["output_format"] == "json"
 
     def test_invalid_toml_syntax_raises_error(self, tmp_path: Path) -> None:
@@ -149,7 +150,7 @@ language = "fr"
         result = load_toml_config(config_file)
 
         assert result["backend"] == "faster_whisper"
-        assert result["model_size"] == "large"
+        assert result["model"] == "large"
         assert result["backend_preference"] == "prefer_local"
         assert result["output_format"] == "srt"
         assert result["model_cache_path"] == Path("/custom/cache")
@@ -179,12 +180,12 @@ class TestFlattenTomlSection:
     """Tests for _flatten_toml_section helper."""
 
     def test_flatten_backend_section(self) -> None:
-        """Backend section should flatten correctly."""
+        """Backend section should flatten correctly with field mapping."""
         data = {"backend": {"backend": "openai", "model_size": "medium"}}
         result = _flatten_toml_section(data)
 
         assert result["backend"] == "openai"
-        assert result["model_size"] == "medium"
+        assert result["model"] == "medium"
 
     def test_flatten_output_section(self) -> None:
         """Output section should flatten correctly."""
@@ -209,7 +210,7 @@ class TestFlattenTomlSection:
         assert result["language"] == "es"
 
     def test_flatten_mixed_values(self) -> None:
-        """Mixed value types should flatten correctly."""
+        """Mixed value types should flatten correctly with field mapping."""
         data = {
             "backend": {"backend": "auto", "model_size": "base"},
             "output": {"output_format": "text"},
@@ -218,7 +219,7 @@ class TestFlattenTomlSection:
         result = _flatten_toml_section(data)
 
         assert result["backend"] == "auto"
-        assert result["model_size"] == "base"
+        assert result["model"] == "base"
         assert result["output_format"] == "text"
         assert result["language"] == "en"
 
@@ -234,6 +235,57 @@ class TestFlattenTomlSection:
         """Empty section should return empty dict."""
         result = _flatten_toml_section({})
         assert result == {}
+
+    def test_flatten_openai_nested_section(self) -> None:
+        """OpenAI nested config should flatten with dot-notation keys."""
+        data = {"openai": {"api_key": "sk-test", "timeout": 60}}
+        result = _flatten_toml_section(data)
+
+        assert result["openai.api_key"] == "sk-test"
+        assert result["openai.timeout"] == 60
+
+    def test_flatten_vad_nested_section(self) -> None:
+        """VAD nested config should flatten with dot-notation keys."""
+        data = {"vad": {"speech_threshold": 0.6, "min_segment_duration": 0.3}}
+        result = _flatten_toml_section(data)
+
+        assert result["vad.speech_threshold"] == 0.6
+        assert result["vad.min_segment_duration"] == 0.3
+
+
+class TestUnflattenNested:
+    """Tests for _unflatten_nested helper."""
+
+    def test_unflatten_openai_config(self) -> None:
+        """Dot-notation OpenAI keys should unflatten to nested dict."""
+        flat = {"openai.api_key": "sk-test", "openai.timeout": 60, "backend": "openai"}
+        result = _unflatten_nested(flat)
+
+        assert result == {
+            "openai": {"api_key": "sk-test", "timeout": 60},
+            "backend": "openai",
+        }
+
+    def test_unflatten_vad_config(self) -> None:
+        """Dot-notation VAD keys should unflatten to nested dict."""
+        flat = {"vad.speech_threshold": 0.6, "vad.strict_vad": True, "language": "en"}
+        result = _unflatten_nested(flat)
+
+        assert result == {
+            "vad": {"speech_threshold": 0.6, "strict_vad": True},
+            "language": "en",
+        }
+
+    def test_unflatten_no_nested_keys(self) -> None:
+        """Flat keys without dots should pass through unchanged."""
+        flat = {"backend": "openai", "model_size": "base"}
+        result = _unflatten_nested(flat)
+
+        assert result == {"backend": "openai", "model_size": "base"}
+
+    def test_unflatten_empty_dict(self) -> None:
+        """Empty dict should return empty dict."""
+        assert _unflatten_nested({}) == {}
 
 
 class TestErrorHandling:
@@ -291,7 +343,7 @@ language = "de"
 
         # All fields should be present and correctly typed
         assert result["backend"] == "openai"
-        assert result["model_size"] == "large"
+        assert result["model"] == "large"
         assert result["backend_preference"] == "prefer_cloud"
         assert result["output_format"] == "vtt"
         assert isinstance(result["model_cache_path"], Path)
@@ -312,7 +364,7 @@ backend = "faster_whisper"
 
         # Only specified fields should be present
         assert result["backend"] == "faster_whisper"
-        assert "model_size" not in result
+        assert "model" not in result
 
     def test_overwrite_defaults_pattern(self, tmp_path: Path) -> None:
         """Load pattern for overwriting defaults should work."""
@@ -338,3 +390,51 @@ language = "ja"
         assert toml_config["backend"] == "faster_whisper"
         # Fields not in TOML keep defaults
         assert defaults.output_format  # Has default value
+
+    def test_nested_openai_config_loads(self, tmp_path: Path) -> None:
+        """Nested [openai] section should load into nested dict."""
+        config_file = tmp_path / "openai_config.toml"
+        config_file.write_text(
+            """
+[backend]
+backend = "openai"
+
+[openai]
+api_key = "sk-test-key"
+timeout = 120
+max_retries = 5
+
+[vad]
+speech_threshold = 0.6
+min_segment_duration = 0.3
+"""
+        )
+
+        result = load_toml_config(config_file)
+
+        assert result["backend"] == "openai"
+        assert result["openai"]["api_key"] == "sk-test-key"
+        assert result["openai"]["timeout"] == 120
+        assert result["openai"]["max_retries"] == 5
+        assert result["vad"]["speech_threshold"] == 0.6
+        assert result["vad"]["min_segment_duration"] == 0.3
+
+    def test_mixed_flat_and_nested_config(self, tmp_path: Path) -> None:
+        """Mixed flat and nested TOML sections should both load correctly."""
+        config_file = tmp_path / "mixed_config.toml"
+        config_file.write_text(
+            """
+[backend]
+backend = "faster_whisper"
+model_size = "medium"
+
+[openai]
+timeout = 60
+"""
+        )
+
+        result = load_toml_config(config_file)
+
+        assert result["backend"] == "faster_whisper"
+        assert result["model"] == "medium"
+        assert result["openai"]["timeout"] == 60

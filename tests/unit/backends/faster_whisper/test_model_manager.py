@@ -112,15 +112,24 @@ class TestModelManagerSingleton:
         ModelManager._instance = None
 
     def test_singleton_preserves_cache_dir(self) -> None:
-        """Singleton should preserve first cache_dir."""
+        """Singleton should preserve first cache_dir and reject different one."""
         # Reset singleton
         ModelManager._instance = None
 
         manager1 = ModelManager(cache_dir=Path("/custom/cache"))
-        manager2 = ModelManager(cache_dir=Path("/other/cache"))
-
         assert manager1.cache_dir == Path("/custom/cache")
+
+        # Creating with same cache_dir is fine
+        manager2 = ModelManager(cache_dir=Path("/custom/cache"))
         assert manager2.cache_dir == Path("/custom/cache")
+
+        # Creating with different cache_dir should raise ValueError
+        with pytest.raises(ValueError, match="already initialized"):
+            ModelManager(cache_dir=Path("/other/cache"))
+
+        # Creating without cache_dir returns existing instance
+        manager3 = ModelManager()
+        assert manager3.cache_dir == Path("/custom/cache")
 
         # Cleanup
         ModelManager._instance = None

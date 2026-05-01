@@ -97,7 +97,10 @@ class TestBackendAvailabilityChecker:
 
     def test_check_faster_whisper_installed(self):
         """Test faster-whisper availability when installed."""
-        with patch.dict("sys.modules", {"faster_whisper": MagicMock()}):
+        mock_fw = MagicMock()
+        mock_ct2 = MagicMock()
+        mock_ct2.get_supported_compute_types = MagicMock()
+        with patch.dict("sys.modules", {"faster_whisper": mock_fw, "ctranslate2": mock_ct2}):
             checker = BackendAvailabilityChecker()
             status = checker.check_backend(BackendType.FASTER_WHISPER)
 
@@ -147,7 +150,10 @@ class TestBackendAvailabilityChecker:
     @patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=True)
     def test_get_available_backends_both_available(self):
         """Test getting available backends when both are available."""
-        with patch.dict("sys.modules", {"faster_whisper": MagicMock()}):
+        mock_fw = MagicMock()
+        mock_ct2 = MagicMock()
+        mock_ct2.get_supported_compute_types = MagicMock()
+        with patch.dict("sys.modules", {"faster_whisper": mock_fw, "ctranslate2": mock_ct2}):
             checker = BackendAvailabilityChecker()
             available = checker.get_available_backends()
 

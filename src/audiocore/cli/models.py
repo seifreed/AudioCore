@@ -121,13 +121,6 @@ def download_model(
     # Download with progress
     console.print(f"[cyan]Downloading model '{model}'...[/cyan]")
 
-    progress_callback = None
-
-    def on_progress(progress: float) -> None:
-        """Update progress bar during download."""
-        if progress_callback:
-            progress_callback(progress)
-
     try:
         with Progress(
             SpinnerColumn(),
@@ -193,9 +186,7 @@ def remove_model(
         size_str = (
             f"{size_mb} MB"
             if size_mb and size_mb < 1000
-            else f"{size_mb / 1000:.1f} GB"
-            if size_mb
-            else ""
+            else (f"{size_mb / 1000:.1f} GB" if size_mb else "")
         )
         confirm = typer.confirm(
             f"Remove model '{model}' ({size_str})?",

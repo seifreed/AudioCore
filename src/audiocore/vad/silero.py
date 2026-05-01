@@ -196,16 +196,17 @@ class SileroVAD:
         """Get a thread-local copy of the model with its own state.
 
         Each thread gets its own model state to prevent interference
-        during concurrent transcriptions.
+        during concurrent transcriptions. State is reset each time so
+        that processing multiple files in the same thread does not
+        accumulate VAD state across files.
 
         Returns:
             Thread-local Silero VAD model instance with reset state.
         """
         model = self.get_model()
-        # Thread-safe initialization check using getattr with default
-        if not getattr(SileroVAD._model_state, "initialized", False):
-            SileroVAD._model_state.initialized = True
-            model.reset_states()
+        # Always reset state so each file gets fresh VAD state.
+        # This prevents state accumulation across files in the same thread.
+        model.reset_states()
         return model
 
     def reset_state(self) -> None:
@@ -328,9 +329,10 @@ class SileroVAD:
         in_speech = False
         speech_start_time: float | None = None
         chunk_confidences: list[float] = []
+        silence_start_time: float | None = None
 
-        # Convert min_silence_duration from ms to seconds for threshold
-        config.min_silence_duration_ms / 1000.0
+        # Convert min_silence_duration from ms to seconds
+        min_silence_duration_s = config.min_silence_duration_ms / 1000.0
 
         # Process each chunk
         for i in range(0, len(audio_data) - chunk_size + 1, chunk_size):
@@ -344,33 +346,48 @@ class SileroVAD:
                 speech_prob = model(chunk_tensor, sample_rate).item()
 
             # Determine if we're in speech based on threshold
-            is_speech = speech_prob > config.speech_threshold
-
-            # Track state transitions
             current_time = i / sample_rate
 
+            # Use speech_threshold for entering speech,
+            # silence_threshold for exiting speech (hysteresis)
+            if in_speech:
+                # Already in speech: exit only when prob drops below silence_threshold
+                is_speech = speech_prob >= config.silence_threshold
+            else:
+                # Not in speech: enter only when prob exceeds speech_threshold
+                is_speech = speech_prob > config.speech_threshold
+
+            # Track state transitions
             if is_speech and not in_speech:
                 # Entering speech
                 in_speech = True
                 speech_start_time = current_time
                 chunk_confidences = [speech_prob]
+                silence_start_time = None
             elif is_speech and in_speech:
                 # Continuing speech
                 chunk_confidences.append(speech_prob)
+                silence_start_time = None
             elif not is_speech and in_speech:
-                # Exiting speech - calculate segment duration
-                speech_duration = current_time - (speech_start_time or 0.0)
+                # Potential speech exit - check minimum silence duration
+                if silence_start_time is None:
+                    silence_start_time = current_time
 
-                # Only record if above minimum duration
-                if speech_duration >= config.min_segment_duration:
-                    # Calculate mean confidence
-                    mean_confidence = float(np.mean(chunk_confidences))
-                    segments.append((speech_start_time or 0.0, current_time, mean_confidence))
+                silence_duration = current_time - silence_start_time
+                if silence_duration >= min_silence_duration_s:
+                    # Confirmed exit: silence is long enough
+                    speech_duration = silence_start_time - (speech_start_time or 0.0)
 
-                # Reset speech tracking
-                in_speech = False
-                speech_start_time = None
-                chunk_confidences = []
+                    # Only record if above minimum duration
+                    if speech_duration >= config.min_segment_duration:
+                        mean_confidence = float(np.mean(chunk_confidences))
+                        segments.append((speech_start_time or 0.0, silence_start_time, mean_confidence))
+
+                    # Reset speech tracking
+                    in_speech = False
+                    speech_start_time = None
+                    chunk_confidences = []
+                    silence_start_time = None
 
         # Handle case where audio ends during speech
         if in_speech and speech_start_time is not None:

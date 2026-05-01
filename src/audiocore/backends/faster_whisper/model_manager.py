@@ -90,7 +90,6 @@ class ModelManager:
         _instance: Singleton instance
         _lock: Thread lock for singleton initialization
         _models: Cache of loaded model instances
-        _model_locks: Locks for thread-safe model access
         cache_dir: Directory for model caching
 
     Example:
@@ -110,19 +109,28 @@ class ModelManager:
         """Create or return singleton instance.
 
         Args:
-            cache_dir: Optional custom cache directory
+            cache_dir: Optional custom cache directory. Ignored if an
+                instance already exists — call clear() first to reset.
 
         Returns:
             ModelManager singleton instance
+
+        Raises:
+            ValueError: If cache_dir is provided but a singleton with a
+                different cache_dir already exists.
         """
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
                     instance = super().__new__(cls)
                     instance._models: dict[str, Any] = {}
-                    instance._model_locks: dict[str, threading.Lock] = {}
                     instance._cache_dir = cache_dir or DEFAULT_CACHE_DIR
                     cls._instance = instance
+        elif cache_dir is not None and cache_dir != cls._instance._cache_dir:
+            raise ValueError(
+                f"ModelManager singleton already initialized with cache_dir={cls._instance._cache_dir}. "
+                f"Cannot change to cache_dir={cache_dir}. Call ModelManager.clear() first to reset."
+            )
         return cls._instance
 
     @property
@@ -430,7 +438,6 @@ class ModelManager:
         # Clear singleton instance
         with self._lock:
             self._models.clear()
-            self._model_locks.clear()
 
 
 # Convenience function for getting model info

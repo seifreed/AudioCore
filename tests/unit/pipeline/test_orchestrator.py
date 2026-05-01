@@ -1351,3 +1351,69 @@ class TestOutputFormatting:
                                 data = json.loads(transcribed.formatted_output)
                                 assert len(data["segments"]) == 2
                                 assert data["segments"][0]["text"] == "Hello world"
+
+    def test_transcribe_uses_srt_formatter(
+        self, mock_media_info, mock_segments, mock_transcription_result
+    ):
+        """Regression: Pipeline uses SRT formatter when output_format is SRT."""
+        options = TranscriptionOptions(output_format=OutputFormat.SRT)
+        pipeline = Pipeline()
+
+        with patch("audiocore.pipeline.orchestrator.validate_format_or_raise"):
+            with patch("audiocore.pipeline.orchestrator.probe", return_value=mock_media_info):
+                with patch("audiocore.pipeline.orchestrator.extract_audio"):
+                    with patch(
+                        "audiocore.pipeline.orchestrator.detect_speech",
+                        return_value=mock_segments,
+                    ):
+                        with patch.object(
+                            pipeline._registry,
+                            "get_backend",
+                        ) as mock_get_backend:
+                            mock_backend = MagicMock()
+                            mock_backend.transcribe.return_value = mock_transcription_result
+                            mock_get_backend.return_value = mock_backend
+
+                            with patch.object(
+                                pipeline._selector,
+                                "select",
+                                return_value=BackendType.OPENAI,
+                            ):
+                                result = pipeline.transcribe(Path("audio.mp3"), options=options)
+
+                                assert result.formatted_output is not None
+                                # SRT format uses comma for milliseconds
+                                assert "-->" in result.formatted_output or "1" in result.formatted_output
+
+    def test_transcribe_uses_vtt_formatter(
+        self, mock_media_info, mock_segments, mock_transcription_result
+    ):
+        """Regression: Pipeline uses VTT formatter when output_format is VTT."""
+        options = TranscriptionOptions(output_format=OutputFormat.VTT)
+        pipeline = Pipeline()
+
+        with patch("audiocore.pipeline.orchestrator.validate_format_or_raise"):
+            with patch("audiocore.pipeline.orchestrator.probe", return_value=mock_media_info):
+                with patch("audiocore.pipeline.orchestrator.extract_audio"):
+                    with patch(
+                        "audiocore.pipeline.orchestrator.detect_speech",
+                        return_value=mock_segments,
+                    ):
+                        with patch.object(
+                            pipeline._registry,
+                            "get_backend",
+                        ) as mock_get_backend:
+                            mock_backend = MagicMock()
+                            mock_backend.transcribe.return_value = mock_transcription_result
+                            mock_get_backend.return_value = mock_backend
+
+                            with patch.object(
+                                pipeline._selector,
+                                "select",
+                                return_value=BackendType.OPENAI,
+                            ):
+                                result = pipeline.transcribe(Path("audio.mp3"), options=options)
+
+                                assert result.formatted_output is not None
+                                # VTT format starts with WEBVTT header
+                                assert "WEBVTT" in result.formatted_output

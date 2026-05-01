@@ -276,6 +276,51 @@ class TestTranscribeProgress:
         assert call_args[1]["progress_callback"] is not None
 
 
+class TestValidateInputFiles:
+    """Regression tests for input file validation."""
+
+    def test_nonexistent_file_flagged(self, tmp_path: Path) -> None:
+        """Non-existent files should be flagged."""
+        from audiocore.cli.transcribe import validate_input_files
+
+        nonexistent = tmp_path / "does_not_exist.mp3"
+        with pytest.raises(Exception):
+            validate_input_files([nonexistent])
+
+    def test_unreadable_file_flagged(self, tmp_path: Path) -> None:
+        """Regression: files that exist but are not readable should be flagged.
+
+        Previously the condition was `not file_path.exists() and file_path.exists()`
+        which was always False, so unreadable files were silently accepted.
+        """
+        import os
+
+        from audiocore.cli.transcribe import validate_input_files
+
+        # Create a file and make it unreadable
+        unreadable = tmp_path / "unreadable.mp3"
+        unreadable.write_bytes(b"fake audio data")
+
+        # Skip on platforms where chmod doesn't work (Windows)
+        if os.name != "nt":
+            unreadable.chmod(0o000)
+            try:
+                with pytest.raises(Exception):
+                    validate_input_files([unreadable])
+            finally:
+                # Restore permissions for cleanup
+                unreadable.chmod(0o644)
+
+    def test_valid_file_accepted(self, tmp_path: Path) -> None:
+        """Valid, readable files should be accepted."""
+        from audiocore.cli.transcribe import validate_input_files
+
+        valid_file = tmp_path / "valid.mp3"
+        valid_file.write_bytes(b"fake audio data")
+        result = validate_input_files([valid_file])
+        assert result == [valid_file]
+
+
 class TestTranscribeOptions:
     """Test option parsing for transcribe command."""
 

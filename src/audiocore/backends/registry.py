@@ -56,6 +56,8 @@ class BackendRegistry:
         """Create or return the singleton registry instance.
 
         Uses double-checked locking for thread-safe singleton pattern.
+        Initialization is done atomically within __new__ to prevent
+        race conditions between __new__ and __init__.
 
         Returns:
             The singleton BackendRegistry instance.
@@ -64,25 +66,20 @@ class BackendRegistry:
             with cls._lock:
                 if cls._instance is None:
                     instance = super().__new__(cls)
-                    instance._initialized = False
+                    # Initialize within the lock to prevent race conditions
+                    instance._instance_lock = threading.Lock()
+                    instance._backends: dict[BackendType, type[TranscriptionBackend]] = {}
+                    instance._instances: dict[BackendType, TranscriptionBackend] = {}
+                    instance._initialized = True
                     cls._instance = instance
         return cls._instance
 
     def __init__(self) -> None:
-        """Initialize registry with empty backend and instance dicts.
-
-        Only initializes once per singleton lifecycle.
-        """
-        if self._initialized:
-            return
-
-        # Instance-level lock for thread-safe backend instance creation
-        self._instance_lock = threading.Lock()
-        # Store backend classes (lazy loading)
-        self._backends: dict[BackendType, type[TranscriptionBackend]] = {}
-        # Store backend instances (memoization)
-        self._instances: dict[BackendType, TranscriptionBackend] = {}
-        self._initialized = True
+        """No-op initialization. All setup is done in __new__ for thread safety."""
+        # All initialization is done in __new__ to prevent race conditions
+        # where __init__ could re-initialize between __new__ setting _instance
+        # and setting _initialized = True
+        pass
 
     def register(
         self, backend_type: BackendType, backend_class: type[TranscriptionBackend]

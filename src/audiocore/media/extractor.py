@@ -201,7 +201,8 @@ def extract_audio(
     # Create temp file if no output path specified
     created_temp = False
     if output_path is None:
-        temp_file = NamedTemporaryFile(suffix=".wav", delete=False)  # noqa: SIM115 - File must persist for processing
+        # SIM115: temp file must persist for processing, cleaned up by caller
+        temp_file = NamedTemporaryFile(suffix=".wav", delete=False)  # noqa: SIM115
         output_path = Path(temp_file.name)
         temp_file.close()
         created_temp = True
@@ -216,12 +217,40 @@ def extract_audio(
     )
 
     try:
-        result = subprocess.run(
+        # Use Popen to stream stderr for real-time progress callbacks
+        process = subprocess.Popen(
             command,
-            capture_output=True,
-            timeout=timeout,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
         )
+        stderr_lines: list[str] = []
+
+        if progress_callback is not None and total_duration is not None and total_duration > 0:
+            # Stream stderr line by line for real-time progress
+            assert process.stderr is not None
+            for line in process.stderr:
+                stderr_lines.append(line)
+                progress = _parse_progress(line, total_duration)
+                if progress is not None:
+                    progress_callback(progress)
+
+            stdout, _ = process.communicate()
+        else:
+            stdout, stderr_data = process.communicate()
+            stderr_lines = stderr_data.splitlines() if stderr_data else []
+
+        returncode = process.wait(timeout=max(0, timeout) if timeout > 0 else None)
+
+        # Build a result-like object for error checking
+        class _ProcessResult:
+            def __init__(self, rc: int, out: str, err_lines: list[str]) -> None:
+                self.returncode = rc
+                self.stdout = out
+                self.stderr = "".join(err_lines)
+
+        result = _ProcessResult(returncode, stdout if isinstance(stdout, str) else "", stderr_lines)
+
     except FileNotFoundError as e:
         # Clean up temp file if created
         if created_temp and output_path.exists():
@@ -269,13 +298,6 @@ def extract_audio(
             ],
         )
 
-    # Parse progress from stderr if callback provided
-    if progress_callback is not None and total_duration is not None and total_duration > 0:
-        for line in result.stderr.splitlines():
-            progress = _parse_progress(line, total_duration)
-            if progress is not None:
-                progress_callback(progress)
-
     # Validate output
     try:
         _validate_output(output_path)
@@ -307,7 +329,8 @@ def temp_audio_file(suffix: str = ".wav"):
         ...     # Process temp_path
         ... # File automatically deleted after context
     """
-    temp = NamedTemporaryFile(suffix=suffix, delete=False)  # noqa: SIM115 - Must persist for caller usage
+    # SIM115: temp file must persist for caller usage, deleted in finally block
+    temp = NamedTemporaryFile(suffix=suffix, delete=False)  # noqa: SIM115
     temp_path = Path(temp.name)
     temp.close()
     try:

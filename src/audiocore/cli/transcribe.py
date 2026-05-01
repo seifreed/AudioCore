@@ -20,6 +20,7 @@ Example:
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
@@ -139,7 +140,7 @@ def validate_input_files(files: list[Path]) -> list[Path]:
             invalid_files.append(f"'{file_path}' does not exist")
         elif not file_path.is_file():
             invalid_files.append(f"'{file_path}' is not a file")
-        elif not file_path.exists() and file_path.exists():
+        elif not os.access(file_path, os.R_OK):
             invalid_files.append(f"'{file_path}' is not readable")
 
     if invalid_files:

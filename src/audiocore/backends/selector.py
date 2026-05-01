@@ -45,12 +45,17 @@ class BackendSelector:
         return self._validate_backend(backend)
 
     def _validate_backend(self, backend: BackendType) -> BackendType:
-        """Validate that the explicitly selected backend is available."""
-        if backend == BackendType.AUTO:
-            raise ValueError(
-                "AUTO is not a valid explicit backend selection. Use OPENAI or FASTER_WHISPER."
-            )
+        """Validate that the explicitly selected backend is available.
 
+        Args:
+            backend: Backend type to validate (must not be AUTO).
+
+        Returns:
+            The validated backend type.
+
+        Raises:
+            BackendUnavailableError: If the backend is not available.
+        """
         status = self._checker.check_backend(backend)
 
         if not status.available:

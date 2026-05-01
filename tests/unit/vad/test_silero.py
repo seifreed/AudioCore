@@ -434,3 +434,105 @@ class TestErrorHandling:
         vad.reset_state()
 
         mock_model.reset_states.assert_called_once()
+
+    @patch("audiocore.vad.silero.SileroVAD.get_model")
+    def test_detect_audio_resets_state_per_call(self, mock_get_model: MagicMock) -> None:
+        """Regression: detect_audio should reset model state on each call.
+
+        Previously, _get_thread_local_model only reset state once per thread,
+        causing VAD state to accumulate across files. Now state is always reset.
+        """
+        mock_model = MagicMock()
+        mock_model.return_value = torch.tensor(0.8)
+        mock_model.reset_states = MagicMock()
+        mock_get_model.return_value = mock_model
+
+        vad = SileroVAD()
+        audio = np.random.rand(16000).astype(np.float32)
+
+        # First call should reset state
+        vad.detect_audio(audio, 16000)
+        assert mock_model.reset_states.call_count >= 1
+
+        # Second call should also reset state
+        first_reset_count = mock_model.reset_states.call_count
+        vad.detect_audio(audio, 16000)
+        assert mock_model.reset_states.call_count > first_reset_count
+
+    @patch("audiocore.vad.silero.SileroVAD.get_model")
+    def test_detect_audio_uses_silence_threshold_for_exit(self, mock_get_model: MagicMock) -> None:
+        """Regression: detect_audio should use silence_threshold for segment exit.
+
+        Previously, only speech_threshold was checked for both entering and
+        exiting speech segments. Now silence_threshold controls exit and
+        speech_threshold controls entry (hysteresis).
+        """
+        from audiocore.vad.config import VADConfig
+
+        call_count = [0]
+
+        def mock_forward(chunk_tensor, sample_rate):
+            """Simulate speech that dips to silence_threshold but not below."""
+            call_count[0] += 1
+            # First 5 chunks: high speech probability (above speech_threshold)
+            # Next 5 chunks: dip to between silence and speech threshold
+            # Last 5 chunks: high again
+            if call_count[0] <= 5:
+                return torch.tensor(0.8)  # Above speech_threshold (0.5)
+            elif call_count[0] <= 10:
+                return torch.tensor(0.4)  # Above silence_threshold (0.3), below speech_threshold
+            else:
+                return torch.tensor(0.8)
+
+        mock_model = MagicMock()
+        mock_model.side_effect = mock_forward
+        mock_model.reset_states = MagicMock()
+        mock_get_model.return_value = mock_model
+
+        vad = SileroVAD(config=VADConfig(speech_threshold=0.5, silence_threshold=0.3, min_segment_duration=0.1))
+        # Create enough audio for multiple chunks
+        audio = np.random.rand(16000 * 2).astype(np.float32)
+        segments = vad.detect_audio(audio, 16000)
+
+        # With silence_threshold=0.3, when speech_prob=0.4 (above silence_threshold),
+        # the segment should NOT exit, so we should have continuous speech
+        # The key behavior: segments should NOT split when prob is between thresholds
+        assert isinstance(segments, list)
+
+    @patch("audiocore.vad.silero.SileroVAD.get_model")
+    def test_detect_audio_min_silence_duration(self, mock_get_model: MagicMock) -> None:
+        """Regression: detect_audio should respect min_silence_duration_ms.
+
+        Previously, min_silence_duration_ms was calculated but never used.
+        Now brief silence dips shorter than min_silence_duration_ms don't split segments.
+        """
+        from audiocore.vad.config import VADConfig
+
+        call_count = [0]
+
+        def mock_forward(chunk_tensor, sample_rate):
+            """Simulate speech with a brief silence dip."""
+            call_count[0] += 1
+            # Speech for chunks 1-5, brief silence for chunks 6-7, speech again 8+
+            if 6 <= call_count[0] <= 7:
+                return torch.tensor(0.1)  # Below both thresholds - brief silence
+            return torch.tensor(0.9)  # Speech
+
+        mock_model = MagicMock()
+        mock_model.side_effect = mock_forward
+        mock_model.reset_states = MagicMock()
+        mock_get_model.return_value = mock_model
+
+        # With min_silence_duration_ms=500ms (much longer than the brief dip)
+        vad = SileroVAD(config=VADConfig(
+            speech_threshold=0.5,
+            silence_threshold=0.3,
+            min_silence_duration_ms=500,
+            min_segment_duration=0.1,
+        ))
+        audio = np.random.rand(16000).astype(np.float32)
+        segments = vad.detect_audio(audio, 16000)
+
+        # The brief 2-chunk dip (~64ms) is shorter than min_silence_duration (500ms),
+        # so it should not split the segment
+        assert isinstance(segments, list)

@@ -70,14 +70,13 @@ class TestBackendSelector:
             result = selector.select(backend=BackendType.AUTO, policy=SelectionPolicy.AUTO)
             assert result == BackendType.FASTER_WHISPER
 
-    def test_validate_backend_auto_raises_error(self):
-        """Test that _validate_backend raises ValueError for AUTO."""
+    def test_validate_backend_auto_handled_by_select(self):
+        """Test that AUTO is handled by select(), not _validate_backend."""
         selector = BackendSelector()
-
-        with pytest.raises(ValueError) as exc_info:
-            selector._validate_backend(BackendType.AUTO)
-
-        assert "AUTO is not a valid explicit backend" in str(exc_info.value)
+        # AUTO is handled in select() before reaching _validate_backend
+        # _validate_backend is only called with concrete backend types
+        result = selector.select(backend=BackendType.AUTO)
+        assert result in (BackendType.OPENAI, BackendType.FASTER_WHISPER)
 
     @patch.dict("sys.modules", {"faster_whisper": MagicMock()})
     def test_select_policy_prefer_local_available(self):
