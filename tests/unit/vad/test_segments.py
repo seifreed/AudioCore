@@ -205,6 +205,22 @@ class TestMergeShortSegments:
         # Last segment is 0.15s, short, gap is 0.05s < 0.1s
         assert len(result) == 2
 
+    def test_merge_single_orphan_short_segment_dropped(self, default_config: VADConfig) -> None:
+        """Regression: single short segment below min_segment_duration is dropped.
+
+        Previously, merge_short_segments would keep a single short segment
+        that couldn't be merged with any neighbor, producing noisy output.
+        """
+        segments = [(0.0, 0.1, 0.80)]  # 0.1s, well below default min 0.5s
+        result = merge_short_segments(segments, default_config)
+        assert result == []
+
+    def test_merge_single_long_segment_kept(self, default_config: VADConfig) -> None:
+        """A single segment at or above min_segment_duration should be kept."""
+        segments = [(0.0, 1.0, 0.80)]  # 1.0s, above default min 0.5s
+        result = merge_short_segments(segments, default_config)
+        assert len(result) == 1
+
 
 # =============================================================================
 # split_long_segments tests

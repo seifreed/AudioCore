@@ -84,6 +84,19 @@ class TestBackendAvailabilityChecker:
         assert status.available is True
         assert "API key" in status.reason
 
+    @patch.dict(os.environ, {"AUDIOCORE_OPENAI_API_KEY": "test-audiocore-key"}, clear=True)
+    def test_check_openai_with_audiocore_env_key(self):
+        """Regression: AUDIOCORE_OPENAI_API_KEY should make OpenAI available.
+
+        Previously, BackendAvailabilityChecker checked AUDIOCORE_OPENAI_API_KEY
+        but OpenAIBackend.is_available() did not, causing a mismatch.
+        """
+        checker = BackendAvailabilityChecker()
+        status = checker.check_backend(BackendType.OPENAI)
+
+        assert status.available is True
+        assert "API key" in status.reason
+
     @patch.dict(os.environ, {}, clear=True)
     def test_check_openai_without_key(self):
         """Test OpenAI availability without API key."""

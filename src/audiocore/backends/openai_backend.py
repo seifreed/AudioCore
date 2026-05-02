@@ -167,10 +167,10 @@ class OpenAIBackend(TranscriptionBackend):
         if self._api_key is not None:
             return bool(self._api_key)
 
-        # Check environment variable
+        # Check environment variables (OPENAI_API_KEY takes priority, AUDIOCORE_OPENAI_API_KEY as fallback)
         import os
 
-        env_key = os.environ.get("OPENAI_API_KEY")
+        env_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("AUDIOCORE_OPENAI_API_KEY")
         if env_key is not None:
             return bool(env_key)
 
@@ -201,7 +201,9 @@ class OpenAIBackend(TranscriptionBackend):
             if api_key is None:
                 import os
 
-                api_key = os.environ.get("OPENAI_API_KEY")
+                api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get(
+                    "AUDIOCORE_OPENAI_API_KEY"
+                )
 
             if not api_key:
                 raise BackendUnavailableError(

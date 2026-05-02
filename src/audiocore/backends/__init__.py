@@ -54,6 +54,7 @@ def register_builtin_backends() -> None:
     - Faster-Whisper local backend (FASTER_WHISPER)
 
     Safe to call multiple times; subsequent calls after the first are no-ops.
+    Thread-safe: registration is protected by the registry lock.
 
     Example:
         >>> from audiocore.backends import register_builtin_backends, BackendRegistry
@@ -64,8 +65,8 @@ def register_builtin_backends() -> None:
         >>> backend = registry.get_backend(BackendType.OPENAI)
     """
     registry = BackendRegistry()
-    # Skip registration if backends are already registered (idempotent)
-    if registry.list_backends():
-        return
-    registry.register(BackendType.OPENAI, OpenAIBackend)
-    registry.register(BackendType.FASTER_WHISPER, FasterWhisperBackend)
+    with registry._instance_lock:
+        if registry.list_backends():
+            return
+        registry.register(BackendType.OPENAI, OpenAIBackend)
+        registry.register(BackendType.FASTER_WHISPER, FasterWhisperBackend)

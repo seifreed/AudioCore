@@ -77,6 +77,10 @@ def merge_short_segments(
             merged[-2] = (prev_start, merged[-1][1], min(prev_conf, merged[-1][2]))
             merged.pop()
 
+    # Drop orphan segments shorter than min_segment_duration that couldn't be merged
+    if len(merged) == 1 and (merged[0][1] - merged[0][0]) < min_duration:
+        return []
+
     return merged
 
 

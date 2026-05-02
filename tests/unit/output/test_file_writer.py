@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from audiocore.errors.output import OutputFileExistsError
+from audiocore.errors.output import OutputDirectoryError, OutputFileExistsError
 from audiocore.models import MediaInfo, Segment, TranscriptionOptions, TranscriptionResult
 from audiocore.output.file_writer import (
     OutputFileConfig,
@@ -123,8 +123,8 @@ class TestWriteOutput:
         """create_dirs=False fails if parent directory doesn't exist."""
         output_path = tmp_path / "nonexistent" / "output.txt"
 
-        # Should raise OutputFileExistsError with actionable message
-        with pytest.raises(OutputFileExistsError, match="Parent directory does not exist"):
+        # Should raise OutputDirectoryError with actionable message
+        with pytest.raises(OutputDirectoryError, match="Parent directory does not exist"):
             write_output("Content", output_path, OutputFileConfig(create_dirs=False))
 
     def test_write_empty_content(self, tmp_path: Path) -> None:
@@ -207,6 +207,28 @@ class TestOutputFileExistsError:
 
         error = OutputFileExistsError("Test")
         assert isinstance(error, AudioCoreError)
+
+
+class TestOutputDirectoryError:
+    """Tests for OutputDirectoryError exception."""
+
+    def test_error_code_is_aud_601(self) -> None:
+        """OutputDirectoryError has error code AUD-601."""
+        assert OutputDirectoryError.error_code == "AUD-601"
+
+    def test_error_inherits_from_audiocore_error(self) -> None:
+        """OutputDirectoryError inherits from AudioCoreError."""
+        from audiocore.errors.base import AudioCoreError
+
+        error = OutputDirectoryError("Test")
+        assert isinstance(error, AudioCoreError)
+
+    def test_error_default_suggestion(self) -> None:
+        """Error provides default suggestions about creating directories."""
+        error = OutputDirectoryError("Dir missing")
+
+        assert len(error.suggestions) == 2
+        assert "create_dirs" in error.suggestions[0].lower()
 
 
 class TestAtomicWriteFailure:

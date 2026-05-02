@@ -22,7 +22,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from audiocore.errors.output import OutputFileExistsError
+from audiocore.errors.output import OutputDirectoryError, OutputFileExistsError
 from audiocore.models.transcription import TranscriptionOptions, TranscriptionResult
 from audiocore.output.json import format_json
 from audiocore.output.srt import format_srt
@@ -92,7 +92,7 @@ def write_output(
 
     # Validate parent directory exists when create_dirs is False
     if not config.create_dirs and file_path.parent and not file_path.parent.exists():
-        raise OutputFileExistsError(
+        raise OutputDirectoryError(
             f"Parent directory does not exist: {file_path.parent}",
             context={"file_path": str(file_path), "parent_dir": str(file_path.parent)},
             suggestions=[

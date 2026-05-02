@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import re
 import subprocess
+import time
 from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
@@ -245,9 +246,14 @@ def extract_audio(
             )
             stderr_lines: list[str] = []
             communicate_timeout = timeout if timeout > 0 else None
+            deadline = time.monotonic() + timeout if timeout > 0 else None
             try:
                 assert process.stderr is not None
                 for line in process.stderr:
+                    if deadline is not None and time.monotonic() > deadline:
+                        process.kill()
+                        process.wait()
+                        raise subprocess.TimeoutExpired(cmd=command, timeout=timeout)
                     stderr_lines.append(line)
                     progress = _parse_progress(line, total_duration)
                     if progress is not None:

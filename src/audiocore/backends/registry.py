@@ -30,7 +30,7 @@ class BackendRegistry:
 
     Thread Safety:
         - Uses class-level Lock for thread-safe singleton initialization
-        - Uses instance-level Lock for thread-safe backend instance creation
+        - Uses class-level Lock for thread-safe backend instance creation
         - Safe for concurrent access from multiple threads
 
     Attributes:
@@ -48,7 +48,7 @@ class BackendRegistry:
 
     _instance: BackendRegistry | None = None
     _lock: threading.Lock = threading.Lock()
-    _instance_lock: threading.Lock
+    _instance_lock: threading.Lock = threading.Lock()
     _backends: dict[BackendType, type[TranscriptionBackend]]
     _instances: dict[BackendType, TranscriptionBackend]
 
@@ -67,7 +67,6 @@ class BackendRegistry:
                 if cls._instance is None:
                     instance = super().__new__(cls)
                     # Initialize within the lock to prevent race conditions
-                    instance._instance_lock = threading.Lock()
                     instance._backends: dict[BackendType, type[TranscriptionBackend]] = {}
                     instance._instances: dict[BackendType, TranscriptionBackend] = {}
                     cls._instance = instance
@@ -150,9 +149,7 @@ class BackendRegistry:
                 return self._instances[backend_type]
             cached = self._instances[backend_type]
             cached_config = getattr(cached, "_config", None)
-            if cached_config is None and config is None:
-                return self._instances[backend_type]
-            if cached_config is not None and config is not None:
+            if cached_config is not None:
                 from audiocore.config import AppConfig
 
                 if isinstance(cached_config, AppConfig) and isinstance(config, AppConfig):
@@ -160,7 +157,7 @@ class BackendRegistry:
                         return self._instances[backend_type]
                 elif cached_config == config:
                     return self._instances[backend_type]
-            # Config mismatch — fall through to create new instance
+            # Config mismatch or cached has no config — fall through to create new instance
 
         # Create new instance with thread-safe locking
         with self._instance_lock:

@@ -14,7 +14,7 @@ Exception categories:
 - API: APIError, AuthenticationError, RateLimitError, APITimeoutError (AUD-300 to AUD-399)
 - Processing: ProcessingError, VADError (AUD-400 to AUD-499)
 - Pipeline: CancelledError (AUD-500) - imported from audiocore.pipeline.cancellation
-- Output: OutputFileExistsError (AUD-600)
+- Output: OutputFileExistsError (AUD-600), OutputDirectoryError (AUD-601)
 """
 
 from audiocore.errors.api import (
@@ -40,7 +40,7 @@ from audiocore.errors.input import (
     InvalidInputError,
     MediaFormatError,
 )
-from audiocore.errors.output import OutputFileExistsError
+from audiocore.errors.output import OutputDirectoryError, OutputFileExistsError
 from audiocore.errors.processing import (
     MediaError,
     ProcessingError,
@@ -83,6 +83,7 @@ __all__ = [
     "VADError",
     "MediaError",
     # Output exceptions
+    "OutputDirectoryError",
     "OutputFileExistsError",
     # Pipeline exceptions (AUD-501 to AUD-504)
     "PipelineError",
