@@ -118,7 +118,8 @@ class BackendAvailabilityChecker:
     def _get_openai_api_key(self) -> str | None:
         """Get OpenAI API key from config or environment."""
         if self.config.openai and self.config.openai.api_key:
-            return self.config.openai.api_key.get_secret_value()
+            key = self.config.openai.api_key.get_secret_value()
+            return key if key else None
 
         import os
 

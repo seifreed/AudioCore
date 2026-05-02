@@ -229,14 +229,15 @@ class BackendRegistry:
 
         This is primarily used for testing to ensure test isolation.
 
-        Thread-safe: Uses the instance lock to prevent concurrent modification.
+        Thread-safe: Uses the class-level lock to prevent race conditions
+        with singleton creation.
 
         Example:
             >>> registry.clear()
             >>> registry.list_backends()
             []
         """
-        with self._instance_lock:
+        with BackendRegistry._lock:
             self._backends.clear()
             self._instances.clear()
             BackendRegistry._instance = None

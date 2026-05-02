@@ -423,20 +423,21 @@ class ModelManager:
         Warning:
             This will permanently delete all cached models.
         """
-        for model_name in list(MODEL_REPOS.keys()):
-            repo_id = MODEL_REPOS[model_name]
-            cache_folder_name = f"models--{repo_id.replace('/', '--')}"
-            cache_path = self._cache_dir / cache_folder_name
+        # Clear singleton instance under class-level lock for thread safety
+        with ModelManager._lock:
+            # Delete cached model files
+            for model_name in list(MODEL_REPOS.keys()):
+                repo_id = MODEL_REPOS[model_name]
+                cache_folder_name = f"models--{repo_id.replace('/', '--')}"
+                cache_path = self._cache_dir / cache_folder_name
 
-            if cache_path.exists():
-                try:
-                    shutil.rmtree(cache_path)
-                    logger.debug(f"Cleared cache for model {model_name}")
-                except Exception as e:
-                    logger.warning(f"Failed to clear cache for {model_name}: {e}")
+                if cache_path.exists():
+                    try:
+                        shutil.rmtree(cache_path)
+                        logger.debug(f"Cleared cache for model {model_name}")
+                    except Exception as e:
+                        logger.warning(f"Failed to clear cache for {model_name}: {e}")
 
-        # Clear singleton instance
-        with self._lock:
             self._models.clear()
             ModelManager._instance = None
 

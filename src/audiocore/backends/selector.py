@@ -136,7 +136,11 @@ class BackendSelector:
             from audiocore.backends.faster_whisper.device import get_best_device
 
             return get_best_device() != "cpu"
-        except Exception:
+        except ImportError:
+            logger.debug("GPU detection skipped: torch not installed")
+            return False
+        except Exception as e:
+            logger.warning(f"GPU detection failed: {e}")
             return False
 
     def _select_auto(self) -> BackendType:
@@ -183,7 +187,7 @@ class BackendSelector:
         Returns:
             TranscriptionBackend instance
         """
-        return self._registry.get_backend(backend)
+        return self._registry.get_backend(backend, config=self.config)
 
     def get_available_backends(self) -> list[BackendType]:
         """Get list of all available backend types."""

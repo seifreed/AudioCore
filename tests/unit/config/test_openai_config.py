@@ -206,11 +206,15 @@ class TestOpenAIBackendConfigIntegration:
         backend = OpenAIBackend(config=config)
         assert backend.is_available() is True
 
-    def test_backend_is_available_with_invalid_key_format(self) -> None:
-        """is_available should return False with invalid key format."""
-        config = OpenAIConfig(api_key="invalid-key")
+    def test_backend_is_available_with_any_non_empty_key(self) -> None:
+        """is_available should return True with any non-empty key.
+
+        OpenAI now issues keys in various formats (sk-proj-, sk-org-, etc.)
+        so we only check for presence, not format.
+        """
+        config = OpenAIConfig(api_key="non-sk-key")
         backend = OpenAIBackend(config=config)
-        assert backend.is_available() is False
+        assert backend.is_available() is True
 
     def test_backend_preserves_config_reference(self) -> None:
         """OpenAIBackend should preserve config reference for defaults."""

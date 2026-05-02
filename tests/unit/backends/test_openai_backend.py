@@ -75,14 +75,17 @@ class TestOpenAIBackendBasics:
         # No api_key provided, no env var set
         assert backend.is_available() is False
 
-    def test_is_available_false_with_invalid_key_format(
+    def test_is_available_true_with_non_sk_key(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Verify is_available returns False with invalid key format."""
-        # Ensure no env var interferes
+        """Verify is_available returns True with any non-empty key.
+
+        OpenAI now issues keys in various formats (sk-proj-, sk-org-, etc.)
+        so we only check for presence, not format.
+        """
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-        backend = OpenAIBackend(api_key="invalid-key-format")
-        assert backend.is_available() is False
+        backend = OpenAIBackend(api_key="non-sk-format-key")
+        assert backend.is_available() is True
 
     def test_is_available_true_with_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify is_available returns True with valid env var."""
@@ -90,11 +93,14 @@ class TestOpenAIBackendBasics:
         backend = OpenAIBackend()
         assert backend.is_available() is True
 
-    def test_is_available_false_with_invalid_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Verify is_available returns False with invalid env var."""
-        monkeypatch.setenv("OPENAI_API_KEY", "invalid-format")
+    def test_is_available_true_with_non_sk_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Verify is_available returns True with any non-empty env var key.
+
+        OpenAI now issues keys in various formats, so we only check for presence.
+        """
+        monkeypatch.setenv("OPENAI_API_KEY", "non-sk-format-key")
         backend = OpenAIBackend()
-        assert backend.is_available() is False
+        assert backend.is_available() is True
 
 
 class TestLazyClientInitialization:

@@ -34,6 +34,7 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
+from audiocore.config import load_config
 from audiocore.errors import AudioCoreError, BackendError, ConfigurationError, OutputFileExistsError
 from audiocore.models import TranscriptionOptions
 from audiocore.parallel import FileResult, transcribe_files_concurrent
@@ -61,7 +62,7 @@ def parse_backend_type(value: str) -> BackendType:
     try:
         return BackendType.parse(value)
     except ValueError as e:
-        valid_options = ", ".join(f"'{m.value}'" for m in BackendType if m != BackendType.AUTO)
+        valid_options = ", ".join(f"'{m.value}'" for m in BackendType)
         raise typer.BadParameter(f"{e}. Valid options: {valid_options}") from e
 
 
@@ -378,8 +379,9 @@ def _run_single_transcription(
                 total=100,
             )
 
-            # Create pipeline
-            pipeline = Pipeline()
+            # Create pipeline with loaded config
+            config = load_config()
+            pipeline = Pipeline(config=config)
 
             # Create progress callback that updates progress bar
             def update_progress(stage: PipelineStage, p: float, msg: str) -> None:

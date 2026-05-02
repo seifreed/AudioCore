@@ -105,8 +105,10 @@ def format_vtt(result: TranscriptionResult, options: TranscriptionOptions) -> st
     for segment in result.segments:
         start_ts = _format_vtt_timestamp(segment.start_time)
         end_ts = _format_vtt_timestamp(segment.end_time)
-        # Handle empty text gracefully
+        # Handle empty text gracefully, escape WebVTT-breaking sequences
         text = segment.text if segment.text else ""
+        if text:
+            text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("-->", "- ->")
 
         # VTT cue format:
         # - No sequential numbering (unlike SRT)

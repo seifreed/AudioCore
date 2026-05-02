@@ -7,7 +7,7 @@ API key handling via SecretStr.
 
 from typing import Any
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from audiocore.config.openai_config import OpenAIConfig
@@ -168,3 +168,17 @@ class AppConfig(BaseSettings):
             ModelSize enum value for the configured model size.
         """
         return self.model
+
+    @model_validator(mode="after")
+    def reconcile_api_keys(self) -> "AppConfig":
+        """Propagate top-level openai_api_key to openai.api_key if not set.
+
+        Resolves the ambiguity between AUDIOCORE_OPENAI_API_KEY (top-level)
+        and AUDIOCORE_OPENAI__API_KEY (nested). Top-level takes priority.
+
+        Returns:
+            Self, after reconciliation.
+        """
+        if self.openai_api_key is not None and self.openai.api_key is None:
+            self.openai.api_key = self.openai_api_key
+        return self

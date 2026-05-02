@@ -150,7 +150,7 @@ class FasterWhisperBackend(TranscriptionBackend):
         device = self.config.device
 
         # Auto-detect device
-        if device is None or device.lower() == "auto":
+        if device is None or (isinstance(device, str) and device.lower() == "auto"):
             from audiocore.backends.faster_whisper import get_best_device
 
             detected = get_best_device()

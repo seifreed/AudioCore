@@ -4,27 +4,30 @@ Provides functions for loading configuration from TOML files with
 path expansion, error handling, and flattened key extraction.
 """
 
+import logging
 import tomllib
 from pathlib import Path
 from typing import Any
 
 from audiocore.errors import InvalidConfigError
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_CONFIG_PATH = Path.home() / ".config" / "audiocore" / "config.toml"
 """Default configuration file path: ~/.config/audiocore/config.toml"""
 
-# Fields that should be converted to Path objects
-_PATH_FIELDS = {"model_cache_path", "temp_path"}
+# Fields that should be converted to Path objects (currently none in AppConfig)
+_PATH_FIELDS: set[str] = set()
 
 # Mapping from TOML flat keys to AppConfig field names.
-# Also maps nested TOML keys (e.g. "openai.api_key") to their nested form.
+# Only explicitly mapped keys are accepted; unmapped keys are dropped
+# to prevent silent misconfiguration (e.g. [backend] language = "en"
+# should not set the top-level "language" field).
 _FIELD_MAPPING = {
     "backend.backend": "backend",
     "backend.model_size": "model",
     "backend.backend_preference": "backend_preference",
     "output.output_format": "output_format",
-    "paths.model_cache_path": "model_cache_path",
-    "paths.temp_path": "temp_path",
     "language.language": "language",
     # OpenAI nested config
     "openai.api_key": "openai.api_key",
@@ -81,8 +84,19 @@ def _flatten_toml_section(section: dict[str, Any], prefix: str = "") -> dict[str
             # Recurse into nested sections
             result.update(_flatten_toml_section(value, full_key))
         else:
-            # Map to AppConfig field name using the mapping table
-            field_name = _FIELD_MAPPING.get(full_key, key)
+            # Map to AppConfig field name using the mapping table.
+            # Only explicitly mapped keys are accepted to prevent
+            # silent misconfiguration (e.g. [backend] language = "en"
+            # must not set the top-level "language" field).
+            field_name = _FIELD_MAPPING.get(full_key)
+            if field_name is None:
+                # Top-level keys that match AppConfig fields are allowed
+                if "." not in full_key:
+                    field_name = full_key
+                else:
+                    # Unknown nested keys are dropped with a warning
+                    logger.warning(f"Unknown TOML config key '{full_key}' will be ignored")
+                    continue
 
             # Convert path fields to Path objects with ~ expansion
             if field_name in _PATH_FIELDS and isinstance(value, str):

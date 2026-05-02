@@ -86,8 +86,8 @@ output_format = "json"
             assert "Permission denied" in str(exc_info.value)
             assert str(config_file) in str(exc_info.value)
 
-    def test_path_expansion_tilde(self, tmp_path: Path) -> None:
-        """~ in paths should be expanded to home directory."""
+    def test_unrecognized_nested_keys_dropped(self, tmp_path: Path) -> None:
+        """Unrecognized nested TOML keys should be dropped with warning."""
         config_file = tmp_path / "config.toml"
         config_file.write_text(
             """
@@ -99,10 +99,9 @@ temp_path = "/tmp/audiocore"
 
         result = load_toml_config(config_file)
 
-        assert isinstance(result["model_cache_path"], Path)
-        assert isinstance(result["temp_path"], Path)
-        assert "~" not in str(result["model_cache_path"])
-        assert Path(result["temp_path"]) == Path("/tmp/audiocore")
+        # These keys are not in AppConfig, so they should be dropped
+        assert "model_cache_path" not in result
+        assert "temp_path" not in result
 
     def test_empty_file_returns_empty_dict(self, tmp_path: Path) -> None:
         """Empty TOML file should return empty dict."""
@@ -138,10 +137,6 @@ backend_preference = "prefer_local"
 [output]
 output_format = "srt"
 
-[paths]
-model_cache_path = "/custom/cache"
-temp_path = "/custom/tmp"
-
 [language]
 language = "fr"
 """
@@ -153,8 +148,6 @@ language = "fr"
         assert result["model"] == "large"
         assert result["backend_preference"] == "prefer_local"
         assert result["output_format"] == "srt"
-        assert result["model_cache_path"] == Path("/custom/cache")
-        assert result["temp_path"] == Path("/custom/tmp")
         assert result["language"] == "fr"
 
     def test_default_path_used_when_none_provided(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -194,13 +187,13 @@ class TestFlattenTomlSection:
 
         assert result["output_format"] == "json"
 
-    def test_flatten_paths_section(self) -> None:
-        """Paths section should flatten with Path objects."""
+    def test_flatten_unrecognized_paths_section_dropped(self) -> None:
+        """Unrecognized nested keys should be dropped."""
         data = {"paths": {"model_cache_path": "~/.cache"}}
         result = _flatten_toml_section(data)
 
-        assert isinstance(result["model_cache_path"], Path)
-        assert "~" not in str(result["model_cache_path"])
+        # 'paths.model_cache_path' is not in _FIELD_MAPPING, so it's dropped
+        assert "model_cache_path" not in result
 
     def test_flatten_language_section(self) -> None:
         """Language section should flatten correctly."""
@@ -224,12 +217,12 @@ class TestFlattenTomlSection:
         assert result["language"] == "en"
 
     def test_flatten_unknown_key(self) -> None:
-        """Unknown keys should be included in result."""
+        """Unknown nested keys should be dropped (not silently misattributed)."""
         data = {"unknown_section": {"unknown_key": "value"}}
         result = _flatten_toml_section(data)
 
-        # Unknown keys get added with their key name
-        assert "unknown_key" in result
+        # Unknown nested keys should NOT appear in result
+        assert "unknown_key" not in result
 
     def test_flatten_empty_section(self) -> None:
         """Empty section should return empty dict."""
@@ -330,10 +323,6 @@ backend_preference = "prefer_cloud"
 [output]
 output_format = "vtt"
 
-[paths]
-model_cache_path = "~/.cache/whisper"
-temp_path = "/tmp/audio_transcode"
-
 [language]
 language = "de"
 """
@@ -346,8 +335,6 @@ language = "de"
         assert result["model"] == "large"
         assert result["backend_preference"] == "prefer_cloud"
         assert result["output_format"] == "vtt"
-        assert isinstance(result["model_cache_path"], Path)
-        assert isinstance(result["temp_path"], Path)
         assert result["language"] == "de"
 
     def test_partial_config_load(self, tmp_path: Path) -> None:

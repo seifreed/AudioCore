@@ -165,14 +165,14 @@ class OpenAIBackend(TranscriptionBackend):
         """
         # Check if API key is provided in constructor
         if self._api_key is not None:
-            return self._api_key.startswith("sk-")
+            return bool(self._api_key)
 
         # Check environment variable
         import os
 
         env_key = os.environ.get("OPENAI_API_KEY")
         if env_key is not None:
-            return env_key.startswith("sk-")
+            return bool(env_key)
 
         return False
 

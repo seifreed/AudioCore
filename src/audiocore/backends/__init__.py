@@ -53,8 +53,7 @@ def register_builtin_backends() -> None:
     - OpenAI Whisper API backend (OPENAI)
     - Faster-Whisper local backend (FASTER_WHISPER)
 
-    Call this function to ensure backends are registered before using
-    BackendRegistry for backend discovery.
+    Safe to call multiple times; subsequent calls after the first are no-ops.
 
     Example:
         >>> from audiocore.backends import register_builtin_backends, BackendRegistry
@@ -65,5 +64,8 @@ def register_builtin_backends() -> None:
         >>> backend = registry.get_backend(BackendType.OPENAI)
     """
     registry = BackendRegistry()
+    # Skip registration if backends are already registered (idempotent)
+    if registry.list_backends():
+        return
     registry.register(BackendType.OPENAI, OpenAIBackend)
     registry.register(BackendType.FASTER_WHISPER, FasterWhisperBackend)

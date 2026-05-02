@@ -28,7 +28,7 @@ def _get_defaults() -> dict[str, Any]:
         >>> defaults = _get_defaults()
         >>> defaults["backend"]
         <BackendType.AUTO: 'auto'>
-        >>> defaults["model_size"]
+        >>> defaults["model"]
         <ModelSize.BASE: 'base'>
     """
     defaults: dict[str, Any] = {}

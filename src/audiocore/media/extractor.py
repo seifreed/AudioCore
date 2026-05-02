@@ -99,17 +99,19 @@ def _validate_output(output_path: Path) -> None:
 
 
 def _parse_progress(stderr_line: str, total_duration: float) -> float | None:
-    """Parse ffmpeg stderr for progress percentage.
+    """Parse ffmpeg stderr for progress fraction.
 
     Args:
         stderr_line: Line from ffmpeg stderr output.
         total_duration: Total duration of the media in seconds.
 
     Returns:
-        Progress percentage (0-100) if time found, None otherwise.
+        Progress fraction (0.0-1.0) if time found, None otherwise.
 
     Note:
         Ffmpeg outputs progress as "time=XX:XX:XX.XX" in stderr.
+        The return value is a fraction (0.0 to 1.0), matching the
+        Pipeline's progress_callback convention.
     """
     # Match time= format from ffmpeg stderr
     # Examples: time=00:00:01.23, time=1.23
@@ -120,7 +122,7 @@ def _parse_progress(stderr_line: str, total_duration: float) -> float | None:
         seconds = float(time_match.group(3))
         current_time = hours * 3600 + minutes * 60 + seconds
         if total_duration > 0:
-            return min(100.0, (current_time / total_duration) * 100)
+            return min(1.0, current_time / total_duration)
         return None
 
     # Also match decimal time format: time=123.45 (require decimal point to avoid matching HH:MM:SS)
@@ -128,7 +130,7 @@ def _parse_progress(stderr_line: str, total_duration: float) -> float | None:
     if time_match_decimal:
         current_time = float(time_match_decimal.group(1))
         if total_duration > 0:
-            return min(100.0, (current_time / total_duration) * 100)
+            return min(1.0, current_time / total_duration)
 
     return None
 
@@ -154,7 +156,7 @@ def extract_audio(
         duration: Optional duration limit in seconds.
         ffmpeg_path: Path to ffmpeg executable. Defaults to "ffmpeg".
         timeout: Timeout in seconds for ffmpeg command. Defaults to 3600 (1 hour).
-        progress_callback: Optional callback for progress updates (0-100 percentage).
+        progress_callback: Optional callback for progress updates (0.0-1.0 fraction).
 
     Returns:
         Path to the extracted audio file (WAV format, 16kHz, mono).

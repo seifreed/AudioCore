@@ -110,6 +110,7 @@ class SileroVAD:
             import os
             import sys
 
+            cache_fallback_error: Exception | None = None
             if sys.platform == "win32":
                 base = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
                 cache_dir = os.path.join(base, "torch", "hub", "snakers4_silero-vad_master")
@@ -123,6 +124,7 @@ class SileroVAD:
                         model.eval()
                         return model
                 except Exception as cache_error:
+                    cache_fallback_error = cache_error
                     logger.warning(
                         f"Failed to load Silero VAD from cache after timeout: {cache_error}"
                     )
@@ -135,7 +137,7 @@ class SileroVAD:
                     "Increase timeout by passing timeout_seconds parameter",
                     "Use whole-file transcription without VAD segmentation",
                 ],
-            ) from None
+            ) from cache_fallback_error
         except Exception as hub_error:
             # Try local cache fallback
             import os
@@ -260,6 +262,15 @@ class SileroVAD:
             data = data.astype(np.float32) / 2147483648.0
         elif data.dtype == np.uint8:
             data = (data.astype(np.float32) - 128) / 128.0
+        elif data.dtype == np.float32 or data.dtype == np.float64:
+            data = data.astype(np.float32)
+            # Validate float32 data is in [-1, 1] range
+            max_val = np.max(np.abs(data))
+            if max_val > 1.0:
+                logger.warning(
+                    f"Audio data exceeds [-1, 1] range (max={max_val:.2f}), normalizing"
+                )
+                data = data / max_val
         else:
             data = data.astype(np.float32)
 

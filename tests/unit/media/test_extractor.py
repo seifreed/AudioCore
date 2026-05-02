@@ -142,19 +142,19 @@ class TestParseProgress:
     """Tests for _parse_progress helper."""
 
     def test_parse_progress_time_format(self):
-        """Test parsing time=HH:MM:SS.XX format."""
+        """Test parsing time=HH:MM:SS.XX format returns 0-1 fraction."""
         line = "frame= 123 fps=30 time=00:01:23.45 bitrate=128k"
         # 1 minute 23.45 seconds = 83.45 seconds
-        # 83.45 / 100 * 100 = 83.45%
+        # 83.45 / 100 = 0.8345 (fraction)
         result = _parse_progress(line, 100.0)
         assert result is not None
-        assert abs(result - 83.45) < 0.1
+        assert abs(result - 0.8345) < 0.001
 
     def test_parse_progress_decimal_format(self):
-        """Test parsing time=XX.XX format."""
+        """Test parsing time=XX.XX format returns 0-1 fraction."""
         line = "time=45.67"
         result = _parse_progress(line, 100.0)
-        assert result == pytest.approx(45.67, rel=0.01)
+        assert result == pytest.approx(0.4567, rel=0.01)
 
     def test_parse_progress_no_time(self):
         """Test parsing line without time."""
@@ -162,11 +162,11 @@ class TestParseProgress:
         result = _parse_progress(line, 100.0)
         assert result is None
 
-    def test_parse_progress_caps_at_100(self):
-        """Test progress is capped at 100%."""
+    def test_parse_progress_caps_at_1(self):
+        """Test progress fraction is capped at 1.0."""
         line = "time=150.0"  # More than total duration
         result = _parse_progress(line, 100.0)
-        assert result == 100.0
+        assert result == 1.0
 
     def test_parse_progress_zero_duration(self):
         """Test handling zero duration."""
@@ -192,10 +192,10 @@ class TestParseProgress:
         assert result is None
 
     def test_parse_progress_hours_format(self):
-        """Test parsing time with hours."""
+        """Test parsing time with hours returns 0-1 fraction."""
         line = "time=01:30:00.00"  # 1.5 hours = 5400 seconds
         result = _parse_progress(line, 5400.0)
-        assert result == pytest.approx(100.0, rel=0.01)
+        assert result == pytest.approx(1.0, rel=0.01)
 
 
 class TestExtractAudio:
