@@ -108,7 +108,12 @@ def format_vtt(result: TranscriptionResult, options: TranscriptionOptions) -> st
         # Handle empty text gracefully, escape WebVTT-breaking sequences
         text = segment.text if segment.text else ""
         if text:
-            text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("-->", "- ->")
+            text = (
+                text.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("-->", "- ->")
+            )
 
         # VTT cue format:
         # - No sequential numbering (unlike SRT)

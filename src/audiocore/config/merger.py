@@ -152,9 +152,15 @@ def merge_configs(
             merged[key] = value
 
     # 3. Environment variables override TOML (skip None values)
+    # For sub-model dicts, merge at the sub-field level so that
+    # TOML sub-fields not overridden by env are preserved.
     for key, value in norm_env.items():
         if value is not None:
-            merged[key] = value
+            if isinstance(value, dict) and isinstance(merged.get(key), dict):
+                # Merge sub-fields: env overrides only the fields it set
+                merged[key] = {**merged[key], **value}
+            else:
+                merged[key] = value
 
     # 4. CLI arguments override everything (skip None values)
     for key, value in norm_cli.items():
@@ -225,7 +231,9 @@ def load_config(
     env_config_instance = AppConfig()
 
     # Extract field values that would come from env (non-default values)
-    # Compare against defaults to identify env overrides
+    # Compare against defaults to identify env overrides.
+    # For sub-models (like `openai`, `vad`), compare each sub-field individually
+    # to avoid false positives from object identity comparison.
     env_values: dict[str, Any] = {}
     for field_name in AppConfig.model_fields:
         default_value = defaults.get(field_name)
@@ -240,6 +248,23 @@ def load_config(
             current_secret = SecretStr(current_value.get_secret_value())
             if current_secret.get_secret_value() != default_secret.get_secret_value():
                 env_values[field_name] = current_value
+        elif hasattr(current_value, "model_fields") and hasattr(default_value, "model_fields"):
+            # Both are Pydantic models — compare sub-fields individually
+            sub_env: dict[str, Any] = {}
+            for sub_field_name in current_value.model_fields:
+                current_sub = getattr(current_value, sub_field_name)
+                default_sub = getattr(default_value, sub_field_name, None)
+                # For SecretStr sub-fields, compare secret values
+                if isinstance(current_sub, SecretStr):
+                    default_secret_sub = (
+                        default_sub if isinstance(default_sub, SecretStr) else SecretStr("")
+                    )
+                    if current_sub.get_secret_value() != default_secret_sub.get_secret_value():
+                        sub_env[sub_field_name] = current_sub
+                elif current_sub != default_sub:
+                    sub_env[sub_field_name] = current_sub
+            if sub_env:
+                env_values[field_name] = sub_env
         elif current_value != default_value:
             env_values[field_name] = current_value
 

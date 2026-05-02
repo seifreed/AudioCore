@@ -404,10 +404,12 @@ class TestErrorHandling:
     """Test error handling in VAD operations."""
 
     def test_detect_file_raises_invalid_input_for_missing_file(self) -> None:
-        """Test that missing file raises FileNotFoundError."""
+        """Test that missing file raises InvalidInputError."""
+        from audiocore.errors import InvalidInputError
+
         vad = SileroVAD()
 
-        with pytest.raises(FileNotFoundError) as exc_info:
+        with pytest.raises(InvalidInputError) as exc_info:
             vad.detect_file("/nonexistent/audio.wav")
 
         assert "Audio file not found" in str(exc_info.value)

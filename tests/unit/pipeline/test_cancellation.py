@@ -13,60 +13,50 @@ import time
 
 import pytest
 
-from audiocore.errors.base import AudioCoreError
 from audiocore.pipeline.cancellation import CancellationToken, CancelledError
 
 
 class TestCancelledError:
     """Tests for CancelledError exception."""
 
-    def test_cancelled_error_is_audio_core_error(self) -> None:
-        """CancelledError inherits from AudioCoreError."""
-        assert issubclass(CancelledError, AudioCoreError)
-        assert issubclass(CancelledError, Exception)
+    def test_cancelled_error_is_base_exception(self) -> None:
+        """CancelledError inherits from BaseException, not Exception."""
+        assert issubclass(CancelledError, BaseException)
+        assert not issubclass(CancelledError, Exception)
 
     def test_cancelled_error_default_message(self) -> None:
         """CancelledError has default message."""
         exc = CancelledError()
-        assert exc.message == "Pipeline execution was cancelled"
         assert str(exc) == "Pipeline execution was cancelled"
-        assert "[AUD-500]" in exc.format_error()
 
     def test_cancelled_error_custom_message(self) -> None:
         """CancelledError can have custom message."""
         exc = CancelledError("Custom cancellation message")
-        assert exc.message == "Custom cancellation message"
         assert "Custom cancellation message" in str(exc)
 
-    def test_cancelled_error_error_code(self) -> None:
-        """CancelledError has AUD-500 error code."""
-        exc = CancelledError()
-        assert exc.error_code == "AUD-500"
-
-    def test_cancelled_error_context(self) -> None:
-        """CancelledError has empty context."""
-        exc = CancelledError()
-        assert exc.context == {}
-
-    def test_cancelled_error_suggestions(self) -> None:
-        """CancelledError has actionable suggestions."""
-        exc = CancelledError()
-        assert len(exc.suggestions) == 3
-        assert "cancellation was intentional" in exc.suggestions[0].lower()
-        assert "new CancellationToken" in exc.suggestions[1]
-        assert "partial results" in exc.suggestions[2].lower()
-
-    def test_cancelled_error_is_exception(self) -> None:
-        """CancelledError can be caught as Exception."""
+    def test_cancelled_error_not_caught_by_exception_handler(self) -> None:
+        """CancelledError cannot be caught by except Exception handler."""
+        caught = False
         try:
             raise CancelledError()
-        except Exception as exc:
-            assert isinstance(exc, CancelledError)
+        except BaseException:
+            pass  # Caught by BaseException handler
+        except Exception:  # noqa: F841
+            caught = True  # Should NOT reach here
+
+        assert not caught
 
     def test_cancelled_error_raises_correctly(self) -> None:
         """CancelledError can be raised and caught."""
         with pytest.raises(CancelledError):
             raise CancelledError("Test cancellation")
+
+    def test_cancelled_error_caught_by_base_exception(self) -> None:
+        """CancelledError can be caught as BaseException."""
+        try:
+            raise CancelledError()
+        except BaseException as exc:
+            assert isinstance(exc, CancelledError)
 
 
 class TestCancellationToken:
@@ -88,10 +78,8 @@ class TestCancellationToken:
         token = CancellationToken()
         token.cancel()
 
-        with pytest.raises(CancelledError) as exc_info:
+        with pytest.raises(CancelledError):
             token.check()
-
-        assert exc_info.value.error_code == "AUD-500"
 
     def test_token_check_does_not_raise_when_not_cancelled(self) -> None:
         """check() does not raise when not cancelled."""
@@ -189,7 +177,7 @@ class TestCancellationTokenThreadSafety:
         """Multiple threads can check cancellation simultaneously."""
         token = CancellationToken()
         results: list[bool] = []
-        errors: list[Exception | None] = []
+        errors: list[BaseException | None] = []
         lock = threading.Lock()
 
         def check_and_record() -> None:

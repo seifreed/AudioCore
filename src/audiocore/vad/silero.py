@@ -138,6 +138,15 @@ class SileroVAD:
                     "Use whole-file transcription without VAD segmentation",
                 ],
             ) from cache_fallback_error
+        except ImportError as import_error:
+            raise VADError(
+                message="torch is not installed, which is required for Silero VAD",
+                context={"import_error": str(import_error)},
+                suggestions=[
+                    "Install torch: pip install torch",
+                    "Or use whole-file transcription without VAD segmentation",
+                ],
+            ) from import_error
         except Exception as hub_error:
             # Try local cache fallback
             import os
@@ -235,7 +244,16 @@ class SileroVAD:
         audio_path = Path(audio_path)
 
         if not audio_path.exists():
-            raise FileNotFoundError(f"Audio file not found: {audio_path}")
+            from audiocore.errors import InvalidInputError
+
+            raise InvalidInputError(
+                f"Audio file not found: {audio_path}",
+                context={"file_path": str(audio_path)},
+                suggestions=[
+                    "Verify the file path is correct",
+                    "Check the file exists",
+                ],
+            )
 
         # Read WAV file
         sample_rate, data = wavfile.read(str(audio_path))
@@ -267,9 +285,7 @@ class SileroVAD:
             # Validate float32 data is in [-1, 1] range
             max_val = np.max(np.abs(data))
             if max_val > 1.0:
-                logger.warning(
-                    f"Audio data exceeds [-1, 1] range (max={max_val:.2f}), normalizing"
-                )
+                logger.warning(f"Audio data exceeds [-1, 1] range (max={max_val:.2f}), normalizing")
                 data = data / max_val
         else:
             data = data.astype(np.float32)
@@ -427,7 +443,7 @@ class SileroVAD:
 
         Raises:
             VADError: If audio cannot be loaded or processed.
-            FileNotFoundError: If audio file does not exist.
+            InvalidInputError: If audio file does not exist.
         """
         # Load audio file
         audio_data, sample_rate = self._load_audio(audio_path)

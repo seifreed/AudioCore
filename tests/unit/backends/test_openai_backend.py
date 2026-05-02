@@ -243,8 +243,8 @@ class TestTranscribeSuccess:
         assert call_kwargs["language"] == "en"
 
     @patch("audiocore.backends.openai_backend.OpenAI")
-    def test_transcribe_temperature_mapping(self, mock_openai: MagicMock, tmp_path: Path) -> None:
-        """Verify model_size maps to correct temperature."""
+    def test_transcribe_no_model_size_to_temperature_mapping(self, mock_openai: MagicMock, tmp_path: Path) -> None:
+        """Verify model_size does NOT map to temperature (removed arbitrary mapping)."""
         mock_client = MagicMock()
         mock_openai.return_value = mock_client
 
@@ -258,24 +258,14 @@ class TestTranscribeSuccess:
 
         backend = OpenAIBackend(api_key="sk-test123")
 
-        # Test temperature mapping for each model size
-        temperature_map = {
-            "tiny": 0.0,
-            "base": 0.0,
-            "small": 0.2,
-            "medium": 0.4,
-            "large": 0.6,
-        }
+        from audiocore.types import ModelSize
 
-        for model_size_str, expected_temp in temperature_map.items():
-            from audiocore.types import ModelSize
+        options = TranscriptionOptions(model_size=ModelSize.BASE)
+        backend.transcribe(audio_file, options)
 
-            model_size = ModelSize(model_size_str)
-            options = TranscriptionOptions(model_size=model_size)
-            backend.transcribe(audio_file, options)
-
-            call_kwargs = mock_client.audio.transcriptions.create.call_args[1]
-            assert call_kwargs["temperature"] == expected_temp
+        call_kwargs = mock_client.audio.transcriptions.create.call_args[1]
+        # Temperature should NOT be set from model_size
+        assert "temperature" not in call_kwargs
 
     @patch("audiocore.backends.openai_backend.OpenAI")
     def test_transcribe_file_not_found_raises_invalid_input_error(

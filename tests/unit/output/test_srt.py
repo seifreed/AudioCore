@@ -81,8 +81,8 @@ class TestFormatSrtTimestamp:
         result = _format_srt_timestamp(7325.500)  # 2h 2m 5.500s
         assert result == "02:02:05,500"
 
-    def test_milliseconds_truncation(self) -> None:
-        """Milliseconds are truncated, not rounded."""
+    def test_milliseconds_precision(self) -> None:
+        """Milliseconds are rounded using round(), not truncated."""
         result = _format_srt_timestamp(5.123)
         assert result == "00:00:05,123"
 

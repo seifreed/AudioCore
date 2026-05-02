@@ -113,9 +113,15 @@ def _parse_progress(stderr_line: str, total_duration: float) -> float | None:
         The return value is a fraction (0.0 to 1.0), matching the
         Pipeline's progress_callback convention.
     """
-    # Match time= format from ffmpeg stderr
-    # Examples: time=00:00:01.23, time=1.23
-    time_match = re.search(r"time=(\d+):(\d+):(\d+\.?\d*)", stderr_line)
+    # Match time= format from ffmpeg progress lines.
+    # Use word boundary / start-of-line context to avoid matching
+    # time= inside filenames or metadata.
+    # FFmpeg progress lines typically look like: "frame=  120 fps= 30 q=28.0 time=00:00:05.00..."
+    # or: "size=    1234kB time=00:00:05.00 bitrate=  ..."
+    # Match HH:MM:SS.ms format first (most common)
+    time_match = re.search(
+        r"(?:^|\s|size=\s*\S+|frame=\s*\S+)time=(\d+):(\d+):(\d+\.?\d*)", stderr_line
+    )
     if time_match:
         hours = int(time_match.group(1))
         minutes = int(time_match.group(2))
@@ -126,7 +132,9 @@ def _parse_progress(stderr_line: str, total_duration: float) -> float | None:
         return None
 
     # Also match decimal time format: time=123.45 (require decimal point to avoid matching HH:MM:SS)
-    time_match_decimal = re.search(r"time=(\d+\.\d+)(?!\d*:)", stderr_line)
+    time_match_decimal = re.search(
+        r"(?:^|\s|size=\s*\S+|frame=\s*\S+)time=(\d+\.\d+)(?!\d*:)", stderr_line
+    )
     if time_match_decimal:
         current_time = float(time_match_decimal.group(1))
         if total_duration > 0:
@@ -245,6 +253,11 @@ def extract_audio(
                     if progress is not None:
                         progress_callback(progress)
             except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+                raise
+            except BaseException:
+                # Ensure process is cleaned up on any exception (e.g., KeyboardInterrupt)
                 process.kill()
                 process.wait()
                 raise

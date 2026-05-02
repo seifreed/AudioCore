@@ -321,17 +321,6 @@ class OpenAIBackend(TranscriptionBackend):
             if options.language:
                 api_params["language"] = options.language
 
-            # Map model_size to temperature (affects output variability)
-            # smaller models = lower temperature (more deterministic)
-            temperature_map: dict[str, float] = {
-                "tiny": 0.0,
-                "base": 0.0,
-                "small": 0.2,
-                "medium": 0.4,
-                "large": 0.6,
-            }
-            api_params["temperature"] = temperature_map.get(options.model_size.value, 0.0)
-
             # Make the API call
             response = client.audio.transcriptions.create(**api_params)  # type: ignore[arg-type]
 

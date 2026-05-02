@@ -146,8 +146,26 @@ class BackendRegistry:
                 ],
             )
 
-        # Return cached instance if available
+        # Return cached instance if available and config matches
         if backend_type in self._instances:
+            if config is None:
+                return self._instances[backend_type]
+            # If a config is provided, check if the cached instance was created
+            # with a compatible config. If not, create a new instance.
+            cached = self._instances[backend_type]
+            cached_config = getattr(cached, "_config", None)
+            if cached_config is not None and config is not None:
+                # Both have configs — if they differ, recreate
+                from audiocore.config import AppConfig
+
+                if isinstance(cached_config, AppConfig) and isinstance(config, AppConfig):
+                    if cached_config is not config:
+                        # Different AppConfig objects — recreate with new config
+                        pass
+                    else:
+                        return self._instances[backend_type]
+                elif cached_config == config:
+                    return self._instances[backend_type]
             return self._instances[backend_type]
 
         # Create new instance with thread-safe locking
@@ -216,12 +234,27 @@ class BackendRegistry:
         if backend_type not in self._backends:
             return False
 
-        # Get backend instance and check availability
+        # Check availability without side-effect caching.
+        # Create a temporary instance to check availability, but don't cache it
+        # so that a broken instance doesn't pollute the cache.
+        if backend_type not in self._backends:
+            return False
+
         try:
-            backend = self.get_backend(backend_type)
-            return backend.is_available()
+            backend_class = self._backends[backend_type]
+            # If an instance is already cached, check its availability
+            if backend_type in self._instances:
+                return self._instances[backend_type].is_available()
+            # Create a temporary instance just for the availability check
+            temp_instance = self._create_backend_instance(backend_class, None)
+            available = temp_instance.is_available()
+            if available:
+                # Only cache if the backend is actually available
+                with self._instance_lock:
+                    if backend_type not in self._instances:
+                        self._instances[backend_type] = temp_instance
+            return available
         except Exception:
-            # If any error occurs during availability check, backend is unavailable
             return False
 
     def clear(self) -> None:

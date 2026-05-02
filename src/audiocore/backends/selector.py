@@ -81,7 +81,7 @@ class BackendSelector:
         elif policy == SelectionPolicy.PREFER_CLOUD:
             return self._select_prefer_cloud()
         else:
-            return self._select_auto()
+            raise ValueError(f"Unknown selection policy: {policy}")
 
     def _select_prefer_local(self) -> BackendType:
         """Select backend with preference for local (faster-whisper)."""

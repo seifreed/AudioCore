@@ -89,6 +89,7 @@ class FasterWhisperBackend(TranscriptionBackend):
             config = config.faster_whisper
         self.config: FasterWhisperConfig = config or FasterWhisperConfig()
         self._model: Any | None = None
+        self._loaded_model_size: str | None = None
         self._model_manager = ModelManager()
 
         logger.debug(
@@ -193,10 +194,16 @@ class FasterWhisperBackend(TranscriptionBackend):
 
         return device_lower
 
-    def _load_model(self) -> Any:
+    def _load_model(self, model_size: str | None = None) -> Any:
         """Load model lazily.
 
         Downloads model if not cached, then loads into memory.
+        If a different model_size is requested than what is currently loaded,
+        the existing model is replaced.
+
+        Args:
+            model_size: Optional model size override. If provided and different
+                from the currently loaded model, a new model will be loaded.
 
         Returns:
             WhisperModel instance from faster-whisper.
@@ -205,6 +212,18 @@ class FasterWhisperBackend(TranscriptionBackend):
             BackendUnavailableError: If faster-whisper not installed.
             TranscriptionError: If model download or loading fails.
         """
+        # Determine effective model size
+        effective_model_size = model_size or self.config.model_size.value
+
+        # Check if we need to reload (different model requested)
+        if self._model is not None and self._loaded_model_size != effective_model_size:
+            logger.info(
+                "Switching model from %s to %s",
+                self._loaded_model_size,
+                effective_model_size,
+            )
+            self._model = None
+
         if self._model is None:
             # Validate faster-whisper is installed
             try:
@@ -224,30 +243,30 @@ class FasterWhisperBackend(TranscriptionBackend):
             compute_type = self.config.compute_type.value
 
             # Load model (WhisperModel handles download automatically via HuggingFace Hub)
-            model_name = self.config.model_size.value
-            logger.info("Loading faster-whisper model: %s on %s", model_name, device)
+            logger.info("Loading faster-whisper model: %s on %s", effective_model_size, device)
 
             try:
                 # WhisperModel downloads all necessary files automatically
                 self._model = WhisperModel(
-                    model_name,
+                    effective_model_size,
                     device=device,
                     compute_type=compute_type,
                 )
+                self._loaded_model_size = effective_model_size
 
-                logger.info("Model %s loaded successfully", model_name)
+                logger.info("Model %s loaded successfully", effective_model_size)
 
             except Exception as e:
                 raise TranscriptionError(
                     f"Failed to load faster-whisper model: {e}",
                     context={
-                        "model": model_name,
+                        "model": effective_model_size,
                         "device": device,
                         "compute_type": compute_type,
                     },
                     suggestions=[
                         "Check internet connection for model download",
-                        f"Try downloading model manually: huggingface-cli download guillaumekln/faster-whisper-{model_name}",
+                        f"Try downloading model manually: huggingface-cli download guillaumekln/faster-whisper-{effective_model_size}",
                         "Verify sufficient disk space",
                     ],
                 ) from e
@@ -288,9 +307,6 @@ class FasterWhisperBackend(TranscriptionBackend):
                 ],
             )
 
-        # Load model lazily
-        model = self._load_model()
-
         # Build transcription parameters from config
         # Language: options.language > config.language > None (auto-detect)
         params: dict[str, Any] = {}
@@ -299,6 +315,13 @@ class FasterWhisperBackend(TranscriptionBackend):
             params["language"] = options.language
         elif self.config.language:
             params["language"] = self.config.language
+
+        # Model size: options.model_size > config.model_size
+        # The model must be re-loaded if a different model size is requested
+        effective_model_size = options.model_size or self.config.model_size
+
+        # Load model lazily, passing effective model size for reload if needed
+        model = self._load_model(model_size=effective_model_size.value)
 
         # Decoding parameters from config
         params["beam_size"] = self.config.beam_size
