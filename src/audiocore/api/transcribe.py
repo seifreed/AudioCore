@@ -203,9 +203,11 @@ async def async_transcribe(
         )
         return result
     except asyncio.CancelledError:
-        # Clean up resources on cancellation
-        # Note: Pipeline temp files are cleaned up by context manager
-        # The CancelledError from asyncio will interrupt the thread
+        # Propagate cancellation to the running thread via CancellationToken
+        # run_in_executor does NOT cancel the underlying thread, so we signal
+        # the pipeline to stop via its cancellation token.
+        if cancellation_token is not None:
+            cancellation_token.cancel()
         raise
     except AudioCoreError:
         # Re-raise AudioCore exceptions directly

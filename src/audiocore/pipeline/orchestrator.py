@@ -213,8 +213,8 @@ class Pipeline:
                         total_duration=media_info.duration,
                     )
                 except VADError as e:
-                    # VAD failed - check if strict mode
-                    if options.strict_vad:
+                    # VAD failed - check if strict mode (from options or config)
+                    if options.strict_vad or vad_config.strict_vad:
                         # Re-raise in strict mode - user wants to know about VAD failures
                         raise
                     # Otherwise, fall back to whole-file transcription

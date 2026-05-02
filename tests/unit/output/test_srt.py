@@ -389,15 +389,11 @@ class TestSrtTimestampPrecision:
         """Regression: 59.9999 seconds should round correctly.
 
         round(0.9999 * 1000) = 1000, which carries to the next second.
-        The result should be 00:01:00,000, not 00:00:59,1000.
+        The result must be 00:01:00,000, not 00:00:59,1000 (invalid SRT).
         """
         result = _format_srt_timestamp(59.9999)
-        # 59.9999 -> hours=0, minutes=0, seconds=59 (int truncation)
-        # millis = round(0.9999 * 1000) = round(999.9) = 1000
-        # But the implementation uses int(seconds % 60) for secs and round for millis
-        # so we get 00:00:59,1000 which is invalid SRT - this tests that
-        # round() is used and the result is valid
-        assert ",1" in result or result == "00:01:00,000" or result == "00:00:59,1000"
+        # The total-milliseconds approach correctly carries 1000ms to 1 second
+        assert result == "00:01:00,000"
 
     def test_exact_millisecond_values(self) -> None:
         """Exact millisecond values should format without precision loss."""

@@ -211,12 +211,11 @@ class TestBackendRegistryIntegration:
         """Test that register_builtin_backends() registers all backends."""
         from audiocore.backends import register_builtin_backends
 
-        registry = BackendRegistry()
-        registry.clear()
+        BackendRegistry().clear()
 
         register_builtin_backends()
 
-        backends = registry.list_backends()
+        backends = BackendRegistry().list_backends()
         assert BackendType.OPENAI in backends
 
         # FasterWhisperBackend may not be installed

@@ -90,6 +90,14 @@ class TestFormatTimestamp:
         result = _format_timestamp(5.123)
         assert result == "00:00:05.123"
 
+    def test_timestamp_overflow_carries_to_second(self) -> None:
+        """Regression: 59.9999s must not produce .1000 (invalid timestamp).
+
+        The result must be 00:01:00.000, not 00:00:59.1000.
+        """
+        result = _format_timestamp(59.9999)
+        assert result == "00:01:00.000"
+
 
 class TestFormatText:
     """Tests for format_text function."""

@@ -35,10 +35,9 @@ class SileroVAD:
     cache if network is unavailable.
 
     Thread Safety:
-        The model instance is a singleton shared across threads. The model's state
-        is reset before each processing call to prevent state accumulation across
-        files. For concurrent usage, callers should create separate SileroVAD
-        instances or use external synchronization.
+        The model instance is a singleton shared across threads. Inference is
+        serialized via _inference_lock to prevent concurrent model.reset_states()
+        and model() calls from corrupting results.
 
     Attributes:
         _model: Class-level singleton model instance (None until loaded).
@@ -54,6 +53,7 @@ class SileroVAD:
 
     _model: nn.Module | None = None
     _lock: threading.Lock = threading.Lock()
+    _inference_lock: threading.Lock = threading.Lock()
     _sample_rate: int = 16000
 
     def __init__(self, config: VADConfig | None = None) -> None:
@@ -80,39 +80,30 @@ class SileroVAD:
         Raises:
             VADError: If model cannot be loaded from torch.hub or local cache.
         """
-        import signal
+        import concurrent.futures
 
-        def timeout_handler(signum, frame):
-            raise TimeoutError(f"Model download timed out after {timeout_seconds} seconds")
+        def _download_from_hub() -> nn.Module:
+            model, _ = torch.hub.load(
+                repo_or_dir="snakers4/silero-vad",
+                model="silero_vad",
+                force_reload=False,
+                onnx=False,
+                trust_repo=True,
+            )
+            model.eval()
+            return model
 
-        # Try torch hub first
+        # Try torch hub first with thread-safe timeout
         try:
-            # Set timeout for model download (Unix only - signal doesn't work on Windows threads)
-            old_handler = None
-            timeout_enabled = False
-            try:
-                if hasattr(signal, "SIGALRM"):
-                    old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-                    signal.alarm(timeout_seconds)
-                    timeout_enabled = True
-            except (ValueError, OSError):
-                # Signal only works in main thread on Unix, ignore on Windows/threads
-                pass
-
-            try:
-                model, _ = torch.hub.load(
-                    repo_or_dir="snakers4/silero-vad",
-                    model="silero_vad",
-                    force_reload=False,
-                    onnx=False,
-                    trust_repo=True,
-                )
-                model.eval()
-                return model
-            finally:
-                if timeout_enabled and old_handler is not None:
-                    signal.alarm(0)
-                    signal.signal(signal.SIGALRM, old_handler)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(_download_from_hub)
+                try:
+                    return future.result(timeout=timeout_seconds)
+                except concurrent.futures.TimeoutError:
+                    pool.shutdown(wait=False)
+                    raise TimeoutError(
+                        f"Model download timed out after {timeout_seconds} seconds"
+                    ) from None
 
         except TimeoutError:
             # Try local cache fallback after timeout
@@ -323,88 +314,89 @@ class SileroVAD:
             config = VADConfig()
 
         # Get thread-local model instance with isolated state
-        model = self._prepare_model()
+        with self._inference_lock:
+            model = self._prepare_model()
 
-        # Use window_size_samples from config (default 512, optimal for Silero)
-        chunk_size = config.window_size_samples
-        segments: list[tuple[float, float, float]] = []
+            # Use window_size_samples from config (default 512, optimal for Silero)
+            chunk_size = config.window_size_samples
+            segments: list[tuple[float, float, float]] = []
 
-        # Track speech state
-        in_speech = False
-        speech_start_time: float | None = None
-        chunk_confidences: list[float] = []
-        silence_start_time: float | None = None
+            # Track speech state
+            in_speech = False
+            speech_start_time: float | None = None
+            chunk_confidences: list[float] = []
+            silence_start_time: float | None = None
 
-        # Convert min_silence_duration from ms to seconds
-        min_silence_duration_s = config.min_silence_duration_ms / 1000.0
+            # Convert min_silence_duration from ms to seconds
+            min_silence_duration_s = config.min_silence_duration_ms / 1000.0
 
-        # Process each chunk
-        for i in range(0, len(audio_data) - chunk_size + 1, chunk_size):
-            chunk = audio_data[i : i + chunk_size]
+            # Process each chunk
+            for i in range(0, len(audio_data) - chunk_size + 1, chunk_size):
+                chunk = audio_data[i : i + chunk_size]
 
-            # Convert to torch tensor
-            chunk_tensor = torch.from_numpy(chunk)
+                # Convert to torch tensor
+                chunk_tensor = torch.from_numpy(chunk)
 
-            # Get speech probability from Silero
-            with torch.no_grad():
-                speech_prob = model(chunk_tensor, sample_rate).item()
+                # Get speech probability from Silero
+                with torch.no_grad():
+                    speech_prob = model(chunk_tensor, sample_rate).item()
 
-            # Determine if we're in speech based on threshold
-            current_time = i / sample_rate
+                # Determine if we're in speech based on threshold
+                current_time = i / sample_rate
 
-            # Use speech_threshold for entering speech,
-            # silence_threshold for exiting speech (hysteresis)
-            if in_speech:
-                # Already in speech: exit only when prob drops below silence_threshold
-                is_speech = speech_prob >= config.silence_threshold
-            else:
-                # Not in speech: enter only when prob exceeds speech_threshold
-                is_speech = speech_prob > config.speech_threshold
+                # Use speech_threshold for entering speech,
+                # silence_threshold for exiting speech (hysteresis)
+                if in_speech:
+                    # Already in speech: exit only when prob drops below silence_threshold
+                    is_speech = speech_prob >= config.silence_threshold
+                else:
+                    # Not in speech: enter only when prob exceeds speech_threshold
+                    is_speech = speech_prob > config.speech_threshold
 
-            # Track state transitions
-            if is_speech and not in_speech:
-                # Entering speech
-                in_speech = True
-                speech_start_time = current_time
-                chunk_confidences = [speech_prob]
-                silence_start_time = None
-            elif is_speech and in_speech:
-                # Continuing speech
-                chunk_confidences.append(speech_prob)
-                silence_start_time = None
-            elif not is_speech and in_speech:
-                # Potential speech exit - check minimum silence duration
-                if silence_start_time is None:
-                    silence_start_time = current_time
-
-                silence_duration = current_time - silence_start_time
-                if silence_duration >= min_silence_duration_s:
-                    # Confirmed exit: silence is long enough
-                    speech_duration = silence_start_time - (speech_start_time or 0.0)
-
-                    # Only record if above minimum duration
-                    if speech_duration >= config.min_segment_duration:
-                        mean_confidence = float(np.mean(chunk_confidences))
-                        segments.append(
-                            (speech_start_time or 0.0, silence_start_time, mean_confidence)
-                        )
-
-                    # Reset speech tracking
-                    in_speech = False
-                    speech_start_time = None
-                    chunk_confidences = []
+                # Track state transitions
+                if is_speech and not in_speech:
+                    # Entering speech
+                    in_speech = True
+                    speech_start_time = current_time
+                    chunk_confidences = [speech_prob]
                     silence_start_time = None
+                elif is_speech and in_speech:
+                    # Continuing speech
+                    chunk_confidences.append(speech_prob)
+                    silence_start_time = None
+                elif not is_speech and in_speech:
+                    # Potential speech exit - check minimum silence duration
+                    if silence_start_time is None:
+                        silence_start_time = current_time
 
-        # Handle case where audio ends during speech
-        if in_speech and speech_start_time is not None:
-            end_time = len(audio_data) / sample_rate
-            speech_duration = end_time - speech_start_time
+                    silence_duration = current_time - silence_start_time
+                    if silence_duration >= min_silence_duration_s:
+                        # Confirmed exit: silence is long enough
+                        speech_duration = silence_start_time - (speech_start_time or 0.0)
 
-            if speech_duration >= config.min_segment_duration:
-                mean_confidence = float(np.mean(chunk_confidences))
-                segments.append((speech_start_time, end_time, mean_confidence))
+                        # Only record if above minimum duration
+                        if speech_duration >= config.min_segment_duration:
+                            mean_confidence = float(np.mean(chunk_confidences))
+                            segments.append(
+                                (speech_start_time or 0.0, silence_start_time, mean_confidence)
+                            )
 
-        return segments
+                        # Reset speech tracking
+                        in_speech = False
+                        speech_start_time = None
+                        chunk_confidences = []
+                        silence_start_time = None
+
+            # Handle case where audio ends during speech
+            if in_speech and speech_start_time is not None:
+                end_time = len(audio_data) / sample_rate
+                speech_duration = end_time - speech_start_time
+
+                if speech_duration >= config.min_segment_duration:
+                    mean_confidence = float(np.mean(chunk_confidences))
+                    segments.append((speech_start_time, end_time, mean_confidence))
+
+            return segments
 
     def detect_file(
         self,

@@ -25,7 +25,7 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from audiocore.backends.base import TranscriptionBackend
 from audiocore.backends.faster_whisper import (
@@ -35,6 +35,9 @@ from audiocore.config.faster_whisper_config import FasterWhisperConfig
 from audiocore.errors import BackendUnavailableError, TranscriptionError
 from audiocore.models import Segment, TranscriptionOptions, TranscriptionResult
 from audiocore.types import BackendType
+
+if TYPE_CHECKING:
+    from audiocore.config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +70,7 @@ class FasterWhisperBackend(TranscriptionBackend):
         - All faster-whisper exceptions are mapped to AudioCore exceptions
     """
 
-    def __init__(self, config: FasterWhisperConfig | None = None) -> None:
+    def __init__(self, config: FasterWhisperConfig | AppConfig | None = None) -> None:
         """Initialize Faster-Whisper backend.
 
         Args:
@@ -84,7 +87,7 @@ class FasterWhisperBackend(TranscriptionBackend):
 
         if isinstance(config, AppConfig):
             config = config.faster_whisper
-        self.config = config or FasterWhisperConfig()
+        self.config: FasterWhisperConfig = config or FasterWhisperConfig()
         self._model: Any | None = None
         self._model_manager = ModelManager()
 
@@ -374,6 +377,9 @@ class FasterWhisperBackend(TranscriptionBackend):
             )
 
             return result
+
+        except BackendUnavailableError:
+            raise
 
         except Exception as e:
             raise TranscriptionError(

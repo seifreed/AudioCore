@@ -97,3 +97,21 @@ class TestModelSize:
         assert "large" in values
         assert "large-v3" in values
         assert "large-v3-turbo" in values
+
+    def test_parse_hyphenated_model_sizes(self) -> None:
+        """Test parse() works for hyphenated model sizes like large-v3.
+
+        Regression test: ModelSize.parse("large-v3") previously failed because
+        the normalization replaced hyphens with underscores, but the enum
+        values use hyphens (large-v3, large-v3-turbo).
+        """
+        assert ModelSize.parse("large-v3") == ModelSize.LARGE_V3
+        assert ModelSize.parse("large-v3-turbo") == ModelSize.LARGE_V3_TURBO
+
+    def test_parse_underscore_model_sizes(self) -> None:
+        """Test parse() accepts underscores as aliases for hyphens.
+
+        Users may type large_v3 instead of large-v3; both should work.
+        """
+        assert ModelSize.parse("large_v3") == ModelSize.LARGE_V3
+        assert ModelSize.parse("large_v3_turbo") == ModelSize.LARGE_V3_TURBO

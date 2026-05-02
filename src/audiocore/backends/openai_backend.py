@@ -57,6 +57,7 @@ from audiocore.types import BackendType
 from .base import TranscriptionBackend
 
 if TYPE_CHECKING:
+    from audiocore.config import AppConfig
     from audiocore.config.openai_config import OpenAIConfig
 
 logger = logging.getLogger(__name__)
@@ -96,7 +97,7 @@ class OpenAIBackend(TranscriptionBackend):
     def __init__(
         self,
         api_key: str | None = None,
-        config: OpenAIConfig | None = None,
+        config: OpenAIConfig | AppConfig | None = None,
     ) -> None:
         """Initialize OpenAI backend.
 

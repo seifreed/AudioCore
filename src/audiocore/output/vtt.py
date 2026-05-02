@@ -52,10 +52,13 @@ def _format_vtt_timestamp(seconds: float) -> str:
         >>> _format_vtt_timestamp(0.0)
         '00:00:00.000'
     """
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
-    millis = round((seconds % 1) * 1000)
+    total_ms = round(seconds * 1000)
+    hours = total_ms // 3_600_000
+    total_ms %= 3_600_000
+    minutes = total_ms // 60_000
+    total_ms %= 60_000
+    secs = total_ms // 1_000
+    millis = total_ms % 1_000
 
     return f"{hours:02d}:{minutes:02d}:{secs:02d}.{millis:03d}"
 

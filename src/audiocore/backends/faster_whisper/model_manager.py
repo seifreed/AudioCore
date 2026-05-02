@@ -438,6 +438,7 @@ class ModelManager:
         # Clear singleton instance
         with self._lock:
             self._models.clear()
+            ModelManager._instance = None
 
 
 # Convenience function for getting model info

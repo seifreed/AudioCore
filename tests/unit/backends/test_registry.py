@@ -664,10 +664,10 @@ class TestIntegration:
 
     def test_registry_persists_across_singleton_instances(self) -> None:
         """Verify registry state persists across singleton instances."""
-        registry1 = BackendRegistry()
-        registry1.clear()
+        BackendRegistry().clear()
 
-        # Register backend in first instance
+        # Register backend in fresh singleton
+        registry1 = BackendRegistry()
         registry1.register(BackendType.OPENAI, MockTranscriptionBackend)
 
         # Get backend from first instance
@@ -691,24 +691,22 @@ class TestRegisterBuiltinBackends:
         """Test that register_builtin_backends() registers OpenAI backend."""
         from audiocore.backends import register_builtin_backends
 
-        registry = BackendRegistry()
-        registry.clear()
+        BackendRegistry().clear()
 
         register_builtin_backends()
 
-        backends = registry.list_backends()
+        backends = BackendRegistry().list_backends()
         assert BackendType.OPENAI in backends
 
     def test_register_builtin_backends_registers_faster_whisper_if_available(self) -> None:
         """Test that register_builtin_backends() registers FasterWhisper backend if available."""
         from audiocore.backends import FasterWhisperBackend, register_builtin_backends
 
-        registry = BackendRegistry()
-        registry.clear()
+        BackendRegistry().clear()
 
         register_builtin_backends()
 
-        backends = registry.list_backends()
+        backends = BackendRegistry().list_backends()
 
         # FasterWhisperBackend may not be installed
         # This should be available after Phase 7
@@ -719,16 +717,38 @@ class TestRegisterBuiltinBackends:
         """Test that register_builtin_backends() can be called multiple times safely."""
         from audiocore.backends import register_builtin_backends
 
-        registry = BackendRegistry()
-        registry.clear()
+        BackendRegistry().clear()
 
         # Call twice
         register_builtin_backends()
-        backends1 = registry.list_backends()
+        backends1 = BackendRegistry().list_backends()
 
         register_builtin_backends()
-        backends2 = registry.list_backends()
+        backends2 = BackendRegistry().list_backends()
 
         # Should have same backends registered
         assert backends1 == backends2
         assert BackendType.OPENAI in backends1
+
+
+class TestRegistrySingletonReset:
+    """Regression tests for BackendRegistry.clear() resetting singleton."""
+
+    def test_clear_allows_fresh_instance(self) -> None:
+        """After clear(), creating a new BackendRegistry gives a fresh instance.
+
+        Previously, clear() only cleared _backends and _instances but left
+        _instance intact, so new BackendRegistry() returned the same (empty)
+        object. Now clear() resets _instance to None, allowing proper
+        test isolation.
+        """
+        registry1 = BackendRegistry()
+        registry1.register(BackendType.OPENAI, MockTranscriptionBackend)
+        original_id = id(registry1)
+
+        registry1.clear()
+
+        # New instance should be different object
+        registry2 = BackendRegistry()
+        assert id(registry2) != original_id
+        assert registry2.list_backends() == []

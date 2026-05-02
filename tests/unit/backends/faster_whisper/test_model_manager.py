@@ -141,6 +141,21 @@ class TestModelManagerSingleton:
         manager.clear()
         assert len(manager._models) == 0
 
+    def test_clear_resets_singleton(self) -> None:
+        """Regression: clear() must reset singleton so a fresh instance can be
+        created with a different cache_dir.
+
+        Previously, clear() only cleared _models but left _instance intact,
+        preventing tests from creating ModelManager(custom_cache_dir).
+        """
+        manager = ModelManager()
+        original_id = id(manager)
+        manager.clear()
+
+        # After clear(), a new ModelManager() should be a fresh instance
+        new_manager = ModelManager()
+        assert id(new_manager) != original_id
+
 
 class TestModelManagerDownloadModel:
     """Test ModelManager.download_model."""

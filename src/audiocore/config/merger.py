@@ -132,10 +132,10 @@ def merge_configs(
         return result
 
     # Normalize keys for all sources
-    defaults = _normalize_keys(defaults)
-    toml = _normalize_keys(toml)
-    env = _normalize_keys(env)
-    cli = _normalize_keys(cli)
+    norm_defaults = _normalize_keys(defaults)
+    norm_toml = _normalize_keys(toml)
+    norm_env = _normalize_keys(env)
+    norm_cli = _normalize_keys(cli)
 
     merged: dict[str, Any] = {}
 
@@ -144,20 +144,20 @@ def merge_configs(
 
     # 1. Start with defaults (lowest priority)
     # Note: defaults can have None values (for optional fields), include them
-    merged.update(defaults)
+    merged.update(norm_defaults)
 
     # 2. TOML config overrides defaults (skip None values)
-    for key, value in toml.items():
+    for key, value in norm_toml.items():
         if value is not None:
             merged[key] = value
 
     # 3. Environment variables override TOML (skip None values)
-    for key, value in env.items():
+    for key, value in norm_env.items():
         if value is not None:
             merged[key] = value
 
     # 4. CLI arguments override everything (skip None values)
-    for key, value in cli.items():
+    for key, value in norm_cli.items():
         if value is not None:
             merged[key] = value
 

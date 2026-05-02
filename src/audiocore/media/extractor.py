@@ -123,8 +123,8 @@ def _parse_progress(stderr_line: str, total_duration: float) -> float | None:
             return min(100.0, (current_time / total_duration) * 100)
         return None
 
-    # Also match decimal time format: time=123.45
-    time_match_decimal = re.search(r"time=(\d+\.?\d*)", stderr_line)
+    # Also match decimal time format: time=123.45 (require decimal point to avoid matching HH:MM:SS)
+    time_match_decimal = re.search(r"time=(\d+\.\d+)(?!\d*:)", stderr_line)
     if time_match_decimal:
         current_time = float(time_match_decimal.group(1))
         if total_duration > 0:

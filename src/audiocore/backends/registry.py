@@ -239,3 +239,4 @@ class BackendRegistry:
         with self._instance_lock:
             self._backends.clear()
             self._instances.clear()
+            BackendRegistry._instance = None

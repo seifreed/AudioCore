@@ -92,6 +92,14 @@ class TestFormatVttTimestamp:
         assert "." in result
         assert "," not in result.split(":")[-1]  # No comma in last part (SS.mmm)
 
+    def test_timestamp_overflow_carries_to_second(self) -> None:
+        """Regression: 59.9999s must not produce .1000 (invalid VTT).
+
+        The result must be 00:01:00.000, not 00:00:59.1000.
+        """
+        result = _format_vtt_timestamp(59.9999)
+        assert result == "00:01:00.000"
+
 
 class TestFormatVtt:
     """Tests for format_vtt function."""

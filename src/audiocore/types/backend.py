@@ -75,9 +75,10 @@ class ModelSize(StrEnum):
         Raises:
             ValueError: If value is not a valid model size
         """
-        normalized = value.lower().replace("-", "_").replace(" ", "_")
-        # Handle aliases: "large" is a distinct model size, not an alias
-        # Users who want large-v3 should specify "large-v3" explicitly
+        normalized = value.lower().replace(" ", "_")
+        # Map underscores to hyphens so "large_v3" resolves to "large-v3"
+        if "_" in normalized:
+            normalized = normalized.replace("_", "-")
         try:
             return cls(normalized)
         except ValueError:

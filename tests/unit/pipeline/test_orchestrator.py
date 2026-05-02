@@ -1422,3 +1422,30 @@ class TestOutputFormatting:
                                 assert result.formatted_output is not None
                                 # VTT format starts with WEBVTT header
                                 assert "WEBVTT" in result.formatted_output
+
+    def test_vad_config_strict_vad_respected(
+        self, mock_media_info, mock_transcription_result
+    ):
+        """Regression: Pipeline respects VADConfig.strict_vad in addition to
+        TranscriptionOptions.strict_vad.
+
+        Previously, only options.strict_vad was checked, making
+        VADConfig.strict_vad (from audiocore.toml) dead code.
+        """
+        from audiocore.errors import VADError
+        from audiocore.vad.config import VADConfig
+
+        vad_config = VADConfig(strict_vad=True)
+        config = AppConfig(vad=vad_config)
+        options = TranscriptionOptions(strict_vad=False)
+        pipeline = Pipeline(config=config)
+
+        with patch("audiocore.pipeline.orchestrator.validate_format_or_raise"):
+            with patch("audiocore.pipeline.orchestrator.probe", return_value=mock_media_info):
+                with patch("audiocore.pipeline.orchestrator.extract_audio"):
+                    with patch(
+                        "audiocore.pipeline.orchestrator.detect_speech",
+                        side_effect=VADError("VAD failed"),
+                    ):
+                        with pytest.raises(VADError):
+                            pipeline.transcribe(Path("audio.mp3"), options=options)
