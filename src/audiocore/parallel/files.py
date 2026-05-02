@@ -167,7 +167,15 @@ async def transcribe_files_concurrent(
         task_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         for i, task_result in enumerate(task_results):
-            if isinstance(task_result, Exception):
+            if isinstance(task_result, BaseException) and not isinstance(task_result, Exception):
+                # CancelledError and other BaseExceptions (not Exception)
+                results[i] = FileResult(
+                    path=files[i],
+                    success=False,
+                    result=None,
+                    error=f"Cancelled: {task_result}",
+                )
+            elif isinstance(task_result, Exception):
                 results[i] = FileResult(
                     path=files[i],
                     success=False,

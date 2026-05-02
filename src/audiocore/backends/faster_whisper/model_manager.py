@@ -114,10 +114,6 @@ class ModelManager:
 
         Returns:
             ModelManager singleton instance
-
-        Raises:
-            ValueError: If cache_dir is provided but a singleton with a
-                different cache_dir already exists.
         """
         if cls._instance is None:
             with cls._lock:
@@ -127,9 +123,11 @@ class ModelManager:
                     instance._cache_dir = cache_dir or DEFAULT_CACHE_DIR
                     cls._instance = instance
         elif cache_dir is not None and cache_dir != cls._instance._cache_dir:
-            raise ValueError(
-                f"ModelManager singleton already initialized with cache_dir={cls._instance._cache_dir}. "
-                f"Cannot change to cache_dir={cache_dir}. Call ModelManager.clear() first to reset."
+            logger.warning(
+                "ModelManager singleton already initialized with cache_dir=%s. "
+                "Ignoring cache_dir=%s. Call ModelManager.clear() first to reset.",
+                cls._instance._cache_dir,
+                cache_dir,
             )
         return cls._instance
 

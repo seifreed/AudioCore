@@ -128,7 +128,7 @@ def _parse_progress(stderr_line: str, total_duration: float) -> float | None:
         seconds = float(time_match.group(3))
         current_time = hours * 3600 + minutes * 60 + seconds
         if total_duration > 0:
-            return min(1.0, current_time / total_duration)
+            return max(0.0, min(1.0, current_time / total_duration))
         return None
 
     # Also match decimal time format: time=123.45 (require decimal point to avoid matching HH:MM:SS)
@@ -138,7 +138,7 @@ def _parse_progress(stderr_line: str, total_duration: float) -> float | None:
     if time_match_decimal:
         current_time = float(time_match_decimal.group(1))
         if total_duration > 0:
-            return min(1.0, current_time / total_duration)
+            return max(0.0, min(1.0, current_time / total_duration))
 
     return None
 
@@ -205,7 +205,7 @@ def extract_audio(
             # Derive ffprobe path from ffmpeg path by replacing only the filename
             ffmpeg_path_obj = Path(ffmpeg_path)
             ffprobe_path = str(
-                ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace("ffmpeg", "ffprobe")
+                ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace("ffmpeg", "ffprobe", 1)
             )
             media_info = probe(input_path, ffprobe_path=ffprobe_path)
             total_duration = media_info.duration

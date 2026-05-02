@@ -23,6 +23,7 @@ Example:
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -90,6 +91,7 @@ class FasterWhisperBackend(TranscriptionBackend):
         self.config: FasterWhisperConfig = config or FasterWhisperConfig()
         self._model: Any | None = None
         self._loaded_model_size: str | None = None
+        self._model_lock = threading.Lock()
         self._model_manager = ModelManager()
 
         logger.debug(
@@ -215,63 +217,64 @@ class FasterWhisperBackend(TranscriptionBackend):
         # Determine effective model size
         effective_model_size = model_size or self.config.model_size.value
 
-        # Check if we need to reload (different model requested)
-        if self._model is not None and self._loaded_model_size != effective_model_size:
-            logger.info(
-                "Switching model from %s to %s",
-                self._loaded_model_size,
-                effective_model_size,
-            )
-            self._model = None
-
-        if self._model is None:
-            # Validate faster-whisper is installed
-            try:
-                from faster_whisper import WhisperModel
-            except ImportError:
-                raise BackendUnavailableError(
-                    "faster-whisper package not installed",
-                    context={"backend": "faster_whisper"},
-                    suggestions=[
-                        "Install faster-whisper: pip install faster-whisper",
-                        "Or install audiocore with extras: pip install audiocore[faster-whisper]",
-                    ],
-                ) from None
-
-            # Get device and compute type
-            device = self._get_device()
-            compute_type = self.config.compute_type.value
-
-            # Load model (WhisperModel handles download automatically via HuggingFace Hub)
-            logger.info("Loading faster-whisper model: %s on %s", effective_model_size, device)
-
-            try:
-                # WhisperModel downloads all necessary files automatically
-                self._model = WhisperModel(
+        with self._model_lock:
+            # Check if we need to reload (different model requested)
+            if self._model is not None and self._loaded_model_size != effective_model_size:
+                logger.info(
+                    "Switching model from %s to %s",
+                    self._loaded_model_size,
                     effective_model_size,
-                    device=device,
-                    compute_type=compute_type,
                 )
-                self._loaded_model_size = effective_model_size
+                self._model = None
 
-                logger.info("Model %s loaded successfully", effective_model_size)
+            if self._model is None:
+                # Validate faster-whisper is installed
+                try:
+                    from faster_whisper import WhisperModel
+                except ImportError:
+                    raise BackendUnavailableError(
+                        "faster-whisper package not installed",
+                        context={"backend": "faster_whisper"},
+                        suggestions=[
+                            "Install faster-whisper: pip install faster-whisper",
+                            "Or install audiocore with extras: pip install audiocore[faster-whisper]",
+                        ],
+                    ) from None
 
-            except Exception as e:
-                raise TranscriptionError(
-                    f"Failed to load faster-whisper model: {e}",
-                    context={
-                        "model": effective_model_size,
-                        "device": device,
-                        "compute_type": compute_type,
-                    },
-                    suggestions=[
-                        "Check internet connection for model download",
-                        f"Try downloading model manually: huggingface-cli download guillaumekln/faster-whisper-{effective_model_size}",
-                        "Verify sufficient disk space",
-                    ],
-                ) from e
+                # Get device and compute type
+                device = self._get_device()
+                compute_type = self.config.compute_type.value
 
-        return self._model
+                # Load model (WhisperModel handles download automatically via HuggingFace Hub)
+                logger.info("Loading faster-whisper model: %s on %s", effective_model_size, device)
+
+                try:
+                    # WhisperModel downloads all necessary files automatically
+                    self._model = WhisperModel(
+                        effective_model_size,
+                        device=device,
+                        compute_type=compute_type,
+                    )
+                    self._loaded_model_size = effective_model_size
+
+                    logger.info("Model %s loaded successfully", effective_model_size)
+
+                except Exception as e:
+                    raise TranscriptionError(
+                        f"Failed to load faster-whisper model: {e}",
+                        context={
+                            "model": effective_model_size,
+                            "device": device,
+                            "compute_type": compute_type,
+                        },
+                        suggestions=[
+                            "Check internet connection for model download",
+                            f"Try downloading model manually: huggingface-cli download guillaumekln/faster-whisper-{effective_model_size}",
+                            "Verify sufficient disk space",
+                        ],
+                    ) from e
+
+            return self._model
 
     def transcribe(
         self, audio_path: Path | str, options: TranscriptionOptions

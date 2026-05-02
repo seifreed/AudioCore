@@ -10,6 +10,7 @@ from typing import Any
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from audiocore.config.faster_whisper_config import FasterWhisperConfig
 from audiocore.config.openai_config import OpenAIConfig
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
 from audiocore.vad.config import VADConfig
@@ -86,6 +87,10 @@ class AppConfig(BaseSettings):
     openai: OpenAIConfig = Field(
         default_factory=lambda: OpenAIConfig(),
         description="OpenAI Whisper API configuration",
+    )
+    faster_whisper: FasterWhisperConfig = Field(
+        default_factory=FasterWhisperConfig,
+        description="Faster-Whisper local backend configuration",
     )
 
     @field_validator("backend", mode="before")
@@ -180,5 +185,7 @@ class AppConfig(BaseSettings):
             Self, after reconciliation.
         """
         if self.openai_api_key is not None and self.openai.api_key is None:
-            self.openai.api_key = self.openai_api_key
+            key_value = self.openai_api_key.get_secret_value()
+            if key_value:  # Only propagate non-empty keys
+                self.openai.api_key = self.openai_api_key
         return self

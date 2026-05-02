@@ -26,6 +26,7 @@ Example:
 from __future__ import annotations
 
 import json
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -47,7 +48,7 @@ def _serialize_value(value: Any) -> Any:
         JSON-serializable equivalent of the value.
     """
     # Handle enum types (StrEnum and regular Enum)
-    if hasattr(value, "value"):
+    if isinstance(value, Enum):
         return value.value
 
     # Handle Path objects

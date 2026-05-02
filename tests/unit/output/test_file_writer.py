@@ -123,8 +123,8 @@ class TestWriteOutput:
         """create_dirs=False fails if parent directory doesn't exist."""
         output_path = tmp_path / "nonexistent" / "output.txt"
 
-        # Atomic write should fail with OSError when parent doesn't exist
-        with pytest.raises(OSError):
+        # Should raise OutputFileExistsError with actionable message
+        with pytest.raises(OutputFileExistsError, match="Parent directory does not exist"):
             write_output("Content", output_path, OutputFileConfig(create_dirs=False))
 
     def test_write_empty_content(self, tmp_path: Path) -> None:

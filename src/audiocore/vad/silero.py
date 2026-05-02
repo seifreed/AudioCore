@@ -95,15 +95,18 @@ class SileroVAD:
 
         # Try torch hub first with thread-safe timeout
         try:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(_download_from_hub)
-                try:
-                    return future.result(timeout=timeout_seconds)
-                except concurrent.futures.TimeoutError:
-                    pool.shutdown(wait=False)
-                    raise TimeoutError(
-                        f"Model download timed out after {timeout_seconds} seconds"
-                    ) from None
+            executor = concurrent.futures.ThreadPoolExecutor(
+                max_workers=1, thread_name_prefix="silero-download"
+            )
+            future = executor.submit(_download_from_hub)
+            try:
+                return future.result(timeout=timeout_seconds)
+            except concurrent.futures.TimeoutError:
+                # Cancel pending futures and shut down without waiting
+                executor.shutdown(wait=False, cancel_futures=True)
+                raise TimeoutError(
+                    f"Model download timed out after {timeout_seconds} seconds"
+                ) from None
 
         except TimeoutError:
             # Try local cache fallback after timeout

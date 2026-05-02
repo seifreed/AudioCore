@@ -90,6 +90,17 @@ def write_output(
     # Convert to Path object
     file_path = Path(path) if isinstance(path, str) else path
 
+    # Validate parent directory exists when create_dirs is False
+    if not config.create_dirs and file_path.parent and not file_path.parent.exists():
+        raise OutputFileExistsError(
+            f"Parent directory does not exist: {file_path.parent}",
+            context={"file_path": str(file_path), "parent_dir": str(file_path.parent)},
+            suggestions=[
+                "Set create_dirs=True to auto-create parent directories",
+                f"Create directory: mkdir -p {file_path.parent}",
+            ],
+        )
+
     # Check for overwrite protection
     if file_path.exists() and not config.overwrite:
         raise OutputFileExistsError(

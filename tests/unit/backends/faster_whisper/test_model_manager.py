@@ -123,9 +123,9 @@ class TestModelManagerSingleton:
         manager2 = ModelManager(cache_dir=Path("/custom/cache"))
         assert manager2.cache_dir == Path("/custom/cache")
 
-        # Creating with different cache_dir should raise ValueError
-        with pytest.raises(ValueError, match="already initialized"):
-            ModelManager(cache_dir=Path("/other/cache"))
+        # Creating with different cache_dir logs warning and returns existing instance
+        manager_other = ModelManager(cache_dir=Path("/other/cache"))
+        assert manager_other.cache_dir == Path("/custom/cache")
 
         # Creating without cache_dir returns existing instance
         manager3 = ModelManager()

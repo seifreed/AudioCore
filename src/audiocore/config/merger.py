@@ -11,9 +11,12 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import SecretStr
+from pydantic_core import PydanticUndefined
 
 from audiocore.config.settings import AppConfig
 from audiocore.config.toml_loader import load_toml_config
+
+_SENSITIVE_KEY_PATTERNS = ("api_key", "secret", "password", "token")
 
 
 def _get_defaults() -> dict[str, Any]:
@@ -37,8 +40,7 @@ def _get_defaults() -> dict[str, Any]:
         if field_info.default_factory is not None:
             # Has a default_factory, call it to get default
             defaults[field_name] = field_info.default_factory()  # type: ignore[misc]
-        elif field_info.default is not None:
-            # Has a direct default value
+        elif field_info.default is not None and field_info.default is not PydanticUndefined:
             defaults[field_name] = field_info.default
         else:
             # Field is optional (default=None for optional fields)
@@ -49,7 +51,7 @@ def _get_defaults() -> dict[str, Any]:
 
 
 def mask_secrets(config_dict: dict[str, Any]) -> dict[str, Any]:
-    """Replace SecretStr values with redacted placeholder.
+    """Replace SecretStr values and sensitive keys with redacted placeholder.
 
     Used before logging or displaying configuration to prevent
     accidental exposure of sensitive values like API keys.
@@ -74,8 +76,11 @@ def mask_secrets(config_dict: dict[str, Any]) -> dict[str, Any]:
         if isinstance(value, SecretStr):
             result[key] = "***REDACTED***"
         elif isinstance(value, dict):
-            # Recursively mask nested dicts
             result[key] = mask_secrets(value)
+        elif hasattr(value, "model_dump") and hasattr(value, "model_fields"):
+            result[key] = mask_secrets(value.model_dump())
+        elif isinstance(value, str) and any(p in key.lower() for p in _SENSITIVE_KEY_PATTERNS):
+            result[key] = "***REDACTED***"
         else:
             result[key] = value
 

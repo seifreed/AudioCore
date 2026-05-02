@@ -48,7 +48,6 @@ class BackendRegistry:
 
     _instance: BackendRegistry | None = None
     _lock: threading.Lock = threading.Lock()
-    _initialized: bool
     _instance_lock: threading.Lock
     _backends: dict[BackendType, type[TranscriptionBackend]]
     _instances: dict[BackendType, TranscriptionBackend]
@@ -71,7 +70,6 @@ class BackendRegistry:
                     instance._instance_lock = threading.Lock()
                     instance._backends: dict[BackendType, type[TranscriptionBackend]] = {}
                     instance._instances: dict[BackendType, TranscriptionBackend] = {}
-                    instance._initialized = True
                     cls._instance = instance
         return cls._instance
 
@@ -150,23 +148,19 @@ class BackendRegistry:
         if backend_type in self._instances:
             if config is None:
                 return self._instances[backend_type]
-            # If a config is provided, check if the cached instance was created
-            # with a compatible config. If not, create a new instance.
             cached = self._instances[backend_type]
             cached_config = getattr(cached, "_config", None)
+            if cached_config is None and config is None:
+                return self._instances[backend_type]
             if cached_config is not None and config is not None:
-                # Both have configs — if they differ, recreate
                 from audiocore.config import AppConfig
 
                 if isinstance(cached_config, AppConfig) and isinstance(config, AppConfig):
-                    if cached_config is not config:
-                        # Different AppConfig objects — recreate with new config
-                        pass
-                    else:
+                    if cached_config is config or cached_config == config:
                         return self._instances[backend_type]
                 elif cached_config == config:
                     return self._instances[backend_type]
-            return self._instances[backend_type]
+            # Config mismatch — fall through to create new instance
 
         # Create new instance with thread-safe locking
         with self._instance_lock:
@@ -237,8 +231,6 @@ class BackendRegistry:
         # Check availability without side-effect caching.
         # Create a temporary instance to check availability, but don't cache it
         # so that a broken instance doesn't pollute the cache.
-        if backend_type not in self._backends:
-            return False
 
         try:
             backend_class = self._backends[backend_type]

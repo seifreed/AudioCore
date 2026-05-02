@@ -20,6 +20,7 @@ Example:
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 from typing import Any, Self
 
@@ -237,12 +238,12 @@ class FasterWhisperConfig(BaseModel):
         """
         if v is None:
             return v
-        # Basic validation: 2-3 character language codes
+        # Accept 2-3 char codes or BCP 47 tags (e.g., "en-US", "zh-CN")
         if isinstance(v, str):
             normalized = v.lower()
-            if len(normalized) < 2 or len(normalized) > 3:
+            if not re.match(r"^[a-z]{2,3}(-[a-z]{2,3})?$", normalized):
                 raise ValueError(
-                    f"Invalid language code '{v}'. Expected 2-3 character code (e.g., 'en', 'es')"
+                    f"Invalid language code '{v}'. Expected 2-3 character code (e.g., 'en', 'es') or BCP 47 tag (e.g., 'en-US')"
                 )
             return normalized
         return v

@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_CONFIG_PATH = Path.home() / ".config" / "audiocore" / "config.toml"
 """Default configuration file path: ~/.config/audiocore/config.toml"""
 
-# Fields that should be converted to Path objects (currently none in AppConfig)
-_PATH_FIELDS: set[str] = set()
+# Fields that should be converted to Path objects with ~ expansion
+_PATH_FIELDS: set[str] = {"ffmpeg_path", "ffprobe_path"}
 
 # Mapping from TOML flat keys to AppConfig field names.
 # Only explicitly mapped keys are accepted; unmapped keys are dropped
@@ -42,6 +42,22 @@ _FIELD_MAPPING = {
     "vad.min_silence_duration_ms": "vad.min_silence_duration_ms",
     "vad.window_size_samples": "vad.window_size_samples",
     "vad.strict_vad": "vad.strict_vad",
+    # Faster-Whisper nested config
+    "faster_whisper.model_size": "faster_whisper.model_size",
+    "faster_whisper.device": "faster_whisper.device",
+    "faster_whisper.compute_type": "faster_whisper.compute_type",
+    "faster_whisper.language": "faster_whisper.language",
+    "faster_whisper.beam_size": "faster_whisper.beam_size",
+    "faster_whisper.best_of": "faster_whisper.best_of",
+    "faster_whisper.patience": "faster_whisper.patience",
+    "faster_whisper.temperature": "faster_whisper.temperature",
+    "faster_whisper.compression_ratio_threshold": "faster_whisper.compression_ratio_threshold",
+    "faster_whisper.log_prob_threshold": "faster_whisper.log_prob_threshold",
+    "faster_whisper.no_speech_threshold": "faster_whisper.no_speech_threshold",
+    "faster_whisper.condition_on_previous_text": "faster_whisper.condition_on_previous_text",
+    "faster_whisper.initial_prompt": "faster_whisper.initial_prompt",
+    "faster_whisper.word_timestamps": "faster_whisper.word_timestamps",
+    "faster_whisper.vad_filter": "faster_whisper.vad_filter",
 }
 
 

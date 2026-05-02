@@ -123,4 +123,4 @@ class BackendAvailabilityChecker:
 
         import os
 
-        return os.environ.get("OPENAI_API_KEY")
+        return os.environ.get("OPENAI_API_KEY") or os.environ.get("AUDIOCORE_OPENAI_API_KEY")

@@ -185,6 +185,15 @@ async def async_transcribe(
         ...     async_transcribe("audio3.mp3"),
         ... )
     """
+    # Create a CancellationToken if none provided so cancellation always propagates
+    from audiocore.pipeline.cancellation import CancellationToken
+
+    own_token = cancellation_token is None
+    if own_token:
+        cancellation_token = CancellationToken()
+
+    assert cancellation_token is not None
+
     # Get the thread pool executor
     executor = _get_executor()
 
@@ -206,8 +215,7 @@ async def async_transcribe(
         # Propagate cancellation to the running thread via CancellationToken
         # run_in_executor does NOT cancel the underlying thread, so we signal
         # the pipeline to stop via its cancellation token.
-        if cancellation_token is not None:
-            cancellation_token.cancel()
+        cancellation_token.cancel()
         raise
     except AudioCoreError:
         # Re-raise AudioCore exceptions directly
