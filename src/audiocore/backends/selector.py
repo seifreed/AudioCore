@@ -1,12 +1,16 @@
 """Policy-based backend selection with fallback logic."""
 
 import logging
+from typing import TYPE_CHECKING
 
 from audiocore.backends.availability import BackendAvailabilityChecker
 from audiocore.backends.registry import BackendRegistry
 from audiocore.config import AppConfig
 from audiocore.errors import BackendUnavailableError
 from audiocore.types import BackendType, SelectionPolicy
+
+if TYPE_CHECKING:
+    from audiocore.backends.base import TranscriptionBackend
 
 logger = logging.getLogger(__name__)
 
@@ -170,7 +174,7 @@ class BackendSelector:
             ],
         )
 
-    def get_backend(self, backend: BackendType):
+    def get_backend(self, backend: BackendType) -> "TranscriptionBackend":
         """Get backend instance for the selected backend type.
 
         Args:

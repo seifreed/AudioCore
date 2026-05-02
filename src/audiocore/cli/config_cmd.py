@@ -15,7 +15,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from audiocore.config import AppConfig
+from audiocore.config import load_config
 
 app = typer.Typer(help="Display AudioCore configuration")
 console = Console()
@@ -75,7 +75,7 @@ def show_config() -> None:
         >>> audiocore config show
     """
     try:
-        config = AppConfig()
+        config = load_config()
     except Exception as e:
         console.print("[red]Error:[/red] Failed to load configuration")
         console.print(f"[dim]{e}[/dim]")
@@ -135,9 +135,10 @@ def config_path() -> None:
 
     console.print()
     console.print("[cyan]Priority:[/cyan]")
-    console.print("  1. Environment variables (AUDIOCORE_*)")
-    console.print("  2. audiocore.toml config file")
-    console.print("  3. Default values")
+    console.print("  1. CLI arguments")
+    console.print("  2. Environment variables (AUDIOCORE_*)")
+    console.print("  3. audiocore.toml config file")
+    console.print("  4. Default values")
 
 
 if __name__ == "__main__":

@@ -224,17 +224,16 @@ def extract_audio(
 
     try:
         # Use Popen to stream stderr for real-time progress callbacks
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        stderr_lines: list[str] = []
-
         if progress_callback is not None and total_duration is not None and total_duration > 0:
-            # Stream stderr line by line for real-time progress
-            # Use communicate with timeout so the process doesn't hang indefinitely
+            # When streaming stderr, use DEVNULL for stdout to avoid pipe deadlock.
+            # ffmpeg writes progress to stderr, not stdout, so we don't need stdout.
+            process = subprocess.Popen(
+                command,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            stderr_lines: list[str] = []
             communicate_timeout = timeout if timeout > 0 else None
             try:
                 assert process.stderr is not None
@@ -243,15 +242,20 @@ def extract_audio(
                     progress = _parse_progress(line, total_duration)
                     if progress is not None:
                         progress_callback(progress)
-
-                stdout, _ = process.communicate(timeout=communicate_timeout)
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait()
                 raise
 
-            returncode = process.returncode
+            returncode = process.wait()
+            stdout = ""
         else:
+            process = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
             communicate_timeout = timeout if timeout > 0 else None
             try:
                 stdout, stderr_data = process.communicate(timeout=communicate_timeout)

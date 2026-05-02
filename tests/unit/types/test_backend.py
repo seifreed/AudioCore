@@ -58,6 +58,8 @@ class TestModelSize:
         assert ModelSize.SMALL.value == "small"
         assert ModelSize.MEDIUM.value == "medium"
         assert ModelSize.LARGE.value == "large"
+        assert ModelSize.LARGE_V3.value == "large-v3"
+        assert ModelSize.LARGE_V3_TURBO.value == "large-v3-turbo"
 
     def test_str_enum_inheritance(self) -> None:
         """Test that ModelSize inherits from str and Enum for JSON serialization."""
@@ -85,10 +87,13 @@ class TestModelSize:
         assert "large" in str(exc_info.value)
 
     def test_all_values_exist(self) -> None:
-        """Test that all expected values exist."""
+        """Test that all 7 expected values exist."""
         values = [m.value for m in ModelSize]
+        assert len(values) == 7
         assert "tiny" in values
         assert "base" in values
         assert "small" in values
         assert "medium" in values
         assert "large" in values
+        assert "large-v3" in values
+        assert "large-v3-turbo" in values

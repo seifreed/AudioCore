@@ -14,6 +14,7 @@ from audiocore.errors import BackendUnavailableError
 
 if TYPE_CHECKING:
     from audiocore.backends.base import TranscriptionBackend
+    from audiocore.config import AppConfig
     from audiocore.types import BackendType
 
 
@@ -106,7 +107,9 @@ class BackendRegistry:
             if backend_type in self._instances:
                 del self._instances[backend_type]
 
-    def get_backend(self, backend_type: BackendType) -> TranscriptionBackend:
+    def get_backend(
+        self, backend_type: BackendType, config: AppConfig | None = None
+    ) -> TranscriptionBackend:
         """Get a backend instance for the given type.
 
         Returns the cached instance if available, otherwise creates a new
@@ -114,6 +117,10 @@ class BackendRegistry:
 
         Args:
             backend_type: The BackendType enum value for the desired backend.
+            config: Optional AppConfig to pass to the backend constructor.
+                The backend receives the relevant sub-config extracted from
+                AppConfig (e.g., OpenAIConfig for OPENAI, FasterWhisperConfig
+                for FASTER_WHISPER).
 
         Returns:
             An instance of the registered backend.
@@ -148,10 +155,33 @@ class BackendRegistry:
             # Double-checked locking pattern
             if backend_type not in self._instances:
                 backend_class = self._backends[backend_type]
-                instance = backend_class()
+                instance = self._create_backend_instance(backend_class, config)
                 self._instances[backend_type] = instance
 
         return self._instances[backend_type]
+
+    @staticmethod
+    def _create_backend_instance(
+        backend_class: type[TranscriptionBackend],
+        config: AppConfig | None,
+    ) -> TranscriptionBackend:
+        """Create a backend instance with the appropriate config.
+
+        Extracts the relevant sub-config from AppConfig for each backend type.
+        """
+        if config is None:
+            return backend_class()
+
+        # Map AppConfig to backend-specific config
+        from audiocore.config import AppConfig
+
+        if isinstance(config, AppConfig):
+            # OpenAIBackend and FasterWhisperBackend accept AppConfig
+            # and extract their own sub-config internally
+            return backend_class(config=config)
+
+        # Fallback: pass config directly
+        return backend_class(config=config)
 
     def list_backends(self) -> list[BackendType]:
         """List all registered backend types.

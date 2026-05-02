@@ -113,8 +113,6 @@ class RateLimitError(APIError):
         # Add retry_after context to suggestions if available
         if context and "retry_after" in context:
             retry_after = context["retry_after"]
-            if suggestions is None:
-                suggestions = []
             suggestions = [f"Wait {retry_after} seconds before retrying"] + suggestions
         super().__init__(message, context, suggestions, cause)
 

@@ -149,14 +149,14 @@ class TestFasterWhisperBackendModelLoading:
         backend = FasterWhisperBackend()
         assert backend._model is None
 
-    @pytest.mark.skip(
-        reason="Mocking builtin __import__ causes side effects; is_available already tests this scenario"
-    )
     def test_load_model_raises_backend_unavailable_when_not_installed(self, tmp_path: Path) -> None:
-        """_load_model should raise BackendUnavailableError when faster-whisper not installed."""
-        # This test is skipped because mocking __import__ globally causes side effects
-        # The is_available() method already tests the scenario where faster-whisper is not installed
-        pass
+        """is_available() should return False when faster-whisper is not importable."""
+        backend = FasterWhisperBackend()
+        # Mock the import of faster_whisper to fail
+        with patch.dict("sys.modules", {"faster_whisper": None, "faster_whisper.WhisperModel": None}):
+            with patch("builtins.__import__", side_effect=ImportError("No module named 'faster_whisper'")):
+                result = backend.is_available()
+        assert result is False
 
 
 class TestFasterWhisperBackendTranscription:

@@ -59,6 +59,7 @@ from audiocore.errors import (
     BackendError,
     BackendUnavailableError,
     ConfigurationError,
+    InputError,
     InvalidConfigError,
     InvalidInputError,
     MediaError,
@@ -101,6 +102,7 @@ __all__ = [
     # Base exception
     "AudioCoreError",
     # Input exceptions
+    "InputError",
     "InvalidInputError",
     "MediaFormatError",
     # Configuration exceptions

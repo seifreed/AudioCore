@@ -9,6 +9,7 @@ the error hierarchy is properly organized.
 from audiocore import (
     AudioCoreError,
     BackendError,
+    InputError,
     TranscriptionOptions,
     TranscriptionResult,
     transcribe,
@@ -66,6 +67,7 @@ class TestErrorHierarchy:
     def test_all_errors_inherit_from_base(self):
         """Verify all exceptions inherit from AudioCoreError."""
         # Input errors
+        assert issubclass(InputError, AudioCoreError)
         assert issubclass(InvalidInputError, AudioCoreError)
         assert issubclass(MediaFormatError, AudioCoreError)
 
@@ -107,6 +109,7 @@ class TestErrorHierarchy:
             # Base
             AudioCoreError,
             # Input (AUD-001 to AUD-099)
+            InputError,
             InvalidInputError,
             MediaFormatError,
             # Config (AUD-100 to AUD-199)
@@ -145,6 +148,7 @@ class TestErrorHierarchy:
     def test_error_codes_follow_category_pattern(self):
         """Verify error codes follow category pattern (AUD-XXX)."""
         # Input category: AUD-001 to AUD-099
+        assert InputError.error_code.startswith("AUD-00")
         assert InvalidInputError.error_code.startswith("AUD-00")
         assert MediaFormatError.error_code.startswith("AUD-00")
 
@@ -219,9 +223,9 @@ class TestPublicAPIImports:
         assert TranscriptionOptions is not None
 
     def test_async_transcribe_importable_from_api(self):
-        """Verify async_transcribe is in api module's __all__."""
+        """Verify async_transcribe is importable from api module."""
 
-        assert "async_transcribe" in async_transcribe.__module__ or True  # Function exists
+        assert "audiocore.api" in async_transcribe.__module__
 
 
 class TestExceptionChaining:

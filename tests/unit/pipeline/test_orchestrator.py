@@ -803,11 +803,16 @@ class TestPipelineStageEnum:
     """Test PipelineStage enum (defines stages of the pipeline)."""
 
     def test_pipeline_stages_defined(self):
-        """PipelineStage values can be imported."""
-        # This test validates the enum exists
-        # The actual enum definition should be in a separate module
-        # For now, we're testing that stages can be tracked
-        pass
+        """PipelineStage values can be imported and have expected values."""
+        from audiocore.pipeline.progress import PipelineStage
+
+        assert PipelineStage.PROBING.value == "probing"
+        assert PipelineStage.EXTRACTING.value == "extracting"
+        assert PipelineStage.VAD.value == "vad"
+        assert PipelineStage.SELECTING.value == "selecting"
+        assert PipelineStage.TRANSCRIBING.value == "transcribing"
+        assert PipelineStage.FORMATTING.value == "formatting"
+        assert PipelineStage.COMPLETE.value == "complete"
 
 
 class TestPipelineProgressCallbacks:

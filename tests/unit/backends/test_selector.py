@@ -113,7 +113,6 @@ class TestBackendSelector:
         assert result == BackendType.OPENAI
 
     @patch.dict("sys.modules", {"faster_whisper": MagicMock()})
-    @patch.dict("sys.modules", {"faster_whisper": MagicMock()})
     def test_select_policy_prefer_cloud_fallback(self):
         """Test PREFER_CLOUD policy falls back to local."""
         config = AppConfig(openai=OpenAIConfig())

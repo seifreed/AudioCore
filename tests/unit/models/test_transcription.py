@@ -101,7 +101,7 @@ class TestTranscriptionOptionsCustomValues:
 class TestTranscriptionOptionsStrictMode:
     """Tests for TranscriptionOptions strict validation."""
 
-    def test_strict_mode_rejects_int_for_model_size(self) -> None:
+    def test_strict_mode_rejects_string_for_model_size(self) -> None:
         """Strict mode requires ModelSize enum."""
         with pytest.raises(ValidationError):
             TranscriptionOptions(model_size="base")  # type: ignore
@@ -212,8 +212,8 @@ class TestTranscriptionResultCreation:
 class TestTranscriptionResultValidation:
     """Tests for TranscriptionResult validation constraints."""
 
-    def test_reject_negative_duration(self) -> None:
-        """Reject negative duration_seconds."""
+    def test_reject_negative_processing_time(self) -> None:
+        """Reject negative processing_time_seconds."""
         with pytest.raises(ValidationError):
             TranscriptionResult(
                 segments=[],

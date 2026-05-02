@@ -153,12 +153,13 @@ class TestModelManagerDownloadModel:
         assert "Invalid model name" in str(exc_info.value)
 
     def test_download_invalid_model_suggests_valid_models(self) -> None:
-        """Invalid model error should suggest valid models."""
+        """Invalid model error should include valid models in context."""
         manager = ModelManager()
         with pytest.raises(ConfigurationError) as exc_info:
             manager.download_model("invalid")
         error = exc_info.value
-        assert "suggestions" in error.context or True
+        assert "valid_models" in error.context
+        assert len(error.context["valid_models"]) > 0
         # Check that valid models are mentioned in error
 
     def test_download_model_success(self, tmp_path: Path) -> None:

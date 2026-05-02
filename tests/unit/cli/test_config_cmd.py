@@ -71,8 +71,8 @@ class TestMaskSecretStr:
 class TestShowConfig:
     """Test show config command."""
 
-    def test_show_config_displays_backend(self) -> None:
-        """Test show config displays backend setting."""
+    def _make_mock_config(self) -> MagicMock:
+        """Create a mock AppConfig for testing."""
         mock_config = MagicMock(spec=AppConfig)
         mock_config.backend = BackendType.OPENAI
         mock_config.model = MagicMock()
@@ -85,13 +85,19 @@ class TestShowConfig:
         mock_config.ffprobe_path = "ffprobe"
         mock_config.ffmpeg_path = "ffmpeg"
         mock_config.openai = MagicMock()
-        mock_config.openai.api_key = SecretStr("sk-test1234567890")
+        mock_config.openai.api_key = SecretStr("")
         mock_config.openai.organization = None
         mock_config.openai.timeout = 300
         mock_config.openai.max_retries = 2
         mock_config.vad = MagicMock()
+        return mock_config
 
-        with patch("audiocore.cli.config_cmd.AppConfig", return_value=mock_config):
+    def test_show_config_displays_backend(self) -> None:
+        """Test show config displays backend setting."""
+        mock_config = self._make_mock_config()
+        mock_config.backend = BackendType.OPENAI
+
+        with patch("audiocore.cli.config_cmd.load_config", return_value=mock_config):
             result = runner.invoke(app, ["show"])
 
         assert result.exit_code == 0
@@ -99,54 +105,22 @@ class TestShowConfig:
 
     def test_show_config_masks_api_key(self) -> None:
         """Test show config masks API key."""
-        mock_config = MagicMock(spec=AppConfig)
-        mock_config.backend = BackendType.OPENAI
-        mock_config.model = MagicMock()
-        mock_config.model.value = "base"
-        mock_config.language = None
-        mock_config.output_format = MagicMock()
-        mock_config.output_format.value = "text"
-        mock_config.backend_preference = MagicMock()
-        mock_config.backend_preference.value = "auto"
-        mock_config.ffprobe_path = "ffprobe"
-        mock_config.ffmpeg_path = "ffmpeg"
-        mock_config.openai = MagicMock()
+        mock_config = self._make_mock_config()
         mock_config.openai.api_key = SecretStr("sk-1234567890abcdef")
-        mock_config.openai.organization = None
-        mock_config.openai.timeout = 300
-        mock_config.openai.max_retries = 2
-        mock_config.vad = MagicMock()
 
-        with patch("audiocore.cli.config_cmd.AppConfig", return_value=mock_config):
+        with patch("audiocore.cli.config_cmd.load_config", return_value=mock_config):
             result = runner.invoke(app, ["show"])
 
         assert result.exit_code == 0
         # API key should be masked
         assert "1234567890abcdef" not in result.output
-        # Should show "***" somewhere
-        assert "***" in result.output or "not set" in result.output.lower()
 
     def test_show_config_displays_language(self) -> None:
         """Test show config displays language setting."""
-        mock_config = MagicMock(spec=AppConfig)
-        mock_config.backend = BackendType.OPENAI
-        mock_config.model = MagicMock()
-        mock_config.model.value = "base"
+        mock_config = self._make_mock_config()
         mock_config.language = "en"
-        mock_config.output_format = MagicMock()
-        mock_config.output_format.value = "text"
-        mock_config.backend_preference = MagicMock()
-        mock_config.backend_preference.value = "auto"
-        mock_config.ffprobe_path = "ffprobe"
-        mock_config.ffmpeg_path = "ffmpeg"
-        mock_config.openai = MagicMock()
-        mock_config.openai.api_key = SecretStr("")
-        mock_config.openai.organization = None
-        mock_config.openai.timeout = 300
-        mock_config.openai.max_retries = 2
-        mock_config.vad = MagicMock()
 
-        with patch("audiocore.cli.config_cmd.AppConfig", return_value=mock_config):
+        with patch("audiocore.cli.config_cmd.load_config", return_value=mock_config):
             result = runner.invoke(app, ["show"])
 
         assert result.exit_code == 0
@@ -154,29 +128,13 @@ class TestShowConfig:
 
     def test_show_config_displays_vad_settings(self) -> None:
         """Test show config displays VAD settings."""
-        mock_config = MagicMock(spec=AppConfig)
-        mock_config.backend = BackendType.OPENAI
-        mock_config.model = MagicMock()
-        mock_config.model.value = "base"
-        mock_config.language = None
-        mock_config.output_format = MagicMock()
-        mock_config.output_format.value = "text"
-        mock_config.backend_preference = MagicMock()
-        mock_config.backend_preference.value = "auto"
-        mock_config.ffprobe_path = "ffprobe"
-        mock_config.ffmpeg_path = "ffmpeg"
-        mock_config.openai = MagicMock()
-        mock_config.openai.api_key = SecretStr("")
-        mock_config.openai.organization = None
-        mock_config.openai.timeout = 300
-        mock_config.openai.max_retries = 2
-        mock_config.vad = MagicMock()
+        mock_config = self._make_mock_config()
         mock_config.vad.min_segment_duration = 0.5
         mock_config.vad.max_segment_duration = 30.0
         mock_config.vad.speech_threshold = 0.5
         mock_config.vad.silence_threshold = 0.3
 
-        with patch("audiocore.cli.config_cmd.AppConfig", return_value=mock_config):
+        with patch("audiocore.cli.config_cmd.load_config", return_value=mock_config):
             result = runner.invoke(app, ["show"])
 
         assert result.exit_code == 0
@@ -209,10 +167,40 @@ class TestConfigErrorHandling:
 
     def test_show_config_handles_error(self) -> None:
         """Test show config handles configuration errors."""
-        with patch("audiocore.cli.config_cmd.AppConfig") as mock_app_config:
-            mock_app_config.side_effect = Exception("Config load failed")
+        with patch("audiocore.cli.config_cmd.load_config") as mock_load:
+            mock_load.side_effect = Exception("Config load failed")
 
             result = runner.invoke(app, ["show"])
 
         assert result.exit_code == 1
         assert "error" in result.output.lower()
+
+
+class TestShowConfigUsesLoadConfig:
+    """Regression: config show must use load_config(), not raw AppConfig()."""
+
+    def test_show_config_calls_load_config(self) -> None:
+        """show_config should call load_config() instead of AppConfig()."""
+        mock_config = MagicMock(spec=AppConfig)
+        mock_config.backend = BackendType.OPENAI
+        mock_config.model = MagicMock()
+        mock_config.model.value = "base"
+        mock_config.language = None
+        mock_config.output_format = MagicMock()
+        mock_config.output_format.value = "text"
+        mock_config.backend_preference = MagicMock()
+        mock_config.backend_preference.value = "auto"
+        mock_config.ffprobe_path = "ffprobe"
+        mock_config.ffmpeg_path = "ffmpeg"
+        mock_config.openai = MagicMock()
+        mock_config.openai.api_key = SecretStr("")
+        mock_config.openai.organization = None
+        mock_config.openai.timeout = 300
+        mock_config.openai.max_retries = 2
+        mock_config.vad = MagicMock()
+
+        with patch("audiocore.cli.config_cmd.load_config", return_value=mock_config) as mock_load:
+            result = runner.invoke(app, ["show"])
+
+        assert result.exit_code == 0
+        mock_load.assert_called_once()

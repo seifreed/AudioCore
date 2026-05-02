@@ -217,12 +217,37 @@ class TestModelSizeProperty:
     """Test model_size property for backwards compatibility."""
 
     def test_model_size_property_returns_model_value(self) -> None:
-        """model_size property should return model field value."""
+        """model_size property should return the default model field value (BASE)."""
         config = AppConfig()
-        assert config.model_size == config.model
+        assert config.model_size == ModelSize.BASE
 
     def test_model_size_matches_env_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """model_size should match AUDIOCORE_MODEL env var."""
         monkeypatch.setenv("AUDIOCORE_MODEL", "medium")
         config = AppConfig()
         assert config.model_size == ModelSize.MEDIUM
+
+
+class TestVADConfigStrictVad:
+    """Regression: VADConfig must have strict_vad field."""
+
+    def test_vad_config_has_strict_vad_field(self) -> None:
+        """VADConfig should have a strict_vad field defaulting to False."""
+        from audiocore.vad.config import VADConfig
+
+        vad = VADConfig()
+        assert hasattr(vad, "strict_vad")
+        assert vad.strict_vad is False
+
+    def test_vad_config_strict_vad_can_be_set_true(self) -> None:
+        """VADConfig.strict_vad should accept True value."""
+        from audiocore.vad.config import VADConfig
+
+        vad = VADConfig(strict_vad=True)
+        assert vad.strict_vad is True
+
+    def test_app_config_vad_has_strict_vad(self) -> None:
+        """AppConfig.vad should include strict_vad field."""
+        config = AppConfig()
+        assert hasattr(config.vad, "strict_vad")
+        assert config.vad.strict_vad is False

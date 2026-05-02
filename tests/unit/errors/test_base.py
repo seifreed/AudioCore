@@ -116,3 +116,16 @@ class TestAudioCoreError:
         except AudioCoreError as e:
             assert e.__cause__ is original
             assert isinstance(e.__cause__, ValueError)
+
+    def test_cause_parameter_stores_cause_without_from(self) -> None:
+        """Regression: AudioCoreError(cause=...) should set __cause__ without `raise from`.
+
+        The cause= constructor parameter explicitly stores the cause, even when
+        the `raise X from Y` syntax is not used. This allows programmatic
+        exception chaining.
+        """
+        original = RuntimeError("disk I/O failure")
+        error = AudioCoreError("Transcription failed", cause=original)
+        assert error.__cause__ is original
+        assert isinstance(error.__cause__, RuntimeError)
+        assert "disk I/O failure" in str(error.__cause__)

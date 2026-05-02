@@ -71,12 +71,19 @@ class FasterWhisperBackend(TranscriptionBackend):
         """Initialize Faster-Whisper backend.
 
         Args:
-            config: FasterWhisperConfig configuration. If not provided,
-                defaults will be used (ModelSize.BASE, auto device, etc.).
+            config: FasterWhisperConfig or AppConfig configuration. If AppConfig
+                is provided, the faster_whisper sub-config is extracted. If
+                FasterWhisperConfig is provided directly, it is used as-is.
+                If not provided, defaults will be used.
 
         Note:
             Model is lazily loaded on first transcribe() call.
         """
+        # Handle AppConfig passed from BackendRegistry
+        from audiocore.config import AppConfig
+
+        if isinstance(config, AppConfig):
+            config = config.faster_whisper
         self.config = config or FasterWhisperConfig()
         self._model: Any | None = None
         self._model_manager = ModelManager()

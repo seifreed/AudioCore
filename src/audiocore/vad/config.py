@@ -75,6 +75,10 @@ class VADConfig(BaseModel):
         le=1024,
         description="Window size in samples for VAD processing",
     )
+    strict_vad: bool = Field(
+        default=False,
+        description="If True, raise VADError on VAD failure instead of falling back to whole-file transcription",
+    )
 
     @model_validator(mode="after")
     def validate_thresholds(self) -> Self:

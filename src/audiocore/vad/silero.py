@@ -35,15 +35,15 @@ class SileroVAD:
     cache if network is unavailable.
 
     Thread Safety:
-        The model's state is managed per-thread using thread-local storage.
-        Each thread gets its own model state to prevent interference during
-        concurrent transcriptions.
+        The model instance is a singleton shared across threads. The model's state
+        is reset before each processing call to prevent state accumulation across
+        files. For concurrent usage, callers should create separate SileroVAD
+        instances or use external synchronization.
 
     Attributes:
         _model: Class-level singleton model instance (None until loaded).
         _lock: Thread lock for thread-safe model loading.
         _sample_rate: Required sample rate for Silero (16000 Hz).
-        _model_state: Thread-local storage for per-thread model state.
 
     Example:
         >>> vad = SileroVAD()
@@ -55,7 +55,6 @@ class SileroVAD:
     _model: nn.Module | None = None
     _lock: threading.Lock = threading.Lock()
     _sample_rate: int = 16000
-    _model_state: threading.local = threading.local()
 
     def __init__(self, config: VADConfig | None = None) -> None:
         """Initialize SileroVAD instance.
@@ -118,8 +117,13 @@ class SileroVAD:
         except TimeoutError:
             # Try local cache fallback after timeout
             import os
+            import sys
 
-            cache_dir = os.path.expanduser("~/.cache/torch/hub/snakers4_silero-vad_master/")
+            if sys.platform == "win32":
+                base = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+                cache_dir = os.path.join(base, "torch", "hub", "snakers4_silero-vad_master")
+            else:
+                cache_dir = os.path.expanduser("~/.cache/torch/hub/snakers4_silero-vad_master/")
             if Path(cache_dir).exists():
                 try:
                     model_path = Path(cache_dir) / "files" / "silero_vad.jit"
@@ -144,8 +148,13 @@ class SileroVAD:
         except Exception as hub_error:
             # Try local cache fallback
             import os
+            import sys
 
-            cache_dir = os.path.expanduser("~/.cache/torch/hub/snakers4_silero-vad_master/")
+            if sys.platform == "win32":
+                base = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+                cache_dir = os.path.join(base, "torch", "hub", "snakers4_silero-vad_master")
+            else:
+                cache_dir = os.path.expanduser("~/.cache/torch/hub/snakers4_silero-vad_master/")
             if Path(cache_dir).exists():
                 try:
                     # Attempt to load from local cache
@@ -192,20 +201,17 @@ class SileroVAD:
                     cls._model = cls._load_model()
         return cls._model
 
-    def _get_thread_local_model(self) -> nn.Module:
-        """Get a thread-local copy of the model with its own state.
+    def _prepare_model(self) -> nn.Module:
+        """Get the model with reset state for processing a new audio file.
 
-        Each thread gets its own model state to prevent interference
-        during concurrent transcriptions. State is reset each time so
-        that processing multiple files in the same thread does not
-        accumulate VAD state across files.
+        Resets the model's internal state before each file to prevent
+        state accumulation across files. The model is a singleton shared
+        across threads, so concurrent access requires external synchronization.
 
         Returns:
-            Thread-local Silero VAD model instance with reset state.
+            Silero VAD model instance with reset state.
         """
         model = self.get_model()
-        # Always reset state so each file gets fresh VAD state.
-        # This prevents state accumulation across files in the same thread.
         model.reset_states()
         return model
 
@@ -213,12 +219,10 @@ class SileroVAD:
         """Reset the VAD model state for processing new audio.
 
         Should be called before processing a new audio file to reset
-        internal state. Thread-safe - only affects current thread's state.
+        internal state.
         """
         model = self.get_model()
         model.reset_states()
-        # Mark this thread as having reset state
-        SileroVAD._model_state.initialized = True
 
     def _load_audio(self, audio_path: Path | str) -> tuple[NDArray[np.float32], int]:
         """Load audio from WAV file and convert to required format.
@@ -319,7 +323,7 @@ class SileroVAD:
             config = VADConfig()
 
         # Get thread-local model instance with isolated state
-        model = self._get_thread_local_model()
+        model = self._prepare_model()
 
         # Use window_size_samples from config (default 512, optimal for Silero)
         chunk_size = config.window_size_samples

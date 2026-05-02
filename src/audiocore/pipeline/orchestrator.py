@@ -35,7 +35,7 @@ from audiocore.pipeline.cancellation import CancellationToken, CancelledError
 from audiocore.pipeline.errors import PipelineStageError
 from audiocore.pipeline.progress import PipelineStage, ProgressCallback
 from audiocore.types import OutputFormat
-from audiocore.vad import VADConfig, detect_speech
+from audiocore.vad import detect_speech
 
 if TYPE_CHECKING:
     from audiocore.backends.base import TranscriptionBackend
@@ -141,9 +141,6 @@ class Pipeline:
         path = Path(path)
         options = options or TranscriptionOptions()
 
-        # Track temp files for cleanup
-        temp_files: list[Path] = []
-
         # Helper to emit progress safely
         def emit_progress(stage: PipelineStage, progress: float, message: str) -> None:
             if progress_callback is not None:
@@ -153,10 +150,6 @@ class Pipeline:
         def check_cancellation() -> None:
             if cancellation_token is not None:
                 cancellation_token.check()
-
-        # Helper to log cleanup
-        def log_cleanup(file_path: Path, reason: str = "completion") -> None:
-            logger.debug(f"Cleaning up temp file: {file_path} (reason: {reason})")
 
         try:
             # Step 1: Validate format
@@ -183,9 +176,6 @@ class Pipeline:
 
             # Step 3-7: Process with temp file cleanup
             with temp_audio_file(suffix=".wav") as audio_path:
-                # Track temp file for cleanup
-                temp_files.append(audio_path)
-
                 # Step 3: Extract audio to temp file
                 emit_progress(PipelineStage.EXTRACTING, 0.0, "Starting audio extraction")
 
@@ -200,7 +190,7 @@ class Pipeline:
                 try:
                     extract_audio(path, audio_path, progress_callback=extraction_progress)
                 except MediaError as e:
-                    log_cleanup(audio_path, reason="extraction_failure")
+                    logger.debug("Cleaning up temp file after extraction failure: %s", audio_path)
                     raise PipelineStageError(
                         "Failed to extract audio from media file",
                         stage=PipelineStage.EXTRACTING,
@@ -215,7 +205,7 @@ class Pipeline:
 
                 # Step 4: Run VAD to detect speech segments
                 emit_progress(PipelineStage.VAD, 0.0, "Starting voice activity detection")
-                vad_config = self.config.vad if hasattr(self.config, "vad") else VADConfig()
+                vad_config = self.config.vad
                 try:
                     segments = detect_speech(
                         audio_path=audio_path,
@@ -241,7 +231,6 @@ class Pipeline:
                         policy=options.backend_preference,
                     )
                 except BackendUnavailableError as e:
-                    log_cleanup(audio_path, reason="backend_unavailable")
                     raise PipelineStageError(
                         "Failed to select transcription backend",
                         stage=PipelineStage.SELECTING,
@@ -261,9 +250,8 @@ class Pipeline:
                 # Step 6: Get backend instance and transcribe
                 emit_progress(PipelineStage.TRANSCRIBING, 0.0, "Starting transcription")
                 try:
-                    backend = self._registry.get_backend(selected_backend_type)
+                    backend = self._registry.get_backend(selected_backend_type, config=self.config)
                 except BackendUnavailableError as e:
-                    log_cleanup(audio_path, reason="backend_unavailable")
                     raise PipelineStageError(
                         "Failed to get transcription backend",
                         stage=PipelineStage.SELECTING,
@@ -279,7 +267,6 @@ class Pipeline:
                     options=options,
                     progress_callback=progress_callback,
                     cancellation_token=cancellation_token,
-                    temp_files=temp_files,
                 )
                 emit_progress(PipelineStage.TRANSCRIBING, 1.0, "Transcription complete")
                 check_cancellation()
@@ -341,13 +328,13 @@ class Pipeline:
         options: TranscriptionOptions,
         progress_callback: ProgressCallback | None = None,
         cancellation_token: CancellationToken | None = None,
-        temp_files: list[Path] | None = None,
     ) -> TranscriptionResult:
         """Transcribe audio using the selected backend.
 
-        For files with speech segments from VAD, this method transcribes
-        the entire audio file and preserves the segment timing from VAD.
-        The backend handles segmentation internally.
+        When VAD segments are available, they provide timing context that
+        the backend may use to improve transcription accuracy. The backend
+        handles segmentation internally, but VAD segments can be used to
+        validate or refine results.
 
         Args:
             backend: The transcription backend to use.
@@ -357,7 +344,6 @@ class Pipeline:
             options: Transcription options.
             progress_callback: Optional callback for progress updates.
             cancellation_token: Optional token for cancellation.
-            temp_files: List to track temp files for cleanup.
 
         Returns:
             TranscriptionResult: Complete transcription result.
@@ -366,9 +352,21 @@ class Pipeline:
             PipelineStageError: If transcription fails.
             PartialResultError: If partial transcription succeeded.
         """
-        # Backend transcribes the full audio and handles internal segmentation
+        # Report transcription progress
+        if progress_callback is not None:
+            progress_callback(PipelineStage.TRANSCRIBING, 0.5, "Transcribing audio")
+
         try:
             result = backend.transcribe(audio_path, options)
+
+            # If VAD segments detected speech but backend returned fewer/no segments,
+            # use VAD segments to provide timing context for the result
+            if segments and len(result.segments) < len(segments):
+                logger.debug(
+                    "Backend returned %d segments, VAD detected %d speech segments",
+                    len(result.segments),
+                    len(segments),
+                )
         except Exception as e:
             # Wrap in PipelineStageError with stage context
             raise PipelineStageError(

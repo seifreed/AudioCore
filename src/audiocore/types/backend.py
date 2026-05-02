@@ -76,9 +76,8 @@ class ModelSize(StrEnum):
             ValueError: If value is not a valid model size
         """
         normalized = value.lower().replace("-", "_").replace(" ", "_")
-        # Handle aliases
-        if normalized == "large":
-            normalized = "large"  # Keep as large (alias for large-v3)
+        # Handle aliases: "large" is a distinct model size, not an alias
+        # Users who want large-v3 should specify "large-v3" explicitly
         try:
             return cls(normalized)
         except ValueError:

@@ -103,8 +103,9 @@ class OpenAIBackend(TranscriptionBackend):
         Args:
             api_key: OpenAI API key. If not provided, uses OPENAI_API_KEY
                 environment variable. (deprecated: use config instead)
-            config: OpenAIConfig instance. If provided, takes precedence over
-                api_key parameter for configuration.
+            config: OpenAIConfig or AppConfig instance. If AppConfig is provided,
+                the openai sub-config is extracted. If OpenAIConfig is provided
+                directly, it is used as-is.
 
         Note:
             Client is lazily initialized on first transcribe() call.
@@ -112,6 +113,12 @@ class OpenAIBackend(TranscriptionBackend):
         """
         self._client: OpenAI | None = None
         self._api_key: str | None = None
+
+        # Handle AppConfig passed from BackendRegistry
+        from audiocore.config import AppConfig
+
+        if isinstance(config, AppConfig):
+            config = config.openai
         self._config: OpenAIConfig | None = config
 
         # Extract API key from config if provided
@@ -149,7 +156,8 @@ class OpenAIBackend(TranscriptionBackend):
         """Check if OpenAI backend is available.
 
         Checks that an API key is configured (either via constructor or
-        environment variable) and validates that it has the correct format.
+        environment variable) and validates that it has a recognizable
+        OpenAI key format.
 
         Returns:
             True if API key is configured and has correct format, False otherwise.
@@ -214,7 +222,8 @@ class OpenAIBackend(TranscriptionBackend):
                     client_kwargs["base_url"] = self._config.base_url
                 if self._config.timeout:
                     client_kwargs["timeout"] = self._config.timeout
-                # Note: max_retries is handled by the OpenAI client internally
+                if self._config.max_retries is not None:
+                    client_kwargs["max_retries"] = self._config.max_retries
 
             self._client = OpenAI(**client_kwargs)  # type: ignore[arg-type]
 

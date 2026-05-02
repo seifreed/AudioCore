@@ -70,9 +70,11 @@ class AudioCoreError(Exception):
         # Actionable suggestions for resolution
         self.suggestions = suggestions if suggestions is not None else []
 
-        # Preserve __cause__ for exception chaining
-        # Note: __cause__ is set automatically when using `raise X from Y`
-        # but we accept it here for explicit chaining
+        # Preserve cause for exception chaining
+        # Note: __cause__ is set automatically when using `raise X from Y`,
+        # but we also store it explicitly for programmatic access
+        if cause is not None:
+            self.__cause__ = cause
 
     def __str__(self) -> str:
         """Return the error message with optional context."""
