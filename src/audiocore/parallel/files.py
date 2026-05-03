@@ -72,6 +72,8 @@ async def transcribe_files_concurrent(
             files when one fails. If False, stop on first error.
         progress_callback: Optional callback for progress updates.
             Called with (completed_count, total_count, current_path).
+            Warning: this is a synchronous callback called from an async context.
+            Keep it fast (avoid blocking I/O) to prevent stalling the event loop.
 
     Returns:
         List of FileResult objects in the same order as input files.
@@ -192,8 +194,10 @@ async def transcribe_files_concurrent(
             task_results = await asyncio.gather(*tasks)
             for i, task_result in enumerate(task_results):
                 results[i] = task_result
-        except Exception:
-            # Cancel any still-running tasks before re-raising
+        except BaseException:
+            # Cancel any still-running tasks before re-raising.
+            # Catches BaseException (KeyboardInterrupt, SystemExit, CancelledError)
+            # not just Exception, so tasks are always cleaned up.
             for task in tasks:
                 if not task.done():
                     task.cancel()

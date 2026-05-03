@@ -262,8 +262,6 @@ def extract_audio(
                     if progress is not None:
                         progress_callback(progress)
             except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait()
                 raise
             except BaseException:
                 # Ensure process is cleaned up on any exception (e.g., KeyboardInterrupt)

@@ -14,6 +14,29 @@ from audiocore.errors import InvalidInputError, MediaError
 from audiocore.models import MediaInfo
 
 
+def _validate_audio_stream(streams: list[dict[str, Any]], file_path: Path) -> None:
+    """Validate that at least one audio stream exists in the media file.
+
+    Args:
+        streams: List of stream dicts from ffprobe output.
+        file_path: Path to the media file (for error context).
+
+    Raises:
+        MediaError: If no audio stream is found.
+    """
+    audio_streams = [s for s in streams if s.get("codec_type") == "audio"]
+    if not audio_streams:
+        raise MediaError(
+            f"No audio stream found in {file_path}",
+            context={"file_path": str(file_path), "stream_count": len(streams)},
+            suggestions=[
+                "Verify the file contains an audio track",
+                "Check if the file is video-only or image-only",
+                "Try a different media file with audio content",
+            ],
+        )
+
+
 def _validate_file_exists(file_path: Path) -> None:
     """Validate that a file exists and is readable.
 
@@ -38,7 +61,7 @@ def _validate_file_exists(file_path: Path) -> None:
 def probe(
     file_path: Path | str,
     ffprobe_path: str = "ffprobe",
-    timeout: int = 30,
+    timeout: float = 30.0,
 ) -> MediaInfo:
     """Probe a media file for metadata using ffprobe.
 
@@ -48,7 +71,7 @@ def probe(
     Args:
         file_path: Path to the media file to probe.
         ffprobe_path: Path to ffprobe executable. Defaults to "ffprobe".
-        timeout: Timeout in seconds for ffprobe command. Defaults to 30.
+        timeout: Timeout in seconds for ffprobe command. Defaults to 30.0.
 
     Returns:
         MediaInfo model with extracted metadata.
@@ -168,20 +191,22 @@ def probe(
 
     format_name: str = format_info.get("format_name", "unknown")
 
+    _validate_audio_stream(streams, file_path)
+
     codec: str | None = None
     sample_rate: int | None = None
     channels: int | None = None
 
-    for stream in streams:
-        if stream.get("codec_type") == "audio":
-            codec = stream.get("codec_name")
-            if "sample_rate" in stream:
-                with contextlib.suppress(ValueError, TypeError):
-                    sample_rate = int(stream["sample_rate"])
-            if "channels" in stream:
-                with contextlib.suppress(ValueError, TypeError):
-                    channels = int(stream["channels"])
-            break
+    audio_streams = [s for s in streams if s.get("codec_type") == "audio"]
+    if audio_streams:
+        stream = audio_streams[0]
+        codec = stream.get("codec_name")
+        if "sample_rate" in stream:
+            with contextlib.suppress(ValueError, TypeError):
+                sample_rate = int(stream["sample_rate"])
+        if "channels" in stream:
+            with contextlib.suppress(ValueError, TypeError):
+                channels = int(stream["channels"])
 
     return MediaInfo(
         duration=duration,

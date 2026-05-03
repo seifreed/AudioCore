@@ -38,7 +38,7 @@ def _format_timestamp(seconds: float) -> str:
         >>> _format_timestamp(0.0)
         '00:00:00.000'
     """
-    total_ms = round(seconds * 1000)
+    total_ms = max(0, round(seconds * 1000))
     hours = total_ms // 3_600_000
     total_ms %= 3_600_000
     minutes = total_ms // 60_000

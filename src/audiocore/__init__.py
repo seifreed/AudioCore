@@ -30,7 +30,7 @@ Exceptions:
     - BackendError, BackendUnavailableError, TranscriptionError: Backend errors
     - APIError, AuthenticationError, RateLimitError, APITimeoutError: API errors
     - ProcessingError, VADError, MediaError: Processing errors
-    - OutputFileExistsError: Output errors
+    - OutputFileExistsError, OutputDirectoryError: Output errors
     - PipelineError, PipelineStageError, PipelineCancelledError, PartialResultError: Pipeline errors
 
 Example:
@@ -64,6 +64,7 @@ from audiocore.errors import (
     InvalidInputError,
     MediaError,
     MediaFormatError,
+    OutputDirectoryError,
     OutputFileExistsError,
     PartialResultError,
     PipelineCancelledError,
@@ -79,7 +80,7 @@ from audiocore.errors import (
 from audiocore.models import Segment, TranscriptionOptions, TranscriptionResult
 
 # Import pipeline utilities
-from audiocore.pipeline.cancellation import CancellationToken, CancelledError
+from audiocore.pipeline.cancellation import CancellationToken
 
 # Import types - these have no circular import issues
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
@@ -125,6 +126,7 @@ __all__ = [
     "VADError",
     "MediaError",
     # Output exceptions
+    "OutputDirectoryError",
     "OutputFileExistsError",
     # Pipeline exceptions
     "PipelineError",
@@ -132,7 +134,6 @@ __all__ = [
     "PipelineCancelledError",
     "PartialResultError",
     # Cancellation
-    "CancelledError",
     "CancellationToken",
 ]
 
@@ -145,17 +146,22 @@ def __getattr__(name: str):
     - from audiocore import AppConfig
 
     without triggering circular imports at module load time.
+    Imported objects are cached in the module's __dict__ so subsequent
+    accesses bypass __getattr__.
     """
     if name == "transcribe":
         from audiocore.api.transcribe import transcribe
 
+        globals()[name] = transcribe
         return transcribe
     if name == "async_transcribe":
         from audiocore.api.transcribe import async_transcribe
 
+        globals()[name] = async_transcribe
         return async_transcribe
     if name == "AppConfig":
         from audiocore.config import AppConfig
 
+        globals()[name] = AppConfig
         return AppConfig
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

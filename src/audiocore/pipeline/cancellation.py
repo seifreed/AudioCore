@@ -15,13 +15,21 @@ from __future__ import annotations
 
 import threading
 
+from audiocore.errors.base import AudioCoreError
 
-class CancelledError(BaseException):
+
+class CancelledError(AudioCoreError):
     """Exception raised when pipeline is cancelled.
 
-    Inherits from BaseException (not Exception) so that generic
-    ``except Exception`` handlers don't accidentally swallow cancellation.
-    This follows the same convention as Python's asyncio.CancelledError.
+    Inherits from AudioCoreError so it carries error_code, context,
+    and suggestions consistent with the rest of the error hierarchy.
+
+    Note:
+        Unlike Python's asyncio.CancelledError (which inherits from
+        BaseException), this inherits from AudioCoreError (and therefore
+        Exception). This means generic ``except Exception`` handlers will
+        catch it. If you need to distinguish cancellation from other errors,
+        catch CancelledError explicitly before the generic handler.
 
     Example:
         >>> try:
@@ -30,13 +38,25 @@ class CancelledError(BaseException):
         ...     print("Pipeline cancelled")
     """
 
-    def __init__(self, message: str = "Pipeline execution was cancelled") -> None:
+    def __init__(
+        self,
+        message: str = "Pipeline execution was cancelled",
+        context: dict[str, object] | None = None,
+        suggestions: list[str] | None = None,
+    ) -> None:
         """Initialize CancelledError.
 
         Args:
             message: Human-readable cancellation message.
+            context: Optional dict with diagnostic context.
+            suggestions: Optional list of actionable suggestions.
         """
-        super().__init__(message)
+        super().__init__(
+            message=message,
+            error_code="AUD-500",
+            context=context or {},
+            suggestions=suggestions or ["Check if cancellation was intentional"],
+        )
 
 
 class CancellationToken:

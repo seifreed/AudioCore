@@ -39,6 +39,8 @@ _FIELD_MAPPING = {
     "vad.speech_threshold": "vad.speech_threshold",
     "vad.silence_threshold": "vad.silence_threshold",
     "vad.min_segment_duration": "vad.min_segment_duration",
+    "vad.max_segment_duration": "vad.max_segment_duration",
+    "vad.speech_pad_ms": "vad.speech_pad_ms",
     "vad.min_silence_duration_ms": "vad.min_silence_duration_ms",
     "vad.window_size_samples": "vad.window_size_samples",
     "vad.strict_vad": "vad.strict_vad",

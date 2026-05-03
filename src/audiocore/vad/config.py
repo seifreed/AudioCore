@@ -71,9 +71,7 @@ class VADConfig(BaseModel):
     )
     window_size_samples: int = Field(
         default=512,
-        ge=256,
-        le=1024,
-        description="Window size in samples for VAD processing",
+        description="Window size in samples for VAD processing (must be 512, 768, or 1024)",
     )
     strict_vad: bool = Field(
         default=False,
@@ -82,16 +80,17 @@ class VADConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_thresholds(self) -> Self:
-        """Validate threshold relationships.
+        """Validate threshold relationships and Silero constraints.
 
         Ensures speech_threshold > silence_threshold for proper detection.
         Ensures min_segment_duration < max_segment_duration.
+        Ensures window_size_samples is one of Silero's supported values.
 
         Returns:
             VADConfig: Validated config instance.
 
         Raises:
-            ValueError: If thresholds or durations are invalid.
+            ValueError: If thresholds, durations, or window size are invalid.
         """
         if self.speech_threshold <= self.silence_threshold:
             raise ValueError(
@@ -102,5 +101,9 @@ class VADConfig(BaseModel):
             raise ValueError(
                 f"min_segment_duration ({self.min_segment_duration}) must be less than "
                 f"max_segment_duration ({self.max_segment_duration})"
+            )
+        if self.window_size_samples not in (512, 768, 1024):
+            raise ValueError(
+                f"window_size_samples must be 512, 768, or 1024, got {self.window_size_samples}"
             )
         return self

@@ -19,10 +19,20 @@ from audiocore.pipeline.cancellation import CancellationToken, CancelledError
 class TestCancelledError:
     """Tests for CancelledError exception."""
 
-    def test_cancelled_error_is_base_exception(self) -> None:
-        """CancelledError inherits from BaseException, not Exception."""
-        assert issubclass(CancelledError, BaseException)
-        assert not issubclass(CancelledError, Exception)
+    def test_cancelled_error_inherits_from_audio_core_error(self) -> None:
+        """Regression: CancelledError inherits from AudioCoreError with error_code.
+
+        Previously, CancelledError inherited from BaseException and lacked
+        error_code, context, and suggestions — inconsistent with the error
+        hierarchy documented as AUD-500.
+        """
+        from audiocore.errors.base import AudioCoreError
+
+        assert issubclass(CancelledError, AudioCoreError)
+        exc = CancelledError()
+        assert exc.error_code == "AUD-500"
+        assert exc.context is not None
+        assert exc.suggestions is not None
 
     def test_cancelled_error_default_message(self) -> None:
         """CancelledError has default message."""

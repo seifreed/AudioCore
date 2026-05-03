@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
@@ -14,8 +15,8 @@ class Segment(BaseModel):
     text content, and optional confidence score.
 
     Attributes:
-        start_time: Start time in seconds (must be >= 0).
-        end_time: End time in seconds (must be >= 0 and >= start_time).
+        start_time: Start time in seconds (must be >= 0, finite).
+        end_time: End time in seconds (must be >= 0, finite, and >= start_time).
         text: The transcribed text content (may be empty before transcription).
         confidence: Optional confidence score between 0 and 1.
 
@@ -44,11 +45,14 @@ class Segment(BaseModel):
 
     @model_validator(mode="after")
     def validate_time_order(self) -> Self:
-        """Validate that end_time >= start_time.
+        """Validate that time values are finite and end_time >= start_time.
 
         Raises:
-            ValueError: If end_time is less than start_time.
+            ValueError: If time values are inf/NaN or end_time < start_time.
         """
+        for field_name, value in [("start_time", self.start_time), ("end_time", self.end_time)]:
+            if not math.isfinite(value):
+                raise ValueError(f"{field_name} must be finite, got {value}")
         if self.end_time < self.start_time:
             raise ValueError(
                 f"end_time ({self.end_time}) must be >= start_time ({self.start_time})"

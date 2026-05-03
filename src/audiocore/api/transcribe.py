@@ -44,11 +44,15 @@ def _get_executor() -> ThreadPoolExecutor:
 
 
 def _cleanup_executor() -> None:
-    """Shutdown the thread pool executor on program exit."""
+    """Shutdown the thread pool executor on program exit.
+
+    Uses wait=True to allow in-flight tasks to complete gracefully,
+    matching the behavior of the explicit shutdown_executor() call.
+    """
     global _executor
     with _executor_lock:
         if _executor is not None:
-            _executor.shutdown(wait=False)
+            _executor.shutdown(wait=True)
             _executor = None
 
 

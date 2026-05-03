@@ -16,7 +16,7 @@ from rich.console import Console
 from rich.table import Table
 
 from audiocore.backends.availability import BackendAvailabilityChecker
-from audiocore.config import AppConfig
+from audiocore.config.merger import load_config
 
 app = typer.Typer(help="Manage and check backend availability")
 console = Console()
@@ -32,7 +32,7 @@ def list_backends() -> None:
     Example:
         >>> audiocore backends list
     """
-    config = AppConfig()
+    config = load_config()
     checker = BackendAvailabilityChecker(config)
 
     statuses = checker.check_all()
@@ -75,7 +75,7 @@ def check_backends() -> None:
         >>> audiocore backends check
         >>> echo $?  # 0 if available, 1 if not
     """
-    config = AppConfig()
+    config = load_config()
     checker = BackendAvailabilityChecker(config)
 
     statuses = checker.check_all()

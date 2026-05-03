@@ -2,13 +2,29 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated
 
 from pydantic import BaseModel, Field
 
 from audiocore.models.media import MediaInfo
 from audiocore.models.segment import Segment
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
+
+
+class FailedSegment(BaseModel):
+    """A segment that failed during transcription.
+
+    Attributes:
+        start_time: Start time of the failed segment in seconds.
+        end_time: End time of the failed segment in seconds.
+        error: Error message describing the failure.
+    """
+
+    model_config = {"strict": True, "extra": "forbid"}
+
+    start_time: float = Field(ge=0, description="Start time of the failed segment")
+    end_time: float = Field(ge=0, description="End time of the failed segment")
+    error: str = Field(description="Error message describing the failure")
 
 
 class TranscriptionOptions(BaseModel):
@@ -114,7 +130,7 @@ class TranscriptionResult(BaseModel):
         default=None,
         description="Formatted transcription output (text or JSON based on output_format)",
     )
-    failed_segments: list[dict[str, Any]] = Field(
+    failed_segments: list[FailedSegment] = Field(
         default_factory=list,
         description="Segments that failed transcription (start_time, end_time, error)",
     )

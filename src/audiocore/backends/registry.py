@@ -49,8 +49,8 @@ class BackendRegistry:
     _instance: BackendRegistry | None = None
     _lock: threading.Lock = threading.Lock()
     _instance_lock: threading.Lock = threading.Lock()
-    _backends: dict[BackendType, type[TranscriptionBackend]]
-    _instances: dict[BackendType, TranscriptionBackend]
+    _backends: dict[BackendType, type[TranscriptionBackend]] = {}
+    _instances: dict[BackendType, TranscriptionBackend] = {}
 
     def __new__(cls) -> BackendRegistry:
         """Create or return the singleton registry instance.
@@ -99,10 +99,18 @@ class BackendRegistry:
             >>> registry.register(BackendType.OPENAI, OpenAIBackend)
         """
         with self._instance_lock:
-            self._backends[backend_type] = backend_class
-            # Clear cached instance if backend is re-registered
-            if backend_type in self._instances:
-                del self._instances[backend_type]
+            self._register_unlocked(backend_type, backend_class)
+
+    def _register_unlocked(
+        self, backend_type: BackendType, backend_class: type[TranscriptionBackend]
+    ) -> None:
+        """Register a backend without acquiring the lock.
+
+        Must only be called while holding _instance_lock.
+        """
+        self._backends[backend_type] = backend_class
+        if backend_type in self._instances:
+            del self._instances[backend_type]
 
     def get_backend(
         self, backend_type: BackendType, config: AppConfig | None = None
@@ -129,23 +137,23 @@ class BackendRegistry:
             >>> backend = registry.get_backend(BackendType.OPENAI)
             >>> result = backend.transcribe("audio.mp3", options)
         """
-        # Check if backend is registered
-        if backend_type not in self._backends:
-            raise BackendUnavailableError(
-                f"Backend {backend_type.value} is not registered",
-                context={
-                    "backend_type": backend_type.value,
-                    "registered": list(self._backends.keys()),
-                },
-                suggestions=[
-                    f"Register {backend_type.value} backend before use",
-                    "Use BackendRegistry.register() to add backends",
-                ],
-            )
-
         # Create or replace instance with thread-safe locking
         with self._instance_lock:
-            # Check for cached instance with matching config (inside lock for thread safety)
+            # Check if backend is registered (inside lock for thread safety)
+            if backend_type not in self._backends:
+                raise BackendUnavailableError(
+                    f"Backend {backend_type.value} is not registered",
+                    context={
+                        "backend_type": backend_type.value,
+                        "registered": list(self._backends.keys()),
+                    },
+                    suggestions=[
+                        f"Register {backend_type.value} backend before use",
+                        "Use BackendRegistry.register() to add backends",
+                    ],
+                )
+
+            # Check for cached instance with matching config
             if backend_type in self._instances:
                 if config is None:
                     return self._instances[backend_type]
@@ -199,7 +207,8 @@ class BackendRegistry:
             >>> registry.list_backends()
             [<BackendType.OPENAI: 'openai'>, <BackendType.FASTER_WHISPER: 'faster_whisper'>]
         """
-        return list(self._backends.keys())
+        with self._instance_lock:
+            return list(self._backends.keys())
 
     def is_available(self, backend_type: BackendType) -> bool:
         """Check if a backend is registered and available.
@@ -207,6 +216,9 @@ class BackendRegistry:
         A backend is available if:
         1. It is registered in the registry
         2. Its is_available() method returns True
+
+        Uses cached instance if available to avoid singleton contamination
+        from creating temporary instances with default config.
 
         Args:
             backend_type: The BackendType enum value to check.
@@ -218,19 +230,21 @@ class BackendRegistry:
             >>> if registry.is_available(BackendType.OPENAI):
             ...     backend = registry.get_backend(BackendType.OPENAI)
         """
-        # Check if backend is registered
-        if backend_type not in self._backends:
-            return False
+        with self._instance_lock:
+            if backend_type not in self._backends:
+                return False
 
-        # Check availability without creating a cached instance.
-        # Creating and caching an instance here with config=None would
-        # cause get_backend() to return that misconfigured instance later.
-        try:
-            backend_class = self._backends[backend_type]
             # If an instance is already cached, check its availability
             if backend_type in self._instances:
-                return self._instances[backend_type].is_available()
-            # Create a temporary instance just for the availability check — do NOT cache it
+                try:
+                    return self._instances[backend_type].is_available()
+                except Exception:
+                    return False
+
+        # No cached instance — create a temporary one for the check.
+        # We do this outside the lock to avoid blocking other operations.
+        try:
+            backend_class = self._backends[backend_type]
             temp_instance = self._create_backend_instance(backend_class, None)
             return temp_instance.is_available()
         except Exception:
@@ -241,15 +255,15 @@ class BackendRegistry:
 
         This is primarily used for testing to ensure test isolation.
 
-        Thread-safe: Uses the class-level lock to prevent race conditions
-        with singleton creation.
+        Thread-safe: Uses the instance lock to prevent race conditions
+        with other registry operations.
 
         Example:
             >>> registry.clear()
             >>> registry.list_backends()
             []
         """
-        with BackendRegistry._lock:
+        with self._instance_lock:
             self._backends.clear()
             self._instances.clear()
             BackendRegistry._instance = None

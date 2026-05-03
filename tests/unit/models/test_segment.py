@@ -83,6 +83,22 @@ class TestSegmentValidation:
             Segment(start_time=0.0, end_time="5", text="test")  # type: ignore
 
 
+    def test_reject_infinite_start_time(self) -> None:
+        """Regression: float('inf') must be rejected for start_time."""
+        with pytest.raises(ValidationError, match="must be finite"):
+            Segment(start_time=float("inf"), end_time=5.0, text="test")
+
+    def test_reject_infinite_end_time(self) -> None:
+        """Regression: float('inf') must be rejected for end_time."""
+        with pytest.raises(ValidationError, match="must be finite"):
+            Segment(start_time=0.0, end_time=float("inf"), text="test")
+
+    def test_reject_nan_start_time(self) -> None:
+        """Regression: float('nan') must be rejected for start_time."""
+        with pytest.raises(ValidationError, match="must be finite"):
+            Segment(start_time=float("nan"), end_time=5.0, text="test")
+
+
 class TestSegmentSerialization:
     """Tests for Segment serialization/deserialization."""
 

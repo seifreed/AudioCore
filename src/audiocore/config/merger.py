@@ -148,8 +148,14 @@ def merge_configs(
     # Lower priority values are overwritten by higher priority values
 
     # 1. Start with defaults (lowest priority)
-    # Note: defaults can have None values (for optional fields), include them
-    merged.update(norm_defaults)
+    # Convert Pydantic model defaults to dicts so nested merging works correctly.
+    # Without this, a partial TOML override like {openai: {api_key: "sk-..."}} would
+    # replace the entire OpenAIConfig default instead of merging into it.
+    for key, value in norm_defaults.items():
+        if hasattr(value, "model_dump") and hasattr(value, "model_fields"):
+            merged[key] = value.model_dump()
+        else:
+            merged[key] = value
 
     # 2. TOML config overrides defaults (skip None values)
     for key, value in norm_toml.items():

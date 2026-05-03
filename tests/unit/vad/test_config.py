@@ -131,10 +131,7 @@ class TestVADConfigFieldValidation:
         assert config.min_silence_duration_ms == 200
 
     def test_window_size_samples_one_of_valid_values(self) -> None:
-        """Test window_size_samples accepts values in valid range (256-1024)."""
-        config = VADConfig(window_size_samples=256)
-        assert config.window_size_samples == 256
-
+        """Test window_size_samples accepts only Silero-supported values (512, 768, 1024)."""
         config = VADConfig(window_size_samples=512)
         assert config.window_size_samples == 512
 
@@ -144,15 +141,24 @@ class TestVADConfigFieldValidation:
         config = VADConfig(window_size_samples=1024)
         assert config.window_size_samples == 1024
 
-    def test_window_size_samples_rejects_invalid(self) -> None:
-        """Test window_size_samples rejects values outside range."""
+    def test_window_size_samples_rejects_unsupported_values(self) -> None:
+        """Regression: window_size_samples rejects values Silero does not support.
+
+        Previously, the config allowed 256-1024 but Silero only works correctly
+        with 512, 768, or 1024. Values like 256 or 300 produced silently
+        incorrect VAD results.
+        """
         with pytest.raises(ValidationError) as exc_info:
-            VADConfig(window_size_samples=128)
-        assert "greater than or equal to 256" in str(exc_info.value)
+            VADConfig(window_size_samples=256)
+        assert "must be 512, 768, or 1024" in str(exc_info.value)
+
+        with pytest.raises(ValidationError) as exc_info:
+            VADConfig(window_size_samples=300)
+        assert "must be 512, 768, or 1024" in str(exc_info.value)
 
         with pytest.raises(ValidationError) as exc_info:
             VADConfig(window_size_samples=2048)
-        assert "less than or equal to 1024" in str(exc_info.value)
+        assert "must be 512, 768, or 1024" in str(exc_info.value)
 
 
 class TestVADConfigCrossFieldValidation:
