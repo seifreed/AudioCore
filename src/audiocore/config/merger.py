@@ -298,7 +298,7 @@ def load_config(
     )
     logger.debug(
         "  Env: %s",
-        {k: "***REDACTED***" if k == "openai_api_key" else v for k, v in env_values.items()},
+        {k: v for k, v in mask_secrets(env_values).items() if v is not None},
     )
     logger.debug(
         "  CLI: %s",

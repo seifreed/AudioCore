@@ -9,7 +9,6 @@ import pytest
 
 from audiocore.errors import InvalidInputError, MediaError
 from audiocore.media.probe import (
-    _check_ffprobe_available,
     _validate_file_exists,
     probe,
 )
@@ -48,53 +47,6 @@ class TestValidateFileExists:
         assert exc_info.value.context is not None
         assert "file_path" in exc_info.value.context
         assert exc_info.value.context["file_path"] == str(missing_file)
-
-
-class TestCheckFfprobeAvailable:
-    """Tests for _check_ffprobe_available helper."""
-
-    @patch("audiocore.media.probe.subprocess.run")
-    def test_check_ffprobe_available_passes_for_valid_path(self, mock_run: MagicMock) -> None:
-        """Should pass when ffprobe returns success."""
-        mock_run.return_value = MagicMock(returncode=0, stderr="")
-
-        # Should not raise
-        _check_ffprobe_available("ffprobe")
-        mock_run.assert_called_once()
-
-    @patch("audiocore.media.probe.subprocess.run")
-    def test_check_ffprobe_available_raises_for_missing_ffprobe(self, mock_run: MagicMock) -> None:
-        """Should raise MediaError when ffprobe not found."""
-        mock_run.side_effect = FileNotFoundError("ffprobe not found")
-
-        with pytest.raises(MediaError) as exc_info:
-            _check_ffprobe_available("/nonexistent/ffprobe")
-
-        assert exc_info.value.error_code == "AUD-402"
-        assert "not found" in exc_info.value.message.lower()
-
-    @patch("audiocore.media.probe.subprocess.run")
-    def test_check_ffprobe_available_raises_for_ffprobe_failure(self, mock_run: MagicMock) -> None:
-        """Should raise MediaError when ffprobe returns error."""
-        mock_run.return_value = MagicMock(
-            returncode=1, stderr="ffprobe: error while loading shared libraries"
-        )
-
-        with pytest.raises(MediaError) as exc_info:
-            _check_ffprobe_available("ffprobe")
-
-        assert exc_info.value.error_code == "AUD-402"
-
-    @patch("audiocore.media.probe.subprocess.run")
-    def test_check_ffprobe_available_raises_for_timeout(self, mock_run: MagicMock) -> None:
-        """Should raise MediaError when ffprobe times out."""
-        mock_run.side_effect = TimeoutExpired(cmd="ffprobe", timeout=5)
-
-        with pytest.raises(MediaError) as exc_info:
-            _check_ffprobe_available("ffprobe")
-
-        assert exc_info.value.error_code == "AUD-402"
-        assert "timed out" in exc_info.value.message.lower()
 
 
 class TestProbe:

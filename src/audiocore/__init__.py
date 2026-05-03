@@ -78,6 +78,9 @@ from audiocore.errors import (
 # Import models - these have no circular import issues
 from audiocore.models import Segment, TranscriptionOptions, TranscriptionResult
 
+# Import pipeline utilities
+from audiocore.pipeline.cancellation import CancellationToken, CancelledError
+
 # Import types - these have no circular import issues
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
 
@@ -128,6 +131,9 @@ __all__ = [
     "PipelineStageError",
     "PipelineCancelledError",
     "PartialResultError",
+    # Cancellation
+    "CancelledError",
+    "CancellationToken",
 ]
 
 

@@ -120,12 +120,13 @@ class FasterWhisperBackend(TranscriptionBackend):
     def is_available(self) -> bool:
         """Check if faster-whisper backend is available.
 
-        Checks that faster-whisper package is installed.
+        Checks that both faster-whisper and ctranslate2 are installed.
 
         Returns:
-            True if faster-whisper is installed, False otherwise.
+            True if faster-whisper and ctranslate2 are installed, False otherwise.
         """
         try:
+            import ctranslate2  # noqa: F401
             import faster_whisper  # noqa: F401
 
             return True

@@ -150,6 +150,7 @@ def extract_audio(
     start_time: float | None = None,
     duration: float | None = None,
     ffmpeg_path: str = "ffmpeg",
+    ffprobe_path: str | None = None,
     timeout: float = 3600.0,
     progress_callback: Callable[[float], None] | None = None,
 ) -> Path:
@@ -203,12 +204,14 @@ def extract_audio(
     total_duration: float | None = None
     if progress_callback is not None:
         try:
-            # Derive ffprobe path from ffmpeg path by replacing only the filename
-            ffmpeg_path_obj = Path(ffmpeg_path)
-            ffprobe_path = str(
-                ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace("ffmpeg", "ffprobe", 1)
-            )
-            media_info = probe(input_path, ffprobe_path=ffprobe_path)
+            # Use explicit ffprobe_path if provided, otherwise derive from ffmpeg_path
+            effective_ffprobe = ffprobe_path
+            if effective_ffprobe is None:
+                ffmpeg_path_obj = Path(ffmpeg_path)
+                effective_ffprobe = str(
+                    ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace("ffmpeg", "ffprobe", 1)
+                )
+            media_info = probe(input_path, ffprobe_path=effective_ffprobe)
             total_duration = media_info.duration
         except Exception as probe_error:
             # If probe fails, progress callback won't work but extraction can continue

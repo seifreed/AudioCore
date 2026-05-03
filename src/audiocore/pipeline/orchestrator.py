@@ -32,7 +32,7 @@ from audiocore.models import (
 )
 from audiocore.output import format_json, format_srt, format_text, format_vtt
 from audiocore.pipeline.cancellation import CancellationToken, CancelledError
-from audiocore.pipeline.errors import PipelineStageError
+from audiocore.pipeline.errors import PartialResultError, PipelineStageError
 from audiocore.pipeline.progress import PipelineStage, ProgressCallback
 from audiocore.types import OutputFormat
 from audiocore.vad import detect_speech
@@ -141,10 +141,14 @@ class Pipeline:
         path = Path(path)
         options = options or TranscriptionOptions()
 
-        # Helper to emit progress safely
+        # Helper to emit progress safely — never let callback exceptions
+        # mask pipeline errors like CancelledError
         def emit_progress(stage: PipelineStage, progress: float, message: str) -> None:
             if progress_callback is not None:
-                progress_callback(stage, progress, message)
+                try:
+                    progress_callback(stage, progress, message)
+                except Exception:
+                    logger.debug("Progress callback raised, ignoring", exc_info=True)
 
         # Helper to check cancellation safely
         def check_cancellation() -> None:
@@ -188,7 +192,13 @@ class Pipeline:
                     )
 
                 try:
-                    extract_audio(path, audio_path, progress_callback=extraction_progress)
+                    extract_audio(
+                        path,
+                        audio_path,
+                        ffmpeg_path=self.config.ffmpeg_path,
+                        ffprobe_path=self.config.ffprobe_path,
+                        progress_callback=extraction_progress,
+                    )
                 except MediaError as e:
                     logger.debug("Cleaning up temp file after extraction failure: %s", audio_path)
                     raise PipelineStageError(
@@ -218,7 +228,7 @@ class Pipeline:
                         # Re-raise in strict mode - user wants to know about VAD failures
                         raise
                     # Otherwise, fall back to whole-file transcription
-                    logger.warning(f"VAD failed, falling back to whole-file transcription: {e}")
+                    logger.warning("VAD failed, falling back to whole-file transcription: %s", e)
                     segments = []  # Empty segments will trigger whole-file transcription
                 emit_progress(PipelineStage.VAD, 1.0, "Voice activity detection complete")
                 check_cancellation()
@@ -235,8 +245,8 @@ class Pipeline:
                         "Failed to select transcription backend",
                         stage=PipelineStage.SELECTING,
                         context={
-                            "backend": str(options.backend.value),
-                            "policy": str(options.backend_preference.value),
+                            "backend": options.backend.value,
+                            "policy": options.backend_preference.value,
                         },
                         original_error=e,
                     ) from e
@@ -254,7 +264,7 @@ class Pipeline:
                 except BackendUnavailableError as e:
                     raise PipelineStageError(
                         "Failed to get transcription backend",
-                        stage=PipelineStage.SELECTING,
+                        stage=PipelineStage.TRANSCRIBING,
                         original_error=e,
                     ) from e
 
@@ -281,7 +291,7 @@ class Pipeline:
                 result.formatted_output = formatted_output
             except Exception as e:
                 # Formatting error is non-fatal - result still valid
-                logger.warning(f"Failed to format output: {e}")
+                logger.warning("Failed to format output: %s", e)
                 result.formatted_output = None
             emit_progress(PipelineStage.FORMATTING, 1.0, "Output formatting complete")
 
@@ -367,6 +377,10 @@ class Pipeline:
                     len(result.segments),
                     len(segments),
                 )
+        except PartialResultError:
+            raise
+        except CancelledError:
+            raise
         except Exception as e:
             # Wrap in PipelineStageError with stage context
             raise PipelineStageError(

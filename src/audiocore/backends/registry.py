@@ -143,7 +143,7 @@ class BackendRegistry:
                 ],
             )
 
-        # Return cached instance if available and config matches
+        # Return cached instance if config matches
         if backend_type in self._instances:
             if config is None:
                 return self._instances[backend_type]
@@ -157,15 +157,25 @@ class BackendRegistry:
                         return self._instances[backend_type]
                 elif cached_config == config:
                     return self._instances[backend_type]
-            # Config mismatch or cached has no config — fall through to create new instance
 
-        # Create new instance with thread-safe locking
+        # Create or replace instance with thread-safe locking
         with self._instance_lock:
-            # Double-checked locking pattern
-            if backend_type not in self._instances:
-                backend_class = self._backends[backend_type]
-                instance = self._create_backend_instance(backend_class, config)
-                self._instances[backend_type] = instance
+            # Re-check after acquiring lock (another thread may have created it)
+            if backend_type in self._instances and config is not None:
+                cached = self._instances[backend_type]
+                cached_config = getattr(cached, "_config", None)
+                if cached_config is not None:
+                    from audiocore.config import AppConfig
+
+                    if isinstance(cached_config, AppConfig) and isinstance(config, AppConfig):
+                        if cached_config is config or cached_config == config:
+                            return self._instances[backend_type]
+                    elif cached_config == config:
+                        return self._instances[backend_type]
+
+            backend_class = self._backends[backend_type]
+            instance = self._create_backend_instance(backend_class, config)
+            self._instances[backend_type] = instance
 
         return self._instances[backend_type]
 
@@ -225,24 +235,17 @@ class BackendRegistry:
         if backend_type not in self._backends:
             return False
 
-        # Check availability without side-effect caching.
-        # Create a temporary instance to check availability, but don't cache it
-        # so that a broken instance doesn't pollute the cache.
-
+        # Check availability without creating a cached instance.
+        # Creating and caching an instance here with config=None would
+        # cause get_backend() to return that misconfigured instance later.
         try:
             backend_class = self._backends[backend_type]
             # If an instance is already cached, check its availability
             if backend_type in self._instances:
                 return self._instances[backend_type].is_available()
-            # Create a temporary instance just for the availability check
+            # Create a temporary instance just for the availability check — do NOT cache it
             temp_instance = self._create_backend_instance(backend_class, None)
-            available = temp_instance.is_available()
-            if available:
-                # Only cache if the backend is actually available
-                with self._instance_lock:
-                    if backend_type not in self._instances:
-                        self._instances[backend_type] = temp_instance
-            return available
+            return temp_instance.is_available()
         except Exception:
             return False
 

@@ -10,9 +10,9 @@ Key Features:
 - Optional organization and base URL for proxies
 """
 
-from typing import Annotated
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
 
 class OpenAIConfig(BaseModel):
@@ -69,3 +69,15 @@ class OpenAIConfig(BaseModel):
         le=10,
         description="Maximum number of retries on API errors",
     )
+
+    @field_validator("api_key", mode="before")
+    @classmethod
+    def coerce_api_key(cls, v: Any) -> SecretStr | None:
+        """Accept plain str and wrap it in SecretStr for strict mode compatibility."""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            return SecretStr(v)
+        if isinstance(v, SecretStr):
+            return v
+        raise ValueError(f"Expected str or SecretStr for api_key, got {type(v).__name__}")

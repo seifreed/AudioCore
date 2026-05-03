@@ -238,12 +238,12 @@ class FasterWhisperConfig(BaseModel):
         """
         if v is None:
             return v
-        # Accept 2-3 char codes or BCP 47 tags (e.g., "en-US", "zh-CN")
+        # Accept 2-3 char codes or BCP 47 tags (e.g., "en-US", "zh-Hans")
         if isinstance(v, str):
             normalized = v.lower()
-            if not re.match(r"^[a-z]{2,3}(-[a-z]{2,3})?$", normalized):
+            if not re.match(r"^[a-z]{2,3}(-[a-z]{2,8})?$", normalized):
                 raise ValueError(
-                    f"Invalid language code '{v}'. Expected 2-3 character code (e.g., 'en', 'es') or BCP 47 tag (e.g., 'en-US')"
+                    f"Invalid language code '{v}'. Expected 2-3 character code (e.g., 'en', 'es') or BCP 47 tag (e.g., 'en-US', 'zh-Hans')"
                 )
             return normalized
         return v

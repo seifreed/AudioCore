@@ -186,6 +186,9 @@ class AppConfig(BaseSettings):
         """
         if self.openai_api_key is not None and self.openai.api_key is None:
             key_value = self.openai_api_key.get_secret_value()
-            if key_value:  # Only propagate non-empty keys
-                self.openai.api_key = self.openai_api_key
+            if key_value:
+                # Rebuild the openai sub-config to keep Pydantic validation intact
+                openai_data = self.openai.model_dump()
+                openai_data["api_key"] = self.openai_api_key
+                self.openai = type(self.openai).model_validate(openai_data)
         return self

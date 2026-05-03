@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Self
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class VADConfig(BaseModel):
@@ -31,7 +31,7 @@ class VADConfig(BaseModel):
             Silero optimal values: 512, 768, or 1024.
     """
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(strict=True, extra="forbid")
 
     min_segment_duration: float = Field(
         default=0.5,

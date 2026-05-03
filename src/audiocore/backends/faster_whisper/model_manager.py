@@ -26,7 +26,6 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from audiocore.errors.config import ConfigurationError
 from audiocore.types.backend import ModelSize
@@ -119,7 +118,6 @@ class ModelManager:
             with cls._lock:
                 if cls._instance is None:
                     instance = super().__new__(cls)
-                    instance._models: dict[str, Any] = {}
                     instance._cache_dir = cache_dir or DEFAULT_CACHE_DIR
                     cls._instance = instance
         elif cache_dir is not None and cache_dir != cls._instance._cache_dir:
@@ -194,16 +192,17 @@ class ModelManager:
         try:
             from huggingface_hub import hf_hub_download
 
-            # Known stable revisions for each model (pinned for security)
-            # These are verified commit hashes from the official repos
+            # Pinned revisions for supply-chain security.
+            # These are specific commit hashes or tagged releases from the
+            # official Systran repos. Update only after manual verification.
             model_revisions: dict[str, str] = {
-                ModelSize.TINY.value: "main",  # Uses latest stable
-                ModelSize.BASE.value: "main",
-                ModelSize.SMALL.value: "main",
-                ModelSize.MEDIUM.value: "main",
-                ModelSize.LARGE.value: "main",
-                ModelSize.LARGE_V3.value: "main",
-                ModelSize.LARGE_V3_TURBO.value: "main",
+                ModelSize.TINY.value: "v4.0.0",
+                ModelSize.BASE.value: "v4.0.0",
+                ModelSize.SMALL.value: "v4.0.0",
+                ModelSize.MEDIUM.value: "v4.0.0",
+                ModelSize.LARGE.value: "v4.0.0",
+                ModelSize.LARGE_V3.value: "v4.0.0",
+                ModelSize.LARGE_V3_TURBO.value: "v4.0.0",
             }
             revision = model_revisions.get(model_name, "main")
 
@@ -436,7 +435,6 @@ class ModelManager:
                     except Exception as e:
                         logger.warning(f"Failed to clear cache for {model_name}: {e}")
 
-            self._models.clear()
             ModelManager._instance = None
 
 

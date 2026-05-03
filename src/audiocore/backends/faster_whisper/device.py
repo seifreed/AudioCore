@@ -177,18 +177,10 @@ def validate_device(device: str) -> str:
         if device_info["cuda_available"]:
             logger.info(f"Using CUDA device: {device_info.get('device_name', 'unknown')}")
             return DEVICE_CUDA
-        # Fall back to MPS if CUDA not available but MPS is
-        if device_info["mps_available"]:
-            logger.warning(
-                f"CUDA requested but not available, falling back to MPS. "
-                f"CUDA available: {device_info['cuda_available']}"
-            )
-            return DEVICE_MPS
-        # Fall back to CPU
+        # Fall back to CPU (not MPS — CTranslate2 doesn't support MPS)
         logger.warning(
             f"CUDA requested but not available, falling back to CPU. "
-            f"CUDA available: {device_info['cuda_available']}, "
-            f"MPS available: {device_info['mps_available']}"
+            f"CUDA available: {device_info['cuda_available']}"
         )
         return DEVICE_CPU
 

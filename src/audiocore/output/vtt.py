@@ -98,7 +98,7 @@ def format_vtt(result: TranscriptionResult, options: TranscriptionOptions) -> st
     """
     # VTT always starts with WEBVTT header
     if not result.segments:
-        return "WEBVTT\n"
+        return "WEBVTT\n\n"
 
     cue_blocks = []
 
@@ -106,13 +106,14 @@ def format_vtt(result: TranscriptionResult, options: TranscriptionOptions) -> st
         start_ts = _format_vtt_timestamp(segment.start_time)
         end_ts = _format_vtt_timestamp(segment.end_time)
         # Handle empty text gracefully, escape WebVTT-breaking sequences
+        # Double newlines break cue structure — collapse them
         text = segment.text if segment.text else ""
         if text:
             text = (
                 text.replace("&", "&amp;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
-                .replace("-->", "- ->")
+                .replace("\n\n", "\n")
             )
 
         # VTT cue format:

@@ -128,7 +128,7 @@ class TestFormatVtt:
         )
 
         vtt = format_vtt(result, TranscriptionOptions())
-        assert vtt == "WEBVTT\n"
+        assert vtt == "WEBVTT\n\n"
 
     def test_multiple_segments(
         self, sample_result: TranscriptionResult, sample_options: TranscriptionOptions

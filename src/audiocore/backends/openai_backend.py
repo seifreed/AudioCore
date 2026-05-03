@@ -156,13 +156,17 @@ class OpenAIBackend(TranscriptionBackend):
     def is_available(self) -> bool:
         """Check if OpenAI backend is available.
 
-        Checks that an API key is configured (either via constructor or
-        environment variable) and validates that it has a recognizable
-        OpenAI key format.
+        Checks that the openai package is installed and an API key is
+        configured (either via constructor or environment variable).
 
         Returns:
-            True if API key is configured and has correct format, False otherwise.
+            True if openai package is installed and API key is configured, False otherwise.
         """
+        try:
+            import openai  # noqa: F401
+        except ImportError:
+            return False
+
         # Check if API key is provided in constructor
         if self._api_key is not None:
             return bool(self._api_key)
@@ -245,14 +249,26 @@ class OpenAIBackend(TranscriptionBackend):
         if self._api_key and self._api_key in message:
             message = message.replace(self._api_key, "[REDACTED]")
 
-        # Redact environment key if available
+        # Redact environment keys
         import os
 
-        env_key = os.environ.get("OPENAI_API_KEY")
-        if env_key and env_key in message:
-            message = message.replace(env_key, "[REDACTED]")
+        for env_var in ("OPENAI_API_KEY", "AUDIOCORE_OPENAI_API_KEY"):
+            env_key = os.environ.get(env_var)
+            if env_key and env_key in message:
+                message = message.replace(env_key, "[REDACTED]")
 
         return message
+
+    def close(self) -> None:
+        """Close the OpenAI client and release connection pool resources."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    def __del__(self) -> None:
+        """Ensure client connection pool is released on garbage collection."""
+        with contextlib.suppress(Exception):
+            self.close()
 
     def transcribe(
         self, audio_path: Path | str, options: TranscriptionOptions

@@ -102,8 +102,11 @@ def format_srt(result: TranscriptionResult, options: TranscriptionOptions) -> st
     for i, segment in enumerate(result.segments, start=1):
         start_ts = _format_srt_timestamp(segment.start_time)
         end_ts = _format_srt_timestamp(segment.end_time)
-        # Handle empty text gracefully, escape SRT-breaking sequences
-        text = segment.text.replace("-->", "- ->") if segment.text else ""
+        # Handle empty text gracefully, replace double newlines that would
+        # break SRT cue structure, and escape the SRT timestamp delimiter
+        text = segment.text if segment.text else ""
+        if text:
+            text = text.replace("\n\n", "\n").replace("-->", "- ->")
 
         # SRT cue format:
         # - Sequential number

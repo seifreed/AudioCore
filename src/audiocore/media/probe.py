@@ -35,52 +35,6 @@ def _validate_file_exists(file_path: Path) -> None:
         )
 
 
-def _check_ffprobe_available(ffprobe_path: str) -> None:
-    """Check if ffprobe is available and working.
-
-    Args:
-        ffprobe_path: Path to ffprobe executable.
-
-    Raises:
-        MediaError: If ffprobe is not found or not working.
-    """
-    try:
-        result = subprocess.run(
-            [ffprobe_path, "-version"],
-            capture_output=True,
-            timeout=5,
-        )
-        if result.returncode != 0:
-            raise MediaError(
-                f"ffprobe returned error code {result.returncode}",
-                context={"ffprobe_path": ffprobe_path, "returncode": result.returncode},
-                suggestions=[
-                    "Verify ffprobe installation",
-                    "Check ffprobe is not corrupted",
-                ],
-            )
-    except FileNotFoundError as e:
-        raise MediaError(
-            f"ffprobe not found: {ffprobe_path}",
-            context={"ffprobe_path": ffprobe_path},
-            suggestions=[
-                "Install ffmpeg (includes ffprobe)",
-                f"Verify {ffprobe_path} is in PATH or provide full path",
-            ],
-            cause=e,
-        ) from e
-    except subprocess.TimeoutExpired as e:
-        raise MediaError(
-            "ffprobe timed out during availability check",
-            context={"ffprobe_path": ffprobe_path},
-            suggestions=[
-                "Check if ffprobe is responsive",
-                "Try increasing timeout",
-            ],
-            cause=e,
-        ) from e
-
-
 def probe(
     file_path: Path | str,
     ffprobe_path: str = "ffprobe",
