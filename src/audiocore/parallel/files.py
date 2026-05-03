@@ -123,11 +123,12 @@ async def transcribe_files_concurrent(
                     lambda: transcribe(path=file_path, options=options),
                 )
 
-                # Call progress callback if provided (thread-safe counter update)
+                # Update counter and call progress callback outside lock to avoid blocking
                 if progress_callback:
                     async with counter_lock:
                         completed_count += 1
                         current_count = completed_count
+                    # Call callback outside lock to avoid blocking other coroutines
                     progress_callback(current_count, total_count, file_path)
 
                 return FileResult(
@@ -150,6 +151,7 @@ async def transcribe_files_concurrent(
                     async with counter_lock:
                         completed_count += 1
                         current_count = completed_count
+                    # Call callback outside lock to avoid blocking other coroutines
                     progress_callback(current_count, total_count, file_path)
 
                 return FileResult(

@@ -80,8 +80,9 @@ class ModelSize(StrEnum):
             ValueError: If value is not a valid model size
         """
         # Handle camelCase: insert underscore before uppercase letters
-        # "LargeV3" → "Large_V3", then normalize
-        normalized = re.sub(r"([a-z])([A-Z])", r"\1_\2", value)
+        # "LargeV3" → "Large_V3", "largeV3Turbo" → "large_V3_Turbo" → "large_V3_Turbo"
+        # Also handle digit-to-uppercase transitions: "V3Turbo" → "V3_Turbo"
+        normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", value)
         normalized = normalized.lower().replace(" ", "_")
         # Map underscores to hyphens so "large_v3" resolves to "large-v3"
         if "_" in normalized:

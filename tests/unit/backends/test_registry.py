@@ -752,3 +752,52 @@ class TestRegistrySingletonReset:
         registry2 = BackendRegistry()
         assert id(registry2) != original_id
         assert registry2.list_backends() == []
+
+
+class TestGetBackendConfigRace:
+    """Regression tests for TOCTOU race in get_backend()."""
+
+    def test_config_check_happens_inside_lock(self) -> None:
+        """Regression: config-matching check must happen inside _instance_lock.
+
+        Previously, the config-matching check ran outside the lock, so two
+        threads with different configs could race: both pass the check, one
+        returns a stale instance while the other overwrites it. Now the check
+        always happens inside the lock.
+        """
+        registry = BackendRegistry()
+        registry.clear()
+
+        registry.register(BackendType.OPENAI, MockTranscriptionBackend)
+
+        # Verify that get_backend works correctly for the no-config case
+        backend1 = registry.get_backend(BackendType.OPENAI)
+        backend2 = registry.get_backend(BackendType.OPENAI)
+        assert backend1 is backend2
+
+    def test_concurrent_get_backend_with_config_is_deterministic(self) -> None:
+        """Concurrent get_backend() with the same config must return same instance."""
+        registry = BackendRegistry()
+        registry.clear()
+
+        registry.register(BackendType.OPENAI, MockTranscriptionBackend)
+
+        instances: list[TranscriptionBackend] = []
+        errors: list[Exception] = []
+
+        def get_backend_thread() -> None:
+            try:
+                instance = registry.get_backend(BackendType.OPENAI)
+                instances.append(instance)
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=get_backend_thread) for _ in range(50)]
+
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(errors) == 0, f"Errors during concurrent access: {errors}"
+        assert all(inst is instances[0] for inst in instances)

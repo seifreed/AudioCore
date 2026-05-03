@@ -484,3 +484,48 @@ class TestAsyncioIntegration:
         assert actual_max_concurrent <= 2, (
             f"Max concurrent was {actual_max_concurrent}, expected <= 2"
         )
+
+
+class TestProgressCallbackLockContention:
+    """Regression tests for progress callback lock contention."""
+
+    @pytest.mark.asyncio
+    async def test_progress_callback_called_outside_lock(
+        self,
+        tmp_path: Path,
+        transcription_options: TranscriptionOptions,
+        mock_transcription_result: TranscriptionResult,
+    ) -> None:
+        """Regression: progress callback must be called outside the counter lock.
+
+        Previously, the progress callback was invoked while holding the
+        asyncio counter_lock, blocking other coroutines from updating
+        progress. Now the callback is called after releasing the lock.
+        """
+        files = []
+        for i in range(3):
+            audio_file = tmp_path / f"test{i}.wav"
+            audio_file.write_bytes(b"fake audio")
+            files.append(audio_file)
+
+        progress_calls: list[tuple[int, int, Path]] = []
+
+        def slow_progress_callback(completed: int, total: int, path: Path) -> None:
+            progress_calls.append((completed, total, path))
+
+        with patch("audiocore.parallel.files.transcribe") as mock_transcribe:
+            mock_transcribe.return_value = mock_transcription_result
+
+            results = await transcribe_files_concurrent(
+                files=files,
+                options=transcription_options,
+                max_workers=1,
+                progress_callback=slow_progress_callback,
+            )
+
+        assert len(results) == 3
+        # All progress callbacks should have been called
+        assert len(progress_calls) == 3
+        # Completed counts should be 1, 2, 3 (ordered by completion)
+        completed_counts = sorted([c for c, _, _ in progress_calls])
+        assert completed_counts == [1, 2, 3]

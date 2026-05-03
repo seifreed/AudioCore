@@ -108,7 +108,7 @@ class SileroVAD:
             finally:
                 executor.shutdown(wait=False, cancel_futures=True)
 
-        except TimeoutError:
+        except TimeoutError as timeout_exc:
             # Try local cache fallback after timeout
             import os
             import sys
@@ -140,7 +140,7 @@ class SileroVAD:
                     "Increase timeout by passing timeout_seconds parameter",
                     "Use whole-file transcription without VAD segmentation",
                 ],
-            ) from cache_fallback_error
+            ) from (cache_fallback_error or timeout_exc)
         except ImportError as import_error:
             raise VADError(
                 message="torch is not installed, which is required for Silero VAD",
@@ -360,8 +360,10 @@ class SileroVAD:
             # Convert min_silence_duration from ms to seconds
             min_silence_duration_s = config.min_silence_duration_ms / 1000.0
 
-            # Process each chunk
-            for i in range(0, len(audio_data) - chunk_size + 1, chunk_size):
+            # Process each full chunk (skip partial chunks at the end)
+            for i in range(0, len(audio_data), chunk_size):
+                if i + chunk_size > len(audio_data):
+                    break  # Skip partial chunk at end of audio
                 chunk = audio_data[i : i + chunk_size]
 
                 # Convert to torch tensor

@@ -93,6 +93,7 @@ class TestModelManagerSingleton:
         """ModelManager should be thread-safe."""
         # Reset singleton for test
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
         instances: list[ModelManager] = []
 
@@ -110,11 +111,13 @@ class TestModelManagerSingleton:
 
         # Cleanup
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
     def test_singleton_preserves_cache_dir(self) -> None:
         """Singleton should preserve first cache_dir and reject different one."""
         # Reset singleton
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
         manager1 = ModelManager(cache_dir=Path("/custom/cache"))
         assert manager1.cache_dir == Path("/custom/cache")
@@ -133,13 +136,27 @@ class TestModelManagerSingleton:
 
         # Cleanup
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
     def test_clear_resets_state(self) -> None:
-        """clear() should clear model cache."""
+        """clear() should reset singleton and allow fresh instance."""
+        # Reset singleton
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+        ModelManager._persisted_cache_dir = None
+
         manager = ModelManager()
-        manager._models["test"] = "value"
+        original_id = id(manager)
         manager.clear()
-        assert len(manager._models) == 0
+
+        # After clear, singleton is reset so new instances are fresh
+        new_manager = ModelManager()
+        assert id(new_manager) != original_id
+
+        # Cleanup
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+        ModelManager._persisted_cache_dir = None
 
     def test_clear_resets_singleton(self) -> None:
         """Regression: clear() must reset singleton so a fresh instance can be
@@ -155,6 +172,33 @@ class TestModelManagerSingleton:
         # After clear(), a new ModelManager() should be a fresh instance
         new_manager = ModelManager()
         assert id(new_manager) != original_id
+
+    def test_clear_preserves_custom_cache_dir(self) -> None:
+        """Regression: clear() must preserve custom cache_dir across resets.
+
+        Previously, clear() set _instance=None but didn't persist cache_dir,
+        so the next ModelManager() would use DEFAULT_CACHE_DIR instead of the
+        custom one. Now _persisted_cache_dir is used to preserve it.
+        """
+        # Reset singleton
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+        ModelManager._persisted_cache_dir = None
+
+        custom_cache = Path("/custom/cache")
+        manager = ModelManager(cache_dir=custom_cache)
+        assert manager.cache_dir == custom_cache
+
+        manager.clear()
+
+        # After clear, a new ModelManager() should still use the custom cache_dir
+        new_manager = ModelManager()
+        assert new_manager.cache_dir == custom_cache
+
+        # Cleanup
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+        ModelManager._persisted_cache_dir = None
 
 
 class TestModelManagerDownloadModel:
@@ -181,6 +225,7 @@ class TestModelManagerDownloadModel:
         """Should download model from HuggingFace Hub."""
         # Reset singleton
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
         # Setup mock
         model_path = tmp_path / "model.bin"
@@ -202,11 +247,13 @@ class TestModelManagerDownloadModel:
 
         # Cleanup
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
     def test_download_already_cached(self, tmp_path: Path) -> None:
         """Should return cached path if already downloaded."""
         # Reset singleton
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
         manager = ModelManager(cache_dir=tmp_path)
 
@@ -225,6 +272,7 @@ class TestModelManagerDownloadModel:
 
         # Cleanup
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
 
 class TestModelManagerGetModelPath:
@@ -234,6 +282,7 @@ class TestModelManagerGetModelPath:
         """Should return None if model not cached."""
         # Reset singleton
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
         manager = ModelManager(cache_dir=tmp_path)
         result = manager.get_model_path("base")
@@ -242,11 +291,13 @@ class TestModelManagerGetModelPath:
 
         # Cleanup
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
     def test_get_model_path_cached(self, tmp_path: Path) -> None:
         """Should return path if model is cached."""
         # Reset singleton
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
         manager = ModelManager(cache_dir=tmp_path)
 
@@ -264,6 +315,7 @@ class TestModelManagerGetModelPath:
 
         # Cleanup
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
     def test_get_model_path_invalid_model(self) -> None:
         """Should return None for invalid model name."""
@@ -323,6 +375,7 @@ class TestModelManagerDeleteModel:
         """Deleting uncached model should raise error."""
         # Reset singleton
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
         manager = ModelManager(cache_dir=tmp_path)
 
@@ -332,11 +385,13 @@ class TestModelManagerDeleteModel:
 
         # Cleanup
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
     def test_delete_cached_model(self, tmp_path: Path) -> None:
         """Should delete cached model directory."""
         # Reset singleton
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
         manager = ModelManager(cache_dir=tmp_path)
 
@@ -354,6 +409,7 @@ class TestModelManagerDeleteModel:
 
         # Cleanup
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
 
 class TestModelManagerIsModelDownloaded:
@@ -363,6 +419,7 @@ class TestModelManagerIsModelDownloaded:
         """Should return False if model not cached."""
         # Reset singleton
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
         manager = ModelManager(cache_dir=tmp_path)
         result = manager.is_model_downloaded("base")
@@ -371,11 +428,13 @@ class TestModelManagerIsModelDownloaded:
 
         # Cleanup
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
     def test_is_model_downloaded_cached(self, tmp_path: Path) -> None:
         """Should return True if model is cached."""
         # Reset singleton
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
         manager = ModelManager(cache_dir=tmp_path)
 
@@ -392,6 +451,7 @@ class TestModelManagerIsModelDownloaded:
 
         # Cleanup
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
     def test_is_model_downloaded_invalid(self) -> None:
         """Should return False for invalid model name."""
@@ -424,6 +484,7 @@ class TestModelManagerErrorHandling:
         """Should raise BackendUnavailableError if huggingface-hub not installed."""
         # Reset singleton
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
         manager = ModelManager(cache_dir=tmp_path)
 
@@ -433,11 +494,13 @@ class TestModelManagerErrorHandling:
 
         # Cleanup
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
     def test_download_with_progress_callback(self, tmp_path: Path) -> None:
         """Should support progress callback during download."""
         # Reset singleton
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
         manager = ModelManager(cache_dir=tmp_path)
 
@@ -462,6 +525,7 @@ class TestModelManagerErrorHandling:
 
         # Cleanup
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
 
 class TestModelManagerCacheDir:
@@ -471,17 +535,20 @@ class TestModelManagerCacheDir:
         """Should use default cache directory."""
         # Reset singleton
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
         manager = ModelManager()
         assert manager.cache_dir == DEFAULT_CACHE_DIR
 
         # Cleanup
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
     def test_custom_cache_dir(self, tmp_path: Path) -> None:
         """Should use custom cache directory."""
         # Reset singleton
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
 
         custom_cache = tmp_path / "custom" / "cache"
         manager = ModelManager(cache_dir=custom_cache)
@@ -490,3 +557,4 @@ class TestModelManagerCacheDir:
 
         # Cleanup
         ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None

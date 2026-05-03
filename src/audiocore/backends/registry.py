@@ -143,25 +143,12 @@ class BackendRegistry:
                 ],
             )
 
-        # Return cached instance if config matches
-        if backend_type in self._instances:
-            if config is None:
-                return self._instances[backend_type]
-            cached = self._instances[backend_type]
-            cached_config = getattr(cached, "_config", None)
-            if cached_config is not None:
-                from audiocore.config import AppConfig
-
-                if isinstance(cached_config, AppConfig) and isinstance(config, AppConfig):
-                    if cached_config is config or cached_config == config:
-                        return self._instances[backend_type]
-                elif cached_config == config:
-                    return self._instances[backend_type]
-
         # Create or replace instance with thread-safe locking
         with self._instance_lock:
-            # Re-check after acquiring lock (another thread may have created it)
-            if backend_type in self._instances and config is not None:
+            # Check for cached instance with matching config (inside lock for thread safety)
+            if backend_type in self._instances:
+                if config is None:
+                    return self._instances[backend_type]
                 cached = self._instances[backend_type]
                 cached_config = getattr(cached, "_config", None)
                 if cached_config is not None:

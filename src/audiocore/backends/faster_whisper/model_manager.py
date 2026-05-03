@@ -103,6 +103,7 @@ class ModelManager:
 
     _instance: ModelManager | None = None
     _lock: threading.Lock = threading.Lock()
+    _persisted_cache_dir: Path | None = None
 
     def __new__(cls, cache_dir: Path | None = None) -> ModelManager:
         """Create or return singleton instance.
@@ -118,7 +119,9 @@ class ModelManager:
             with cls._lock:
                 if cls._instance is None:
                     instance = super().__new__(cls)
-                    instance._cache_dir = cache_dir or DEFAULT_CACHE_DIR
+                    resolved_cache_dir = cache_dir or cls._persisted_cache_dir or DEFAULT_CACHE_DIR
+                    instance._cache_dir = resolved_cache_dir
+                    cls._persisted_cache_dir = resolved_cache_dir
                     cls._instance = instance
         elif cache_dir is not None and cache_dir != cls._instance._cache_dir:
             logger.warning(
@@ -415,7 +418,9 @@ class ModelManager:
     def clear(self) -> None:
         """Clear all cached models (for testing).
 
-        Removes all downloaded models from cache.
+        Removes all downloaded models from cache. Preserves the custom
+        cache_dir across clear() calls so a subsequent ModelManager() uses
+        the same directory without needing to pass it again.
 
         Warning:
             This will permanently delete all cached models.
@@ -435,6 +440,7 @@ class ModelManager:
                     except Exception as e:
                         logger.warning(f"Failed to clear cache for {model_name}: {e}")
 
+            # Reset instance but preserve cache_dir for next instantiation
             ModelManager._instance = None
 
 

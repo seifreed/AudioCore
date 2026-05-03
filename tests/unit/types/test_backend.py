@@ -115,3 +115,13 @@ class TestModelSize:
         """
         assert ModelSize.parse("large_v3") == ModelSize.LARGE_V3
         assert ModelSize.parse("large_v3_turbo") == ModelSize.LARGE_V3_TURBO
+
+    def test_parse_camelcase_with_digit_uppercase_boundary(self) -> None:
+        """Regression: parse() must handle digit-to-uppercase transitions.
+
+        Previously, the regex `([a-z])([A-Z])` missed transitions like
+        "3T" in "largeV3Turbo", producing "large-v3turbo" instead of
+        "large-v3-turbo". Now `([a-z0-9])([A-Z])` handles these correctly.
+        """
+        assert ModelSize.parse("largeV3") == ModelSize.LARGE_V3
+        assert ModelSize.parse("largeV3Turbo") == ModelSize.LARGE_V3_TURBO

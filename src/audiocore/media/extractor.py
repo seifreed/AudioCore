@@ -327,6 +327,11 @@ def extract_audio(
             ],
             cause=e,
         ) from e
+    except BaseException:
+        # Clean up temp file on any unexpected exception (e.g., KeyboardInterrupt)
+        if created_temp and output_path.exists():
+            output_path.unlink(missing_ok=True)
+        raise
 
     if result.returncode != 0:
         # Clean up temp file if created

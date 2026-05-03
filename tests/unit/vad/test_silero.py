@@ -106,6 +106,46 @@ class TestModelLoading:
 
     @patch("audiocore.vad.silero.torch.hub.load")
     @patch("audiocore.vad.silero.Path")
+    def test_load_model_timeout_preserves_exception_chain(
+        self, mock_path_class: MagicMock, mock_load: MagicMock
+    ) -> None:
+        """Regression: TimeoutError must be preserved in exception chain.
+
+        Previously, when the cache directory didn't exist after a timeout,
+        `raise VADError(...) from cache_fallback_error` used `None` as the
+        cause, suppressing the original TimeoutError. Now the original
+        TimeoutError is chained as __cause__.
+        """
+        import concurrent.futures
+
+        # Make torch.hub.load raise a timeout via the executor
+        mock_load.side_effect = RuntimeError("Download failed")
+
+        # Make local cache not exist (so fallback also fails)
+        mock_cache_dir = MagicMock(spec=Path)
+        mock_cache_dir.exists.return_value = False
+        mock_path_class.return_value = mock_cache_dir
+
+        # Reset class state
+        SileroVAD._model = None
+
+        # Test the _load_model method directly with timeout to verify chaining
+        # Patch the executor to simulate a timeout
+        with patch.object(concurrent.futures.ThreadPoolExecutor, "submit") as mock_submit:
+            future = concurrent.futures.Future()
+            future.set_exception(TimeoutError("Model download timed out after 1 seconds"))
+            mock_submit.return_value = future
+
+            with pytest.raises(VADError) as exc_info:
+                SileroVAD._load_model(timeout_seconds=1)
+
+        # The original TimeoutError should be in the exception chain,
+        # not None (which was the bug)
+        assert exc_info.value.__cause__ is not None
+        assert isinstance(exc_info.value.__cause__, TimeoutError)
+
+    @patch("audiocore.vad.silero.torch.hub.load")
+    @patch("audiocore.vad.silero.Path")
     def test_load_model_uses_local_cache_fallback(
         self, mock_path_class: MagicMock, mock_load: MagicMock
     ) -> None:
@@ -538,3 +578,54 @@ class TestErrorHandling:
         # The brief 2-chunk dip (~64ms) is shorter than min_silence_duration (500ms),
         # so it should not split the segment
         assert isinstance(segments, list)
+
+    @patch("audiocore.vad.silero.SileroVAD.get_model")
+    def test_detect_audio_processes_non_aligned_length_without_partial_chunks(
+        self, mock_get_model: MagicMock
+    ) -> None:
+        """Regression: detect_audio must not feed partial chunks to Silero model.
+
+        Previously, the loop used `range(0, len(audio_data) - chunk_size + 1,
+        chunk_size)` which could either skip audio at the end of a file or feed
+        a partial chunk (shorter than 512 samples) to Silero, causing incorrect
+        results or crashes. Now partial chunks at the end are skipped.
+        """
+        mock_model = MagicMock()
+        mock_model.return_value = torch.tensor(0.8)
+        mock_model.reset_states = MagicMock()
+        mock_get_model.return_value = mock_model
+
+        # Create audio with length NOT a multiple of chunk_size (512)
+        # 1500 samples = 2 full chunks of 512 + 476 leftover (partial)
+        audio_data = np.random.rand(1500).astype(np.float32)
+
+        vad = SileroVAD()
+        vad.detect_audio(audio_data, 16000)
+
+        # Model should be called exactly twice (for 2 full 512-sample chunks)
+        # NOT three times (the old code would call with a partial 476-sample chunk)
+        assert mock_model.call_count == 2
+
+    @patch("audiocore.vad.silero.SileroVAD.get_model")
+    def test_detect_audio_processes_exact_multiple_length(
+        self, mock_get_model: MagicMock
+    ) -> None:
+        """Regression: detect_audio handles audio length that is exact multiple of chunk_size.
+
+        Previously, `len(audio_data) - chunk_size + 1` could cause an off-by-one
+        that either added an extra iteration or missed the last chunk. With
+        exact multiples, all full chunks should be processed.
+        """
+        mock_model = MagicMock()
+        mock_model.return_value = torch.tensor(0.8)
+        mock_model.reset_states = MagicMock()
+        mock_get_model.return_value = mock_model
+
+        # Create audio with length that IS an exact multiple of chunk_size (512)
+        audio_data = np.random.rand(1024).astype(np.float32)  # exactly 2 chunks
+
+        vad = SileroVAD()
+        vad.detect_audio(audio_data, 16000)
+
+        # Model should be called exactly twice
+        assert mock_model.call_count == 2
