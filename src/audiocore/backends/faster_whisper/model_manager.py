@@ -43,7 +43,7 @@ MODEL_REPOS: dict[str, str] = {
     ModelSize.MEDIUM.value: "Systran/faster-whisper-medium",
     ModelSize.LARGE.value: "Systran/faster-whisper-large-v3",
     ModelSize.LARGE_V3.value: "Systran/faster-whisper-large-v3",
-    ModelSize.LARGE_V3_TURBO.value: "Systran/faster-whisper-large-v3-turbo",
+    ModelSize.LARGE_V3_TURBO.value: "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
 }
 
 # Approximate model sizes in MB

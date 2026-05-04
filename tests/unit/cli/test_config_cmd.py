@@ -67,6 +67,10 @@ class TestMaskSecretStr:
         masked = mask_secret_str("not a secret")
         assert masked == "not a secret"
 
+    def test_mask_none_secret(self) -> None:
+        """Regression: missing SecretStr values should display as not set."""
+        assert mask_secret_str(None) == "(not set)"
+
 
 class TestShowConfig:
     """Test show config command."""

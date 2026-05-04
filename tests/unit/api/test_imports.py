@@ -222,6 +222,21 @@ class TestPublicAPIImports:
         assert TranscriptionResult is not None
         assert TranscriptionOptions is not None
 
+    def test_api_all_declares_importable_symbols(self):
+        """Regression: every name in audiocore.api.__all__ must be exported."""
+        import audiocore.api as api
+
+        missing = [name for name in api.__all__ if not hasattr(api, name)]
+        assert missing == []
+
+    def test_api_star_import_succeeds(self):
+        """Regression: star import should not fail on stale __all__ entries."""
+        namespace: dict[str, object] = {}
+
+        exec("from audiocore.api import *", namespace)
+
+        assert namespace["InputError"] is not None
+
     def test_async_transcribe_importable_from_api(self):
         """Verify async_transcribe is importable from api module."""
 

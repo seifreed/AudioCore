@@ -10,11 +10,12 @@ and returns a merged AppConfig instance.
 from pathlib import Path
 from typing import Any
 
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 from pydantic_core import PydanticUndefined
 
 from audiocore.config.settings import AppConfig
 from audiocore.config.toml_loader import load_toml_config
+from audiocore.errors import InvalidConfigError
 
 _SENSITIVE_KEY_PATTERNS = ("api_key", "secret", "password", "token")
 
@@ -263,7 +264,14 @@ def load_config(
     # 4. Get env values from AppConfig (without CLI overrides)
     # Create a temporary instance to get env-derived values
     # AppConfig uses pydantic-settings which reads from environment
-    env_config_instance = AppConfig()
+    try:
+        env_config_instance = AppConfig()
+    except ValidationError as e:
+        raise InvalidConfigError(
+            "Invalid environment configuration",
+            context={"error": str(e)},
+            cause=e,
+        ) from e
 
     # Extract field values that would come from env (non-default values)
     # Compare against defaults to identify env overrides.
@@ -351,4 +359,11 @@ def load_config(
 
     # 8. Create AppConfig from merged values
     # Use model_validate to construct from dict, respecting validators
-    return AppConfig.model_validate(merged)
+    try:
+        return AppConfig.model_validate(merged)
+    except ValidationError as e:
+        raise InvalidConfigError(
+            "Invalid configuration value",
+            context={"error": str(e)},
+            cause=e,
+        ) from e

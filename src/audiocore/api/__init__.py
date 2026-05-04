@@ -53,6 +53,7 @@ from audiocore.errors import (
     BackendError,
     BackendUnavailableError,
     ConfigurationError,
+    InputError,
     InvalidConfigError,
     InvalidInputError,
     MediaError,

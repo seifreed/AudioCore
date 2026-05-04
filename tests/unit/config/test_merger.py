@@ -15,6 +15,7 @@ from audiocore.config.merger import (
     mask_secrets,
     merge_configs,
 )
+from audiocore.errors import InvalidConfigError
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
 
 
@@ -323,6 +324,32 @@ ffprobe_path = "~/bin/ffprobe"
 
         assert config.ffmpeg_path == str(Path("~/bin/ffmpeg").expanduser())
         assert config.ffprobe_path == str(Path("~/bin/ffprobe").expanduser())
+
+    def test_invalid_toml_value_raises_invalid_config_error(self, tmp_path: Path) -> None:
+        """Regression: invalid TOML values should use AudioCore config errors."""
+        config_file = tmp_path / "invalid.toml"
+        config_file.write_text(
+            """
+[backend]
+backend = "not_a_backend"
+"""
+        )
+
+        with pytest.raises(InvalidConfigError) as exc_info:
+            load_config(config_path=config_file)
+
+        assert "Invalid configuration value" in str(exc_info.value)
+
+    def test_invalid_env_value_raises_invalid_config_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: invalid environment values should use AudioCore config errors."""
+        monkeypatch.setenv("AUDIOCORE_BACKEND", "not_a_backend")
+
+        with pytest.raises(InvalidConfigError) as exc_info:
+            load_config(config_path=tmp_path / "missing.toml")
+
+        assert "Invalid environment configuration" in str(exc_info.value)
 
 
 class TestMergeConfigsDeepMerge:

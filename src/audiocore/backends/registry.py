@@ -319,10 +319,7 @@ class BackendRegistry:
                 return False
 
             # If an instance is already cached, check its availability
-            if (
-                backend_type in self._instances
-                and self._instance_configs.get(backend_type) is None
-            ):
+            if backend_type in self._instances:
                 try:
                     return self._instances[backend_type].is_available()
                 except Exception:

@@ -420,6 +420,30 @@ class TestIsAvailable:
         result = registry.is_available(BackendType.OPENAI)
         assert result is False
 
+    def test_is_available_uses_configured_cached_instance(self) -> None:
+        """Regression: availability check must not discard a configured cached backend."""
+        from pydantic import SecretStr
+
+        from audiocore.config import AppConfig, OpenAIConfig
+
+        class ConfigAwareBackend(MockTranscriptionBackend):
+            def __init__(self, config: AppConfig | None = None) -> None:
+                super().__init__()
+                self.config = config
+
+            def is_available(self) -> bool:
+                return self.config is not None and self.config.openai.api_key is not None
+
+        registry = BackendRegistry()
+        registry._reset()
+        registry.register(BackendType.OPENAI, ConfigAwareBackend)
+
+        config = AppConfig(openai=OpenAIConfig(api_key=SecretStr("sk-configured")))
+        backend = registry.get_backend(BackendType.OPENAI, config=config)
+
+        assert registry.is_available(BackendType.OPENAI) is True
+        assert registry._instances[BackendType.OPENAI] is backend
+
 
 class TestClear:
     """Test registry clearing."""

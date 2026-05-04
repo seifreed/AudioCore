@@ -56,6 +56,9 @@ def mask_secret_str(secret: object) -> str:
     """
     from pydantic import SecretStr
 
+    if secret is None:
+        return "(not set)"
+
     if isinstance(secret, SecretStr):
         value = secret.get_secret_value()
         return mask_api_key(value)

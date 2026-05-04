@@ -319,6 +319,31 @@ class TestModelManagerGetModelPath:
         result = manager.get_model_path("invalid")
         assert result is None
 
+    def test_get_model_path_large_v3_turbo_uses_downloader_repo(
+        self, tmp_path: Path
+    ) -> None:
+        """Regression: large-v3-turbo cache lookup must match faster-whisper's repo."""
+        # Reset singleton
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+
+        manager = ModelManager(cache_dir=tmp_path)
+
+        repo_id = "mobiuslabsgmbh/faster-whisper-large-v3-turbo"
+        cache_folder_name = f"models--{repo_id.replace('/', '--')}"
+        cache_path = tmp_path / cache_folder_name / "snapshots" / "abc123"
+        cache_path.mkdir(parents=True, exist_ok=True)
+        model_file = cache_path / "model.bin"
+        model_file.touch()
+
+        result = manager.get_model_path("large-v3-turbo")
+
+        assert result == model_file
+
+        # Cleanup
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+
 
 class TestModelManagerListModels:
     """Test ModelManager.list_models."""
