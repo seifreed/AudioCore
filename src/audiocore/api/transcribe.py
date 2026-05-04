@@ -36,11 +36,10 @@ _executor_lock = threading.Lock()
 def _get_executor() -> ThreadPoolExecutor:
     """Get or create the thread pool executor for async operations."""
     global _executor
-    if _executor is None:
-        with _executor_lock:
-            if _executor is None:
-                _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="audiocore-")
-    return _executor
+    with _executor_lock:
+        if _executor is None:
+            _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="audiocore-")
+        return _executor
 
 
 def _cleanup_executor() -> None:
@@ -225,10 +224,10 @@ async def async_transcribe(
         # Re-raise AudioCore exceptions directly
         raise
     except Exception as e:
-        # Wrap unexpected exceptions
+        # Wrap unexpected exceptions, preserving original type in context
         raise AudioCoreError(
             f"Unexpected error during transcription: {e}",
-            context={"path": str(path)},
+            context={"path": str(path), "original_type": type(e).__name__},
         ) from e
 
 

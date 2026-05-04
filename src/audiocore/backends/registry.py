@@ -51,6 +51,7 @@ class BackendRegistry:
     _instance: BackendRegistry | None = None
     _lock: threading.RLock = threading.RLock()
     _instance_lock: threading.RLock = threading.RLock()
+    _builtins_registered: bool = False
 
     def __new__(cls) -> BackendRegistry:
         """Create or return the singleton registry instance.
@@ -158,13 +159,12 @@ class BackendRegistry:
 
             # Check for cached instance with matching config
             if backend_type in self._instances:
-                if config is None:
-                    return self._instances[backend_type]
                 cached = self._instances[backend_type]
                 cached_config = getattr(cached, "_config", None)
-                if cached_config is not None:
-                    if self._configs_match(cached_config, config):
-                        return self._instances[backend_type]
+                if config is None or (
+                    cached_config is not None and self._configs_match(cached_config, config)
+                ):
+                    return cached
 
             backend_class = self._backends[backend_type]
             instance = self._create_backend_instance(backend_class, config)
@@ -247,8 +247,9 @@ class BackendRegistry:
         1. It is registered in the registry
         2. Its is_available() method returns True
 
-        Uses cached instance if available to avoid singleton contamination
-        from creating temporary instances with default config.
+        Uses cached instance if available. If no cached instance exists,
+        creates one inside the lock and caches it for reuse (avoids leaking
+        resources from discarded temporary instances).
 
         Args:
             backend_type: The BackendType enum value to check.
@@ -271,21 +272,22 @@ class BackendRegistry:
                 except Exception:
                     return False
 
-            # Capture backend_class while holding the lock to avoid TOCTOU race
-            backend_class = self._backends[backend_type]
-
-        # No cached instance — create a temporary one for the check.
-        # We do this outside the lock to avoid blocking other operations.
-        try:
-            temp_instance = self._create_backend_instance(backend_class, None)
-            return temp_instance.is_available()
-        except Exception:
-            return False
+            # No cached instance — create one inside the lock and cache it.
+            # This avoids leaking resources from discarded temporary instances.
+            try:
+                backend_class = self._backends[backend_type]
+                instance = self._create_backend_instance(backend_class, None)
+                self._instances[backend_type] = instance
+                return instance.is_available()
+            except Exception:
+                return False
 
     def clear(self) -> None:
         """Clear all registered backends and cached instances.
 
         This is primarily used for testing to ensure test isolation.
+        After clearing, built-in backends are automatically re-registered
+        so the registry remains usable.
 
         Thread-safe: Uses the instance lock to prevent race conditions
         with other registry operations.
@@ -293,10 +295,26 @@ class BackendRegistry:
         Example:
             >>> registry.clear()
             >>> registry.list_backends()
-            []
+            [<BackendType.OPENAI: 'openai'>, <BackendType.FASTER_WHISPER: 'faster_whisper'>]
+        """
+        from audiocore.backends.faster_whisper_backend import FasterWhisperBackend
+        from audiocore.backends.openai_backend import OpenAIBackend
+        from audiocore.types import BackendType
+
+        with self._instance_lock:
+            self._backends.clear()
+            self._instances.clear()
+            # Re-register built-in backends so the registry stays usable after clear()
+            self._register_unlocked(BackendType.OPENAI, OpenAIBackend)
+            self._register_unlocked(BackendType.FASTER_WHISPER, FasterWhisperBackend)
+
+    def _reset(self) -> None:
+        """Completely clear the registry including built-in backends.
+
+        For test use only: leaves the registry empty. Call
+        register_builtin_backends() to restore built-in backends.
         """
         with self._instance_lock:
             self._backends.clear()
             self._instances.clear()
             BackendRegistry._builtins_registered = False
-            BackendRegistry._instance = None

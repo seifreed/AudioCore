@@ -204,6 +204,8 @@ class FasterWhisperBackend(TranscriptionBackend):
         If a different model_size is requested than what is currently loaded,
         the existing model is replaced.
 
+        Thread-safe: acquires _model_lock to prevent concurrent model loading.
+
         Args:
             model_size: Optional model size override. If provided and different
                 from the currently loaded model, a new model will be loaded.
@@ -220,7 +222,15 @@ class FasterWhisperBackend(TranscriptionBackend):
             model_size if model_size is not None else self.config.model_size.value
         )
 
+        # Quick check without lock — if same model already loaded, return immediately
+        if self._model is not None and self._loaded_model_size == effective_model_size:
+            return self._model
+
         with self._model_lock:
+            # Re-check after acquiring lock (double-checked locking)
+            if self._model is not None and self._loaded_model_size == effective_model_size:
+                return self._model
+
             # Check if we need to reload (different model requested)
             if self._model is not None and self._loaded_model_size != effective_model_size:
                 logger.info(

@@ -67,15 +67,15 @@ def merge_short_segments(
         else:
             merged.append((start, end, conf))
 
-    # Final pass: merge any remaining short segments
-    # SIM102: intentionally nested if for readability of merge logic
-    if merged and (merged[-1][1] - merged[-1][0]) < min_duration and len(merged) > 1:
-        # Try to merge last with second-to-last
+    # Final pass: merge any remaining short segments at the end
+    # Walk backwards from the end, merging short segments into the preceding one
+    while len(merged) > 1 and (merged[-1][1] - merged[-1][0]) < min_duration:
         prev_start, prev_end, prev_conf = merged[-2]
         gap = merged[-1][0] - prev_end
-        if gap < max_gap:
-            merged[-2] = (prev_start, merged[-1][1], min(prev_conf, merged[-1][2]))
-            merged.pop()
+        if gap >= max_gap:
+            break
+        merged[-2] = (prev_start, merged[-1][1], min(prev_conf, merged[-1][2]))
+        merged.pop()
 
     # Keep orphan segments shorter than min_segment_duration — dropping them
     # would produce empty output for legitimate short utterances.
@@ -152,8 +152,8 @@ def pad_segments(
     for start, end, conf in result[1:]:
         prev_start, prev_end, prev_conf = merged[-1]
         if start <= prev_end:
-            # Overlap: merge segments
-            merged[-1] = (prev_start, max(prev_end, end), min(prev_conf, conf))
+            # Overlap: merge segments, use max confidence of the two
+            merged[-1] = (prev_start, max(prev_end, end), max(prev_conf, conf))
         else:
             merged.append((start, end, conf))
 
@@ -181,6 +181,8 @@ def validate_segments(
 
     # Check ordering and overlap
     for i, (start, end, _) in enumerate(segments):
+        if start < 0:
+            raise ValueError(f"Segment {i}: start ({start}) is negative")
         if end < start:
             raise ValueError(f"Segment {i}: end ({end}) < start ({start})")
         if end > total_duration:

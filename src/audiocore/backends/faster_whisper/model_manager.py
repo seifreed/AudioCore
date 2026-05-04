@@ -441,7 +441,6 @@ class ModelManager:
                         logger.warning(f"Failed to clear cache for {model_name}: {e}")
 
             # Reset instance but preserve cache_dir for next instantiation
-            ModelManager._persisted_cache_dir = None
             ModelManager._instance = None
 
 

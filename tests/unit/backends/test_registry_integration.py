@@ -24,7 +24,7 @@ class TestBackendRegistryIntegration:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key")
 
         registry = BackendRegistry()
-        registry.clear()  # Clear for test isolation
+        registry._reset()  # Clear for test isolation
 
         # Register OpenAI backend
         registry.register(BackendType.OPENAI, OpenAIBackend)
@@ -39,7 +39,7 @@ class TestBackendRegistryIntegration:
     def test_registry_list_backends_includes_openai(self) -> None:
         """Verify list_backends() includes OPENAI."""
         registry = BackendRegistry()
-        registry.clear()  # Clear for test isolation
+        registry._reset()  # Clear for test isolation
 
         # Register
         registry.register(BackendType.OPENAI, OpenAIBackend)
@@ -55,7 +55,7 @@ class TestBackendRegistryIntegration:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key")
 
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
         registry.register(BackendType.OPENAI, OpenAIBackend)
 
         # Backend should be available with API key
@@ -64,7 +64,7 @@ class TestBackendRegistryIntegration:
     def test_registry_is_available_without_key(self) -> None:
         """Verify is_available() returns False when no API key."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
         registry.register(BackendType.OPENAI, OpenAIBackend)
 
         # Clear environment
@@ -76,7 +76,7 @@ class TestBackendRegistryIntegration:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
         registry.register(BackendType.OPENAI, OpenAIBackend)
 
         backend = registry.get_backend(BackendType.OPENAI)
@@ -87,7 +87,7 @@ class TestBackendRegistryIntegration:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
         registry.register(BackendType.OPENAI, OpenAIBackend)
 
         backend = registry.get_backend(BackendType.OPENAI)
@@ -101,7 +101,7 @@ class TestBackendRegistryIntegration:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         # Step 1: Register backend
         registry.register(BackendType.OPENAI, OpenAIBackend)
@@ -123,7 +123,7 @@ class TestBackendRegistryIntegration:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         # Register OpenAI
         registry.register(BackendType.OPENAI, OpenAIBackend)
@@ -149,7 +149,7 @@ class TestModuleImportSideEffects:
         from audiocore.backends import BackendRegistry
 
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         # OpenAI backend should be registered
         registry.register(BackendType.OPENAI, OpenAIBackend)

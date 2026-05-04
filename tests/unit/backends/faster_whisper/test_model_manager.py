@@ -190,10 +190,10 @@ class TestModelManagerSingleton:
 
         manager.clear()
 
-        # After clear, _persisted_cache_dir is reset, so new instance
-        # uses DEFAULT_CACHE_DIR unless cache_dir is explicitly passed
+        # After clear, _persisted_cache_dir is preserved so new instance
+        # uses the same custom cache_dir without needing to pass it again
         new_manager = ModelManager()
-        assert new_manager.cache_dir == DEFAULT_CACHE_DIR
+        assert new_manager.cache_dir == custom_cache
 
         # Cleanup
         ModelManager._instance = None

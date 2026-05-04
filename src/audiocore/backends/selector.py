@@ -1,6 +1,7 @@
 """Policy-based backend selection with fallback logic."""
 
 import logging
+import threading
 from typing import TYPE_CHECKING
 
 from audiocore.backends.availability import BackendAvailabilityChecker
@@ -130,12 +131,14 @@ class BackendSelector:
         )
 
     _cuda_available: bool | None = None
+    _cuda_lock: threading.Lock = threading.Lock()
 
     @classmethod
     def _has_cuda(cls) -> bool:
         """Check whether CUDA GPU is available for faster-whisper.
 
         Result is cached after first call to avoid repeated torch imports.
+        Thread-safe: uses a class-level lock to prevent concurrent torch imports.
 
         Note: MPS (Apple Silicon) is NOT counted as GPU here because
         CTranslate2 does not support MPS and falls back to CPU, making
@@ -144,16 +147,21 @@ class BackendSelector:
         if cls._cuda_available is not None:
             return cls._cuda_available
 
-        try:
-            import torch
+        with cls._cuda_lock:
+            # Double-check after acquiring lock
+            if cls._cuda_available is not None:
+                return cls._cuda_available
 
-            cls._cuda_available = torch.cuda.is_available()
-        except ImportError:
-            logger.debug("GPU detection skipped: torch not installed")
-            cls._cuda_available = False
-        except Exception as e:
-            logger.warning(f"GPU detection failed: {e}")
-            cls._cuda_available = False
+            try:
+                import torch
+
+                cls._cuda_available = torch.cuda.is_available()
+            except ImportError:
+                logger.debug("GPU detection skipped: torch not installed")
+                cls._cuda_available = False
+            except Exception as e:
+                logger.warning(f"GPU detection failed: {e}")
+                cls._cuda_available = False
 
         return cls._cuda_available
 

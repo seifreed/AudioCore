@@ -11,7 +11,7 @@ import re
 import subprocess
 import time
 from collections.abc import Callable
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -269,7 +269,8 @@ def extract_audio(
                 assert process.stderr is not None
                 for line in process.stderr:
                     if deadline is not None and time.monotonic() > deadline:
-                        process.kill()
+                        with suppress(ProcessLookupError):
+                            process.kill()
                         process.wait()
                         raise subprocess.TimeoutExpired(cmd=command, timeout=timeout)
                     stderr_lines.append(line)
@@ -280,7 +281,8 @@ def extract_audio(
                 raise
             except BaseException:
                 # Ensure process is cleaned up on any exception (e.g., KeyboardInterrupt)
-                process.kill()
+                with suppress(ProcessLookupError):
+                    process.kill()
                 process.wait()
                 raise
 

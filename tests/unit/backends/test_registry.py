@@ -37,9 +37,9 @@ def clear_registry() -> Any:
     This ensures test isolation - each test starts with a clean registry.
     """
     registry = BackendRegistry()
-    registry.clear()
+    registry._reset()
     yield
-    registry.clear()
+    registry._reset()
 
 
 class TestSingletonPattern:
@@ -108,7 +108,7 @@ class TestRegister:
     def test_register_adds_backend_to_registry(self) -> None:
         """Verify register() adds backend to registry."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         registry.register(BackendType.OPENAI, MockTranscriptionBackend)
 
@@ -117,7 +117,7 @@ class TestRegister:
     def test_register_allows_overwrite(self) -> None:
         """Verify register() overwrites existing backend for same type."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         # Register first backend
         registry.register(BackendType.OPENAI, MockTranscriptionBackend)
@@ -164,7 +164,7 @@ class TestRegister:
     def test_register_clears_cached_instance(self) -> None:
         """Verify re-registering clears cached instance."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         # Register and get instance
         registry.register(BackendType.OPENAI, MockTranscriptionBackend)
@@ -186,7 +186,7 @@ class TestGetBackend:
     def test_get_backend_returns_registered_backend_instance(self) -> None:
         """Verify get_backend() returns registered backend instance."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         registry.register(BackendType.OPENAI, MockTranscriptionBackend)
         backend = registry.get_backend(BackendType.OPENAI)
@@ -197,7 +197,7 @@ class TestGetBackend:
     def test_get_backend_creates_instance_on_first_call(self) -> None:
         """Verify backend instance is created on first get_backend() call (lazy loading)."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         registry.register(BackendType.OPENAI, MockTranscriptionBackend)
 
@@ -214,7 +214,7 @@ class TestGetBackend:
     def test_get_backend_returns_same_instance_on_subsequent_calls(self) -> None:
         """Verify same backend instance is returned (memoization)."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         registry.register(BackendType.OPENAI, MockTranscriptionBackend)
 
@@ -228,7 +228,7 @@ class TestGetBackend:
     def test_get_backend_raises_error_for_unregistered_backend(self) -> None:
         """Verify get_backend() raises BackendUnavailableError for unregistered backend."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         with pytest.raises(BackendUnavailableError) as exc_info:
             registry.get_backend(BackendType.OPENAI)
@@ -239,7 +239,7 @@ class TestGetBackend:
     def test_get_backend_error_includes_context(self) -> None:
         """Verify BackendUnavailableError includes backend type in context."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         with pytest.raises(BackendUnavailableError) as exc_info:
             registry.get_backend(BackendType.FASTER_WHISPER)
@@ -255,7 +255,7 @@ class TestListBackends:
     def test_list_backends_returns_registered_types(self) -> None:
         """Verify list_backends() returns list of registered BackendTypes."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         registry.register(BackendType.OPENAI, MockTranscriptionBackend)
         registry.register(BackendType.FASTER_WHISPER, MockTranscriptionBackend)
@@ -269,7 +269,7 @@ class TestListBackends:
     def test_list_backends_returns_empty_list_when_no_backends_registered(self) -> None:
         """Verify list_backends() returns empty list when no backends."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         backends = registry.list_backends()
 
@@ -279,7 +279,7 @@ class TestListBackends:
     def test_list_backends_reflects_current_state(self) -> None:
         """Verify list_backends() shows current registry state."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         # Initially empty
         assert registry.list_backends() == []
@@ -293,7 +293,7 @@ class TestListBackends:
         assert len(registry.list_backends()) == 2
 
         # After clearing
-        registry.clear()
+        registry._reset()
         assert registry.list_backends() == []
 
 
@@ -303,7 +303,7 @@ class TestIsAvailable:
     def test_is_available_returns_true_for_registered_and_available_backend(self) -> None:
         """Verify is_available() returns True for available backend."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         # Register available backend
         registry.register(BackendType.OPENAI, lambda: MockTranscriptionBackend(available=True))
@@ -318,7 +318,7 @@ class TestIsAvailable:
     def test_is_available_returns_false_for_unavailable_backend(self) -> None:
         """Verify is_available() returns False for unavailable backend."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         # Create a mock backend class that returns False for is_available
         class UnavailableBackend(TranscriptionBackend):
@@ -356,7 +356,7 @@ class TestIsAvailable:
     def test_is_available_returns_false_for_unregistered_backend(self) -> None:
         """Verify is_available() returns False for unregistered backend."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         result = registry.is_available(BackendType.OPENAI)
         assert result is False
@@ -364,7 +364,7 @@ class TestIsAvailable:
     def test_is_available_handles_exceptions_gracefully(self) -> None:
         """Verify is_available() returns False if backend is_available() raises."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         # Create a backend that raises on is_available()
         class ErrorBackend(TranscriptionBackend):
@@ -407,7 +407,7 @@ class TestClear:
     def test_clear_removes_all_backends(self) -> None:
         """Verify clear() removes all registered backends."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         # Register multiple backends
         registry.register(BackendType.OPENAI, MockTranscriptionBackend)
@@ -417,7 +417,7 @@ class TestClear:
         assert len(registry.list_backends()) == 2
 
         # Clear registry
-        registry.clear()
+        registry._reset()
 
         # Should be empty
         assert registry.list_backends() == []
@@ -425,7 +425,7 @@ class TestClear:
     def test_clear_removes_cached_instances(self) -> None:
         """Verify clear() removes cached backend instances."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         # Register and get backend (creates cached instance)
         registry.register(BackendType.OPENAI, MockTranscriptionBackend)
@@ -435,7 +435,7 @@ class TestClear:
         assert BackendType.OPENAI in registry._instances
 
         # Clear registry
-        registry.clear()
+        registry._reset()
 
         # Should have no cached instances
         assert len(registry._instances) == 0
@@ -443,7 +443,7 @@ class TestClear:
     def test_clear_is_thread_safe(self) -> None:
         """Verify clear() is thread-safe."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         errors: list[Exception] = []
 
@@ -451,7 +451,7 @@ class TestClear:
             try:
                 registry.register(backend_type, MockTranscriptionBackend)
                 _ = registry.get_backend(backend_type)
-                registry.clear()
+                registry._reset()
             except Exception as e:
                 errors.append(e)
 
@@ -476,7 +476,7 @@ class TestThreadSafety:
     def test_concurrent_get_backend_returns_same_instance(self) -> None:
         """Verify concurrent get_backend() calls return same instance for same type."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         registry.register(BackendType.OPENAI, MockTranscriptionBackend)
 
@@ -507,7 +507,7 @@ class TestThreadSafety:
     def test_concurrent_registration_does_not_corrupt_state(self) -> None:
         """Verify concurrent registration doesn't corrupt registry state."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         errors: list[Exception] = []
 
@@ -539,7 +539,7 @@ class TestThreadSafety:
     def test_concurrent_access_from_multiple_threads(self) -> None:
         """Verify registry handles concurrent access from multiple threads."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         # Register all backends
         registry.register(BackendType.OPENAI, MockTranscriptionBackend)
@@ -592,7 +592,7 @@ class TestIntegration:
     def test_full_register_get_transcribe_flow(self) -> None:
         """Test complete flow: register → get_backend → use backend."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         # Register backend
         registry.register(BackendType.OPENAI, MockTranscriptionBackend)
@@ -616,7 +616,7 @@ class TestIntegration:
     def test_multiple_backends_independently(self) -> None:
         """Test registering and accessing multiple backends."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         # Create backend classes with different configurations
         class OpenAIMockBackend(MockTranscriptionBackend):
@@ -768,24 +768,17 @@ class TestRegisterBuiltinBackends:
 class TestRegistrySingletonReset:
     """Regression tests for BackendRegistry.clear() resetting singleton."""
 
-    def test_clear_allows_fresh_instance(self) -> None:
-        """After clear(), creating a new BackendRegistry gives a fresh instance.
+    def test_clear_re_registers_builtins(self) -> None:
+        """After clear(), built-in backends are re-registered automatically."""
+        registry = BackendRegistry()
+        registry.register(BackendType.OPENAI, MockTranscriptionBackend)
 
-        Previously, clear() only cleared _backends and _instances but left
-        _instance intact, so new BackendRegistry() returned the same (empty)
-        object. Now clear() resets _instance to None, allowing proper
-        test isolation.
-        """
-        registry1 = BackendRegistry()
-        registry1.register(BackendType.OPENAI, MockTranscriptionBackend)
-        original_id = id(registry1)
+        registry.clear()
 
-        registry1.clear()
-
-        # New instance should be different object
-        registry2 = BackendRegistry()
-        assert id(registry2) != original_id
-        assert registry2.list_backends() == []
+        # Built-in backends should still be available after clear()
+        backends = registry.list_backends()
+        assert BackendType.OPENAI in backends
+        assert BackendType.FASTER_WHISPER in backends
 
 
 class TestSecretStrConfigMatching:
@@ -828,7 +821,7 @@ class TestGetBackendConfigRace:
         always happens inside the lock.
         """
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         registry.register(BackendType.OPENAI, MockTranscriptionBackend)
 
@@ -840,7 +833,7 @@ class TestGetBackendConfigRace:
     def test_concurrent_get_backend_with_config_is_deterministic(self) -> None:
         """Concurrent get_backend() with the same config must return same instance."""
         registry = BackendRegistry()
-        registry.clear()
+        registry._reset()
 
         registry.register(BackendType.OPENAI, MockTranscriptionBackend)
 

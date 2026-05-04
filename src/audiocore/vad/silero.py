@@ -97,16 +97,19 @@ class SileroVAD:
         executor = concurrent.futures.ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="silero-download"
         )
+        model = None
         try:
             future = executor.submit(_download_from_hub)
             try:
-                return future.result(timeout=timeout_seconds)
+                model = future.result(timeout=timeout_seconds)
             except concurrent.futures.TimeoutError:
                 raise TimeoutError(
                     f"Model download timed out after {timeout_seconds} seconds"
                 ) from None
             finally:
-                executor.shutdown(wait=False, cancel_futures=True)
+                executor.shutdown(wait=True, cancel_futures=True)
+
+            return model
 
         except TimeoutError as timeout_exc:
             # Try local cache fallback after timeout
@@ -294,6 +297,11 @@ class SileroVAD:
                 data = data / max_val
         else:
             data = data.astype(np.float32)
+            # Normalize unknown types to [-1, 1] range
+            max_val = np.max(np.abs(data))
+            if max_val > 1.0:
+                logger.warning(f"Audio data exceeds [-1, 1] range (max={max_val:.2f}), normalizing")
+                data = data / max_val
 
         # Convert stereo to mono by averaging channels
         if len(data.shape) > 1 and data.shape[1] > 1:
