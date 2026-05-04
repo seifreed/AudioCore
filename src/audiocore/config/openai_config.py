@@ -57,10 +57,10 @@ class OpenAIConfig(BaseModel):
         default=None,
         description="Custom base URL for API requests (optional, for proxies)",
     )
-    timeout: int = Field(
-        default=300,
-        ge=1,
-        le=3600,
+    timeout: float = Field(
+        default=300.0,
+        ge=1.0,
+        le=3600.0,
         description="Request timeout in seconds (default 300 for large files)",
     )
     max_retries: int = Field(

@@ -216,7 +216,9 @@ class FasterWhisperBackend(TranscriptionBackend):
             TranscriptionError: If model download or loading fails.
         """
         # Determine effective model size
-        effective_model_size = model_size or self.config.model_size.value
+        effective_model_size = (
+            model_size if model_size is not None else self.config.model_size.value
+        )
 
         with self._model_lock:
             # Check if we need to reload (different model requested)
@@ -322,7 +324,9 @@ class FasterWhisperBackend(TranscriptionBackend):
 
         # Model size: options.model_size > config.model_size
         # The model must be re-loaded if a different model size is requested
-        effective_model_size = options.model_size or self.config.model_size
+        effective_model_size = (
+            options.model_size if options.model_size is not None else self.config.model_size
+        )
 
         # Load model lazily, passing effective model size for reload if needed
         model = self._load_model(model_size=effective_model_size.value)

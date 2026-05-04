@@ -130,12 +130,19 @@ class BackendSelector:
         )
 
     @staticmethod
-    def _has_gpu() -> bool:
-        """Check whether CUDA or MPS GPU is available for faster-whisper."""
-        try:
-            from audiocore.backends.faster_whisper.device import get_best_device
+    def _has_cuda() -> bool:
+        """Check whether CUDA GPU is available for faster-whisper.
 
-            return get_best_device() != "cpu"
+        Note: MPS (Apple Silicon) is NOT counted as GPU here because
+        CTranslate2 does not support MPS and falls back to CPU, making
+        it slower than the OpenAI cloud backend in most cases.
+        """
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                return True
+            return False
         except ImportError:
             logger.debug("GPU detection skipped: torch not installed")
             return False
@@ -147,16 +154,19 @@ class BackendSelector:
         """Select fastest available backend automatically.
 
         Priority order:
-        1. CUDA/MPS faster-whisper (GPU accelerated)
+        1. CUDA faster-whisper (GPU accelerated)
         2. OpenAI (if API key configured)
         3. CPU faster-whisper
+
+        Note: MPS is not considered GPU-accelerated because CTranslate2
+        does not support MPS and falls back to CPU.
         """
         fw_status = self._checker.check_backend(BackendType.FASTER_WHISPER)
         openai_status = self._checker.check_backend(BackendType.OPENAI)
 
-        # Tier 1: GPU-accelerated faster-whisper
-        if fw_status.available and self._has_gpu():
-            logger.debug("Selected faster-whisper with GPU (auto selection)")
+        # Tier 1: CUDA-accelerated faster-whisper
+        if fw_status.available and self._has_cuda():
+            logger.debug("Selected faster-whisper with CUDA GPU (auto selection)")
             return BackendType.FASTER_WHISPER
 
         # Tier 2: OpenAI cloud (if API key configured)

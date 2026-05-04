@@ -158,9 +158,14 @@ def merge_configs(
             merged[key] = value
 
     # 2. TOML config overrides defaults (skip None values)
+    # Deep-merge for sub-model dicts so partial TOML overrides
+    # (e.g. {openai: {api_key: "sk-..."}}) don't lose other defaults.
     for key, value in norm_toml.items():
         if value is not None:
-            merged[key] = value
+            if isinstance(value, dict) and isinstance(merged.get(key), dict):
+                merged[key] = {**merged[key], **value}
+            else:
+                merged[key] = value
 
     # 3. Environment variables override TOML (skip None values)
     # For sub-model dicts, merge at the sub-field level so that

@@ -308,3 +308,37 @@ backend = "faster_whisper"
         assert config.backend == BackendType.FASTER_WHISPER
         assert config.model_size == ModelSize.BASE  # default
         assert config.output_format == OutputFormat.TEXT  # default
+
+
+class TestMergeConfigsDeepMerge:
+    """Regression tests for deep-merge of nested sub-models (Bug #22)."""
+
+    def test_toml_partial_subconfig_deep_merges_with_defaults(self) -> None:
+        """Partial TOML sub-config should merge with defaults, not replace them.
+
+        Setting openai.api_key in TOML should not lose other OpenAI defaults
+        like timeout, max_retries, etc.
+        """
+        from audiocore.config.openai_config import OpenAIConfig
+
+        defaults = {"openai": OpenAIConfig().model_dump()}
+        toml = {"openai": {"api_key": "sk-test-123"}}
+        result = merge_configs(defaults, toml, {}, {})
+
+        # api_key should be from TOML
+        assert result["openai"]["api_key"] == "sk-test-123"
+        # Other defaults should be preserved (not lost)
+        assert result["openai"]["timeout"] == OpenAIConfig().model_dump()["timeout"]
+        assert result["openai"]["max_retries"] == OpenAIConfig().model_dump()["max_retries"]
+
+    def test_toml_deep_merge_preserves_defaults_not_in_toml(self) -> None:
+        """Deep merge should not lose defaults that aren't overridden."""
+        defaults = {"backend": "auto", "openai": {"api_key": None, "timeout": 300, "max_retries": 2}}
+        toml = {"openai": {"api_key": "sk-override"}}
+        result = merge_configs(defaults, toml, {}, {})
+
+        # TOML api_key overrides default
+        assert result["openai"]["api_key"] == "sk-override"
+        # Other defaults are preserved
+        assert result["openai"]["timeout"] == 300
+        assert result["openai"]["max_retries"] == 2

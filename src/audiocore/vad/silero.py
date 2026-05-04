@@ -224,10 +224,12 @@ class SileroVAD:
         """Reset the VAD model state for processing new audio.
 
         Should be called before processing a new audio file to reset
-        internal state.
+        internal state. Acquires inference lock to prevent corrupting
+        ongoing inference in multi-threaded contexts.
         """
-        model = self.get_model()
-        model.reset_states()
+        with self._inference_lock:
+            model = self.get_model()
+            model.reset_states()
 
     def _load_audio(self, audio_path: Path | str) -> tuple[NDArray[np.float32], int]:
         """Load audio from WAV file and convert to required format.

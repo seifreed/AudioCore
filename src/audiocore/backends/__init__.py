@@ -66,7 +66,7 @@ def register_builtin_backends() -> None:
     """
     registry = BackendRegistry()
     with registry._instance_lock:
-        if registry.list_backends():
+        if registry._backends:
             return
         registry._register_unlocked(BackendType.OPENAI, OpenAIBackend)
         registry._register_unlocked(BackendType.FASTER_WHISPER, FasterWhisperBackend)

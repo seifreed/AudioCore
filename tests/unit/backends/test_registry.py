@@ -55,8 +55,8 @@ class TestSingletonPattern:
 
     def test_singleton_is_thread_safe(self) -> None:
         """Verify singleton is created safely in concurrent environment."""
-        # Clear any existing singleton
-        BackendRegistry._instance = None
+        # Clear any existing singleton using the public API
+        BackendRegistry().clear()
 
         instances: list[BackendRegistry] = []
         errors: list[Exception] = []
@@ -730,6 +730,40 @@ class TestRegisterBuiltinBackends:
         assert backends1 == backends2
         assert BackendType.OPENAI in backends1
 
+    def test_register_builtin_backends_no_deadlock(self) -> None:
+        """Regression: register_builtin_backends must not deadlock.
+
+        Previously, register_builtin_backends() called list_backends() while
+        holding _instance_lock, but list_backends() also acquires _instance_lock.
+        With threading.Lock (non-reentrant), this caused a deadlock.
+        Now uses RLock and directly checks _backends instead of list_backends().
+        """
+        from audiocore.backends import register_builtin_backends
+
+        BackendRegistry().clear()
+
+        # Should complete without deadlock (would hang if broken)
+        import threading
+
+        results: list[str] = []
+        errors: list[Exception] = []
+
+        def call_register() -> None:
+            try:
+                register_builtin_backends()
+                results.append("ok")
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=call_register) for _ in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=5)
+
+        assert len(errors) == 0, f"Errors: {errors}"
+        assert len(results) == 5
+
 
 class TestRegistrySingletonReset:
     """Regression tests for BackendRegistry.clear() resetting singleton."""
@@ -752,6 +786,34 @@ class TestRegistrySingletonReset:
         registry2 = BackendRegistry()
         assert id(registry2) != original_id
         assert registry2.list_backends() == []
+
+
+class TestSecretStrConfigMatching:
+    """Regression tests for SecretStr comparison in config matching (Bug #11)."""
+
+    def test_configs_with_same_secret_values_match(self) -> None:
+        """Two AppConfig instances with same SecretStr values should match."""
+        from pydantic import SecretStr
+
+        from audiocore.config import AppConfig
+        from audiocore.config.openai_config import OpenAIConfig
+
+        config1 = AppConfig(openai=OpenAIConfig(api_key=SecretStr("sk-test-key")))
+        config2 = AppConfig(openai=OpenAIConfig(api_key=SecretStr("sk-test-key")))
+
+        assert BackendRegistry._configs_match(config1, config2) is True
+
+    def test_configs_with_different_secret_values_differ(self) -> None:
+        """Two AppConfig instances with different SecretStr values should not match."""
+        from pydantic import SecretStr
+
+        from audiocore.config import AppConfig
+        from audiocore.config.openai_config import OpenAIConfig
+
+        config1 = AppConfig(openai=OpenAIConfig(api_key=SecretStr("sk-key-1")))
+        config2 = AppConfig(openai=OpenAIConfig(api_key=SecretStr("sk-key-2")))
+
+        assert BackendRegistry._configs_match(config1, config2) is False
 
 
 class TestGetBackendConfigRace:

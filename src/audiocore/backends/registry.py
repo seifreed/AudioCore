@@ -29,9 +29,11 @@ class BackendRegistry:
     first call to get_backend().
 
     Thread Safety:
-        - Uses class-level Lock for thread-safe singleton initialization
-        - Uses class-level Lock for thread-safe backend instance creation
+        - Uses class-level RLock (reentrant) for thread-safe singleton initialization
+        - Uses class-level RLock for thread-safe backend instance creation
         - Safe for concurrent access from multiple threads
+        - RLock allows reentrant locking (e.g., calling list_backends() while
+          holding the lock in register_builtin_backends())
 
     Attributes:
         _instance: Singleton instance (class-level).
@@ -47,10 +49,8 @@ class BackendRegistry:
     """
 
     _instance: BackendRegistry | None = None
-    _lock: threading.Lock = threading.Lock()
-    _instance_lock: threading.Lock = threading.Lock()
-    _backends: dict[BackendType, type[TranscriptionBackend]] = {}
-    _instances: dict[BackendType, TranscriptionBackend] = {}
+    _lock: threading.RLock = threading.RLock()
+    _instance_lock: threading.RLock = threading.RLock()
 
     def __new__(cls) -> BackendRegistry:
         """Create or return the singleton registry instance.
@@ -66,7 +66,6 @@ class BackendRegistry:
             with cls._lock:
                 if cls._instance is None:
                     instance = super().__new__(cls)
-                    # Initialize within the lock to prevent race conditions
                     instance._backends: dict[BackendType, type[TranscriptionBackend]] = {}
                     instance._instances: dict[BackendType, TranscriptionBackend] = {}
                     cls._instance = instance
@@ -160,12 +159,7 @@ class BackendRegistry:
                 cached = self._instances[backend_type]
                 cached_config = getattr(cached, "_config", None)
                 if cached_config is not None:
-                    from audiocore.config import AppConfig
-
-                    if isinstance(cached_config, AppConfig) and isinstance(config, AppConfig):
-                        if cached_config is config or cached_config == config:
-                            return self._instances[backend_type]
-                    elif cached_config == config:
+                    if self._configs_match(cached_config, config):
                         return self._instances[backend_type]
 
             backend_class = self._backends[backend_type]
@@ -196,6 +190,39 @@ class BackendRegistry:
 
         # Fallback: pass config directly
         return backend_class(config=config)
+
+    @staticmethod
+    def _configs_match(config_a: object, config_b: object) -> bool:
+        """Compare two configs for equality, handling SecretStr correctly.
+
+        Pydantic's default __eq__ for models with SecretStr fields compares
+        by object identity for the SecretStr, not the wrapped value. This
+        method ensures two configs with the same secret value are considered equal.
+        """
+        if config_a is config_b:
+            return True
+
+        # If both have model_fields, compare field-by-field to handle SecretStr
+        if hasattr(config_a, "model_fields") and hasattr(config_b, "model_fields"):
+            from pydantic import SecretStr
+
+            for field_name in config_a.model_fields:
+                val_a = getattr(config_a, field_name)
+                val_b = getattr(config_b, field_name)
+                if isinstance(val_a, SecretStr) and isinstance(val_b, SecretStr):
+                    if val_a.get_secret_value() != val_b.get_secret_value():
+                        return False
+                elif isinstance(val_a, SecretStr) or isinstance(val_b, SecretStr):
+                    return False
+                elif hasattr(val_a, "model_fields") and hasattr(val_b, "model_fields"):
+                    if not BackendRegistry._configs_match(val_a, val_b):
+                        return False
+                elif val_a != val_b:
+                    return False
+            return True
+
+        # Fallback to standard equality
+        return config_a == config_b
 
     def list_backends(self) -> list[BackendType]:
         """List all registered backend types.
@@ -241,10 +268,12 @@ class BackendRegistry:
                 except Exception:
                     return False
 
+            # Capture backend_class while holding the lock to avoid TOCTOU race
+            backend_class = self._backends[backend_type]
+
         # No cached instance — create a temporary one for the check.
         # We do this outside the lock to avoid blocking other operations.
         try:
-            backend_class = self._backends[backend_type]
             temp_instance = self._create_backend_instance(backend_class, None)
             return temp_instance.is_available()
         except Exception:

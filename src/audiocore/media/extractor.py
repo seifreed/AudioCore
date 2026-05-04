@@ -170,6 +170,9 @@ def extract_audio(
 
     Returns:
         Path to the extracted audio file (WAV format, 16kHz, mono).
+        When output_path is None, the caller is responsible for cleaning
+        up the returned temporary file. Use temp_audio_file() context
+        manager for automatic cleanup.
 
     Raises:
         InvalidInputError: If input file does not exist.
@@ -219,13 +222,17 @@ def extract_audio(
             logger.debug(f"Could not probe media for progress: {probe_error}")
 
     # Create temp file if no output path specified
-    created_temp = False
+    temp_file_to_cleanup: Path | None = None
     if output_path is None:
         # SIM115: temp file must persist for processing, cleaned up by caller
         temp_file = NamedTemporaryFile(suffix=".wav", delete=False)  # noqa: SIM115
         output_path = Path(temp_file.name)
         temp_file.close()
-        created_temp = True
+        temp_file_to_cleanup = output_path
+        logger.debug(
+            "Created temp file for audio extraction: %s. Caller is responsible for cleanup.",
+            output_path,
+        )
 
     # Build and run ffmpeg command
     command = _build_ffmpeg_command(
@@ -269,7 +276,7 @@ def extract_audio(
                 process.wait()
                 raise
 
-            returncode = process.wait()
+            returncode = process.wait(timeout=30)
             stdout = ""
         else:
             process = subprocess.Popen(
@@ -299,7 +306,7 @@ def extract_audio(
 
     except FileNotFoundError as e:
         # Clean up temp file if created
-        if created_temp and output_path.exists():
+        if temp_file_to_cleanup and output_path.exists():
             output_path.unlink(missing_ok=True)
         raise MediaError(
             f"ffmpeg executable not found: {ffmpeg_path}",
@@ -313,7 +320,7 @@ def extract_audio(
         ) from e
     except subprocess.TimeoutExpired as e:
         # Clean up temp file if created
-        if created_temp and output_path.exists():
+        if temp_file_to_cleanup and output_path.exists():
             output_path.unlink(missing_ok=True)
         raise MediaError(
             f"ffmpeg timed out after {timeout} seconds",
@@ -327,13 +334,13 @@ def extract_audio(
         ) from e
     except BaseException:
         # Clean up temp file on any unexpected exception (e.g., KeyboardInterrupt)
-        if created_temp and output_path.exists():
+        if temp_file_to_cleanup and output_path.exists():
             output_path.unlink(missing_ok=True)
         raise
 
     if result.returncode != 0:
         # Clean up temp file if created
-        if created_temp and output_path.exists():
+        if temp_file_to_cleanup and output_path.exists():
             output_path.unlink(missing_ok=True)
         raise MediaError(
             f"ffmpeg failed with return code {result.returncode}",
@@ -354,7 +361,7 @@ def extract_audio(
         _validate_output(output_path)
     except MediaError:
         # Clean up temp file if created
-        if created_temp and output_path.exists():
+        if temp_file_to_cleanup and output_path.exists():
             output_path.unlink(missing_ok=True)
         raise
 

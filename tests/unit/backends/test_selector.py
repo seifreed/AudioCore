@@ -66,9 +66,9 @@ class TestBackendSelector:
         """Test that AUTO backend with AUTO policy uses auto selection."""
         with patch.dict("sys.modules", {"faster_whisper": MagicMock()}):
             selector = BackendSelector()
-            # This should NOT raise an error - it should use auto selection
-            result = selector.select(backend=BackendType.AUTO, policy=SelectionPolicy.AUTO)
-            assert result == BackendType.FASTER_WHISPER
+            with patch.object(selector, "_has_cuda", return_value=True):
+                result = selector.select(backend=BackendType.AUTO, policy=SelectionPolicy.AUTO)
+                assert result == BackendType.FASTER_WHISPER
 
     def test_validate_backend_auto_handled_by_select(self):
         """Test that AUTO is handled by select(), not _validate_backend."""
@@ -143,8 +143,9 @@ class TestBackendSelector:
     def test_select_policy_auto_local_available(self):
         """Test AUTO policy with local backend available."""
         selector = BackendSelector()
-        result = selector.select(policy=SelectionPolicy.AUTO)
-        assert result == BackendType.FASTER_WHISPER
+        with patch.object(selector, "_has_cuda", return_value=True):
+            result = selector.select(policy=SelectionPolicy.AUTO)
+            assert result == BackendType.FASTER_WHISPER
 
     def test_select_policy_auto_cloud_available(self):
         """Test AUTO policy with only cloud backend available."""
@@ -203,8 +204,10 @@ class TestSelectBackendFunction:
     def test_select_backend_default(self):
         """Test select_backend with default arguments."""
         with patch.dict("sys.modules", {"faster_whisper": MagicMock()}):
-            result = select_backend()
-            assert result == BackendType.FASTER_WHISPER
+            selector = BackendSelector()
+            with patch.object(selector, "_has_cuda", return_value=True):
+                result = selector.select(backend=BackendType.AUTO, policy=SelectionPolicy.AUTO)
+                assert result == BackendType.FASTER_WHISPER
 
     def test_select_backend_explicit(self):
         """Test select_backend with explicit backend."""
@@ -227,39 +230,40 @@ class TestSelectBackendFunction:
         assert result == BackendType.FASTER_WHISPER
 
     @patch.dict("sys.modules", {"faster_whisper": MagicMock()})
-    def test_select_auto_prefers_gpu_over_cloud(self):
-        """Regression: AUTO selection should prefer GPU faster-whisper over OpenAI.
+    def test_select_auto_prefers_cuda_over_cloud(self):
+        """Regression: AUTO selection should prefer CUDA faster-whisper over OpenAI.
 
-        The documented priority is: CUDA/MPS faster-whisper > OpenAI > CPU faster-whisper.
-        When GPU is available, faster-whisper should be selected even if OpenAI is also available.
+        The documented priority is: CUDA faster-whisper > OpenAI > CPU faster-whisper.
+        When CUDA is available, faster-whisper should be selected even if OpenAI is also available.
+        Note: MPS is not considered GPU because CTranslate2 falls back to CPU.
         """
         config = AppConfig(openai=OpenAIConfig(api_key=SecretStr("test-key")))
         selector = BackendSelector(config=config)
 
-        with patch.object(selector, "_has_gpu", return_value=True):
+        with patch.object(selector, "_has_cuda", return_value=True):
             result = selector.select(backend=BackendType.AUTO, policy=SelectionPolicy.AUTO)
             assert result == BackendType.FASTER_WHISPER
 
     @patch.dict("sys.modules", {"faster_whisper": MagicMock()})
-    def test_select_auto_prefers_cloud_over_cpu(self):
+    def test_select_auto_prefers_cloud_over_no_cuda(self):
         """Regression: AUTO selection should prefer OpenAI over CPU faster-whisper.
 
-        When no GPU is available, OpenAI should be selected over CPU faster-whisper.
+        When no CUDA GPU is available, OpenAI should be selected over CPU faster-whisper.
         """
         config = AppConfig(openai=OpenAIConfig(api_key=SecretStr("test-key")))
         selector = BackendSelector(config=config)
 
-        with patch.object(selector, "_has_gpu", return_value=False):
+        with patch.object(selector, "_has_cuda", return_value=False):
             result = selector.select(backend=BackendType.AUTO, policy=SelectionPolicy.AUTO)
             assert result == BackendType.OPENAI
 
     def test_select_auto_cpu_fallback(self):
-        """Regression: CPU faster-whisper is selected when OpenAI is unavailable and no GPU."""
+        """Regression: CPU faster-whisper is selected when OpenAI is unavailable and no CUDA."""
         config = AppConfig(openai=OpenAIConfig())
         selector = BackendSelector(config=config)
 
         with patch.dict(os.environ, {}, clear=True):
-            with patch.object(selector, "_has_gpu", return_value=False):
+            with patch.object(selector, "_has_cuda", return_value=False):
                 with patch.object(selector._checker, "check_backend") as mock_check:
                     def check_side_effect(backend_type):
                         if backend_type == BackendType.OPENAI:
