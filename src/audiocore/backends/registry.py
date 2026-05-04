@@ -119,6 +119,10 @@ class BackendRegistry:
         Returns the cached instance if available, otherwise creates a new
         instance and stores it for future use (memoization).
 
+        When a config is provided that differs from the cached instance's
+        config, a new instance is created and replaces the cached one. Callers
+        holding references to the old instance will continue using it.
+
         Args:
             backend_type: The BackendType enum value for the desired backend.
             config: Optional AppConfig to pass to the backend constructor.
@@ -165,8 +169,7 @@ class BackendRegistry:
             backend_class = self._backends[backend_type]
             instance = self._create_backend_instance(backend_class, config)
             self._instances[backend_type] = instance
-
-        return self._instances[backend_type]
+            return instance
 
     @staticmethod
     def _create_backend_instance(
@@ -295,4 +298,5 @@ class BackendRegistry:
         with self._instance_lock:
             self._backends.clear()
             self._instances.clear()
+            BackendRegistry._builtins_registered = False
             BackendRegistry._instance = None

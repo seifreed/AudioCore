@@ -139,7 +139,7 @@ class TestTranscribeFilesConcurrent:
         concurrent_count = 0
         max_concurrent = 0
 
-        def track_concurrency(path, options):
+        def track_concurrency(path, options, cancellation_token=None):
             nonlocal concurrent_count, max_concurrent
             concurrent_count += 1
             max_concurrent = max(max_concurrent, concurrent_count)
@@ -179,7 +179,7 @@ class TestTranscribeFilesConcurrent:
 
         call_count = 0
 
-        def fail_middle(path, options):
+        def fail_middle(path, options, cancellation_token=None):
             nonlocal call_count
             call_count += 1
             if call_count == 2:
@@ -221,7 +221,7 @@ class TestTranscribeFilesConcurrent:
             audio_file.write_bytes(b"fake audio")
             files.append(audio_file)
 
-        def create_result_with_id(path, options):
+        def create_result_with_id(path, options, cancellation_token=None):
             # Return a result with different text for each file
             file_id = path.stem
             return TranscriptionResult(
@@ -406,7 +406,7 @@ class TestAsyncioIntegration:
             audio_file.write_bytes(b"fake audio")
             files.append(audio_file)
 
-        def slow_transcribe(path, options):
+        def slow_transcribe(path, options, cancellation_token=None):
             time.sleep(0.1)  # Simulate slow transcription
             return mock_transcription_result
 
@@ -446,7 +446,7 @@ class TestAsyncioIntegration:
         max_observed = 0
         lock = asyncio.Lock()
 
-        async def track_concurrent(path, options):
+        async def track_concurrent(path, options, cancellation_token=None):
             nonlocal concurrent_count, max_observed
             async with lock:
                 concurrent_count += 1
@@ -460,7 +460,7 @@ class TestAsyncioIntegration:
         current_concurrent = 0
         counter_lock = __import__("threading").Lock()
 
-        def track_sync_transcribe(path, options):
+        def track_sync_transcribe(path, options, cancellation_token=None):
             nonlocal actual_max_concurrent, current_concurrent
             with counter_lock:
                 current_concurrent += 1

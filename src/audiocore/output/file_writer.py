@@ -119,6 +119,7 @@ def write_output(
     # Write to temp file first, then move (atomic on most systems)
     # Use same directory to ensure same filesystem for atomic move
     parent_dir = file_path.parent if file_path.parent.exists() else Path.cwd()
+    temp_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
             mode="w",
@@ -135,7 +136,7 @@ def write_output(
         temp_path.replace(file_path)
     except Exception:
         # Clean up temp file if write failed
-        if "temp_path" in locals() and temp_path.exists():
+        if temp_path is not None and temp_path.exists():
             temp_path.unlink()
         raise
 

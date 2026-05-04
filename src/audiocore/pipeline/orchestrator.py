@@ -301,8 +301,12 @@ class Pipeline:
             return result
 
         except CancelledError:
-            # Re-raise cancellation after cleanup (context manager handles temp files)
             emit_progress(PipelineStage.COMPLETE, 0.0, "Pipeline cancelled")
+            raise
+        except PipelineStageError as e:
+            if isinstance(e.original_error, CancelledError):
+                emit_progress(PipelineStage.COMPLETE, 0.0, "Pipeline cancelled")
+                raise e.original_error from e
             raise
 
     def _format_result(
@@ -364,7 +368,10 @@ class Pipeline:
         """
         # Report transcription progress
         if progress_callback is not None:
-            progress_callback(PipelineStage.TRANSCRIBING, 0.5, "Transcribing audio")
+            try:
+                progress_callback(PipelineStage.TRANSCRIBING, 0.5, "Transcribing audio")
+            except Exception:
+                logger.debug("Progress callback raised, ignoring", exc_info=True)
 
         try:
             result = backend.transcribe(audio_path, options)

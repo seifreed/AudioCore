@@ -195,14 +195,11 @@ class TestDeviceDetectionConsistency:
             assert cuda_device in {DEVICE_MPS, DEVICE_CPU}
 
     def test_mps_available_matches_device_info(self) -> None:
-        """MPS availability should match between functions."""
-        info = get_device_info()
+        """MPS should always fall back to CPU since CTranslate2 doesn't support MPS."""
         mps_device = validate_device("mps")
 
-        if info["mps_available"]:
-            assert mps_device == DEVICE_MPS
-        else:
-            assert mps_device == DEVICE_CPU
+        # CTranslate2 does not support MPS — validate_device should always return CPU
+        assert mps_device == DEVICE_CPU
 
 
 class TestDeviceStringNormalization:
@@ -210,11 +207,11 @@ class TestDeviceStringNormalization:
 
     def test_cuda_lowercase_normalization(self) -> None:
         """validate_device should normalize CUDA to cuda."""
-        assert validate_device("CUDA") in {DEVICE_CUDA, DEVICE_MPS, DEVICE_CPU}
+        assert validate_device("CUDA") in {DEVICE_CUDA, DEVICE_CPU}
 
     def test_mps_lowercase_normalization(self) -> None:
-        """validate_device should normalize MPS to mps."""
-        assert validate_device("MPS") in {DEVICE_MPS, DEVICE_CPU}
+        """validate_device should normalize MPS to mps, falling back to CPU."""
+        assert validate_device("MPS") == DEVICE_CPU
 
     def test_cpu_lowercase_normalization(self) -> None:
         """validate_device should normalize CPU to cpu."""

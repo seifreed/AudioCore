@@ -362,11 +362,12 @@ class SileroVAD:
             # Convert min_silence_duration from ms to seconds
             min_silence_duration_s = config.min_silence_duration_ms / 1000.0
 
-            # Process each full chunk (skip partial chunks at the end)
             for i in range(0, len(audio_data), chunk_size):
-                if i + chunk_size > len(audio_data):
-                    break  # Skip partial chunk at end of audio
-                chunk = audio_data[i : i + chunk_size]
+                chunk_end = min(i + chunk_size, len(audio_data))
+                chunk = audio_data[i:chunk_end]
+                # Pad partial last chunk with zeros for consistent model input
+                if len(chunk) < chunk_size:
+                    chunk = np.pad(chunk, (0, chunk_size - len(chunk)), mode="constant")
 
                 # Convert to torch tensor
                 chunk_tensor = torch.from_numpy(chunk)

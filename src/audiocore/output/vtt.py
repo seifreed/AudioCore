@@ -114,6 +114,7 @@ def format_vtt(result: TranscriptionResult, options: TranscriptionOptions) -> st
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
                 .replace("\n\n", "\n")
+                .replace("-->", "- ->")
             )
 
         # VTT cue format:

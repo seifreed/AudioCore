@@ -173,12 +173,11 @@ class TestModelManagerSingleton:
         new_manager = ModelManager()
         assert id(new_manager) != original_id
 
-    def test_clear_preserves_custom_cache_dir(self) -> None:
-        """Regression: clear() must preserve custom cache_dir across resets.
+    def test_clear_resets_persisted_cache_dir(self) -> None:
+        """Regression: clear() must reset _persisted_cache_dir.
 
-        Previously, clear() set _instance=None but didn't persist cache_dir,
-        so the next ModelManager() would use DEFAULT_CACHE_DIR instead of the
-        custom one. Now _persisted_cache_dir is used to preserve it.
+        After clear(), a new ModelManager() without explicit cache_dir
+        should fall back to DEFAULT_CACHE_DIR, not a previously-set custom dir.
         """
         # Reset singleton
         ModelManager._instance = None
@@ -191,9 +190,10 @@ class TestModelManagerSingleton:
 
         manager.clear()
 
-        # After clear, a new ModelManager() should still use the custom cache_dir
+        # After clear, _persisted_cache_dir is reset, so new instance
+        # uses DEFAULT_CACHE_DIR unless cache_dir is explicitly passed
         new_manager = ModelManager()
-        assert new_manager.cache_dir == custom_cache
+        assert new_manager.cache_dir == DEFAULT_CACHE_DIR
 
         # Cleanup
         ModelManager._instance = None

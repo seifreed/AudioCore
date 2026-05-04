@@ -210,10 +210,18 @@ def extract_audio(
             # Use explicit ffprobe_path if provided, otherwise derive from ffmpeg_path
             effective_ffprobe = ffprobe_path
             if effective_ffprobe is None:
-                ffmpeg_path_obj = Path(ffmpeg_path)
-                effective_ffprobe = str(
-                    ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace("ffmpeg", "ffprobe", 1)
-                )
+                import shutil
+
+                # Try shutil.which first for reliable discovery
+                effective_ffprobe = shutil.which("ffprobe")
+                if effective_ffprobe is None:
+                    # Derive from ffmpeg path as fallback
+                    ffmpeg_path_obj = Path(ffmpeg_path)
+                    derived = ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace(
+                        "ffmpeg", "ffprobe", 1
+                    )
+                    if Path(derived).exists():
+                        effective_ffprobe = str(derived)
             media_info = probe(input_path, ffprobe_path=effective_ffprobe)
             total_duration = media_info.duration
         except Exception as probe_error:
@@ -276,7 +284,7 @@ def extract_audio(
                 process.wait()
                 raise
 
-            returncode = process.wait(timeout=30)
+            returncode = process.wait(timeout=5)
             stdout = ""
         else:
             process = subprocess.Popen(

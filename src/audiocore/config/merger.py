@@ -40,7 +40,7 @@ def _get_defaults() -> dict[str, Any]:
         if field_info.default_factory is not None:
             # Has a default_factory, call it to get default
             defaults[field_name] = field_info.default_factory()  # type: ignore[misc]
-        elif field_info.default is not None and field_info.default is not PydanticUndefined:
+        elif field_info.default is not PydanticUndefined:
             defaults[field_name] = field_info.default
         else:
             # Field is optional (default=None for optional fields)
@@ -179,9 +179,14 @@ def merge_configs(
                 merged[key] = value
 
     # 4. CLI arguments override everything (skip None values)
+    # Deep-merge for sub-model dicts so partial CLI overrides
+    # (e.g. {openai: {api_key: "sk-..."}}) don't lose other sub-fields.
     for key, value in norm_cli.items():
         if value is not None:
-            merged[key] = value
+            if isinstance(value, dict) and isinstance(merged.get(key), dict):
+                merged[key] = {**merged[key], **value}
+            else:
+                merged[key] = value
 
     return merged
 

@@ -184,15 +184,11 @@ def validate_device(device: str) -> str:
         )
         return DEVICE_CPU
 
-    # Check for MPS
+    # CTranslate2 does not support MPS — always fall back to CPU
     if device_lower == DEVICE_MPS:
-        if device_info["mps_available"]:
-            logger.info("Using MPS device (Apple Silicon)")
-            return DEVICE_MPS
-        # Fall back to CPU
         logger.warning(
-            f"MPS requested but not available, falling back to CPU. "
-            f"MPS available: {device_info['mps_available']}"
+            "MPS requested but CTranslate2 does not support MPS, falling back to CPU. "
+            "Use CUDA for GPU acceleration instead."
         )
         return DEVICE_CPU
 

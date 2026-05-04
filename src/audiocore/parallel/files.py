@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from audiocore.models import TranscriptionOptions, TranscriptionResult
+    from audiocore.pipeline.cancellation import CancellationToken
 
 
 @dataclass
@@ -55,6 +56,7 @@ async def transcribe_files_concurrent(
     max_workers: int = 4,
     continue_on_error: bool = True,
     progress_callback: Callable[[int, int, Path], None] | None = None,
+    cancellation_token: CancellationToken | None = None,
 ) -> list[FileResult]:
     """Transcribe multiple files concurrently with controlled parallelism.
 
@@ -122,7 +124,9 @@ async def transcribe_files_concurrent(
                 # to avoid creating too many threads when used alongside async_transcribe
                 result = await asyncio.get_running_loop().run_in_executor(
                     _get_executor(),
-                    lambda: transcribe(path=file_path, options=options),
+                    lambda: transcribe(
+                        path=file_path, options=options, cancellation_token=cancellation_token
+                    ),
                 )
 
                 # Update counter and call progress callback outside lock to avoid blocking

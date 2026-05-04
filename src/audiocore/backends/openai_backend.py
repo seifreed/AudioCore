@@ -169,14 +169,14 @@ class OpenAIBackend(TranscriptionBackend):
 
         # Check if API key is provided in constructor
         if self._api_key is not None:
-            return bool(self._api_key)
+            return bool(self._api_key.strip())
 
         # Check environment variables (OPENAI_API_KEY takes priority, AUDIOCORE_OPENAI_API_KEY as fallback)
         import os
 
         env_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("AUDIOCORE_OPENAI_API_KEY")
         if env_key is not None:
-            return bool(env_key)
+            return bool(env_key.strip())
 
         return False
 

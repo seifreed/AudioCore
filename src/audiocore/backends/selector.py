@@ -129,26 +129,33 @@ class BackendSelector:
             ],
         )
 
-    @staticmethod
-    def _has_cuda() -> bool:
+    _cuda_available: bool | None = None
+
+    @classmethod
+    def _has_cuda(cls) -> bool:
         """Check whether CUDA GPU is available for faster-whisper.
+
+        Result is cached after first call to avoid repeated torch imports.
 
         Note: MPS (Apple Silicon) is NOT counted as GPU here because
         CTranslate2 does not support MPS and falls back to CPU, making
         it slower than the OpenAI cloud backend in most cases.
         """
+        if cls._cuda_available is not None:
+            return cls._cuda_available
+
         try:
             import torch
 
-            if torch.cuda.is_available():
-                return True
-            return False
+            cls._cuda_available = torch.cuda.is_available()
         except ImportError:
             logger.debug("GPU detection skipped: torch not installed")
-            return False
+            cls._cuda_available = False
         except Exception as e:
             logger.warning(f"GPU detection failed: {e}")
-            return False
+            cls._cuda_available = False
+
+        return cls._cuda_available
 
     def _select_auto(self) -> BackendType:
         """Select fastest available backend automatically.

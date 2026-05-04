@@ -583,12 +583,11 @@ class TestErrorHandling:
     def test_detect_audio_processes_non_aligned_length_without_partial_chunks(
         self, mock_get_model: MagicMock
     ) -> None:
-        """Regression: detect_audio must not feed partial chunks to Silero model.
+        """Regression: detect_audio pads partial last chunk for consistent model input.
 
-        Previously, the loop used `range(0, len(audio_data) - chunk_size + 1,
-        chunk_size)` which could either skip audio at the end of a file or feed
-        a partial chunk (shorter than 512 samples) to Silero, causing incorrect
-        results or crashes. Now partial chunks at the end are skipped.
+        Previously, partial chunks at the end were skipped, losing audio.
+        Now the partial last chunk is zero-padded to chunk_size so the
+        Silero model receives consistent-length input and no audio is lost.
         """
         mock_model = MagicMock()
         mock_model.return_value = torch.tensor(0.8)
@@ -602,9 +601,9 @@ class TestErrorHandling:
         vad = SileroVAD()
         vad.detect_audio(audio_data, 16000)
 
-        # Model should be called exactly twice (for 2 full 512-sample chunks)
-        # NOT three times (the old code would call with a partial 476-sample chunk)
-        assert mock_model.call_count == 2
+        # Model should be called three times:
+        # 2 full 512-sample chunks + 1 zero-padded partial chunk (476 padded to 512)
+        assert mock_model.call_count == 3
 
     @patch("audiocore.vad.silero.SileroVAD.get_model")
     def test_detect_audio_processes_exact_multiple_length(

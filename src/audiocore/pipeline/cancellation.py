@@ -53,7 +53,6 @@ class CancelledError(AudioCoreError):
         """
         super().__init__(
             message=message,
-            error_code="AUD-500",
             context=context or {},
             suggestions=suggestions or ["Check if cancellation was intentional"],
         )

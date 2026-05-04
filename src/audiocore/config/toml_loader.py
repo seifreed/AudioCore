@@ -9,6 +9,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+from audiocore.config.settings import AppConfig
 from audiocore.errors import InvalidConfigError
 
 logger = logging.getLogger(__name__)
@@ -108,11 +109,14 @@ def _flatten_toml_section(section: dict[str, Any], prefix: str = "") -> dict[str
             # must not set the top-level "language" field).
             field_name = _FIELD_MAPPING.get(full_key)
             if field_name is None:
-                # Top-level keys that match AppConfig fields are allowed
                 if "." not in full_key:
-                    field_name = full_key
+                    # Only allow top-level keys that are known AppConfig fields
+                    if full_key in AppConfig.model_fields:
+                        field_name = full_key
+                    else:
+                        logger.warning(f"Unknown TOML config key '{full_key}' will be ignored")
+                        continue
                 else:
-                    # Unknown nested keys are dropped with a warning
                     logger.warning(f"Unknown TOML config key '{full_key}' will be ignored")
                     continue
 
