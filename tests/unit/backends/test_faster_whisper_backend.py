@@ -37,7 +37,7 @@ class TestFasterWhisperBackendBasics:
         backend = FasterWhisperBackend()
         assert backend.get_name() == "Faster-Whisper (local)"
 
-    @patch.dict("sys.modules", {"faster_whisper": MagicMock()})
+    @patch.dict("sys.modules", {"ctranslate2": MagicMock(), "faster_whisper": MagicMock()})
     def test_is_available_returns_true_when_installed(self) -> None:
         """is_available() should return True when faster-whisper is installed."""
         backend = FasterWhisperBackend()
@@ -301,6 +301,31 @@ class TestFasterWhisperBackendTranscription:
 
 class TestFasterWhisperBackendParameters:
     """Test configuration parameter passing."""
+
+    def test_default_options_do_not_override_backend_config_model(self, tmp_path: Path) -> None:
+        """Regression: TranscriptionOptions() default model must not mask backend config."""
+        audio_file = tmp_path / "test.mp3"
+        audio_file.touch()
+
+        mock_model = MagicMock()
+        mock_segment = MagicMock(start=0.0, end=1.0, text="Test")
+        mock_info = MagicMock(duration=1.0)
+        mock_model.transcribe.return_value = ([mock_segment], mock_info)
+        mock_whisper_class = MagicMock(return_value=mock_model)
+
+        with patch.dict(
+            sys.modules,
+            {
+                "faster_whisper": MagicMock(WhisperModel=mock_whisper_class),
+            },
+        ):
+            config = FasterWhisperConfig(model_size=ModelSize.TINY, device="cpu")
+            backend = FasterWhisperBackend(config=config)
+            backend.transcribe(str(audio_file), TranscriptionOptions())
+
+        call_args, call_kwargs = mock_whisper_class.call_args
+        assert call_args[0] == "tiny"
+        assert call_kwargs["download_root"] == str(backend._model_manager.cache_dir)
 
     def test_transcribe_uses_config_language(self, tmp_path: Path) -> None:
         """transcribe should pass language from config."""

@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from typer import BadParameter
 from typer.testing import CliRunner
 
 from audiocore.cli.transcribe import app
@@ -322,7 +323,7 @@ class TestValidateInputFiles:
         from audiocore.cli.transcribe import validate_input_files
 
         nonexistent = tmp_path / "does_not_exist.mp3"
-        with pytest.raises(Exception):
+        with pytest.raises(BadParameter):
             validate_input_files([nonexistent])
 
     def test_unreadable_file_flagged(self, tmp_path: Path) -> None:
@@ -343,7 +344,7 @@ class TestValidateInputFiles:
         if os.name != "nt":
             unreadable.chmod(0o000)
             try:
-                with pytest.raises(Exception):
+                with pytest.raises(BadParameter):
                     validate_input_files([unreadable])
             finally:
                 # Restore permissions for cleanup

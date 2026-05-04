@@ -246,7 +246,7 @@ class TestSplitLongSegments:
         result = split_long_segments(segments, config)
         assert len(result) == 5
         # Each chunk should be 9s
-        for i, (start, end, conf) in enumerate(result):
+        for start, end, conf in result:
             expected_dur = 9.0
             assert abs((end - start) - expected_dur) < 0.01
             assert conf == 0.88
@@ -484,3 +484,20 @@ class TestProcessSegments:
         result = process_segments(vad_output, config, total_duration=5.0)
         # Should merge into 1 segment
         assert len(result) == 1
+
+    def test_process_segments_does_not_remerge_split_chunks(self) -> None:
+        """Regression: split chunks must continue respecting max_segment_duration."""
+        config = VADConfig(
+            min_segment_duration=4.0,
+            max_segment_duration=5.0,
+            speech_pad_ms=100,
+        )
+        vad_output = [(0.0, 5.1, 0.80)]
+
+        result = process_segments(vad_output, config, total_duration=10.0)
+
+        assert len(result) == 2
+        assert all(
+            (segment.end_time - segment.start_time) <= config.max_segment_duration
+            for segment in result
+        )

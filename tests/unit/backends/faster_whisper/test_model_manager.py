@@ -6,7 +6,7 @@ huggingface_hub.
 
 import threading
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -232,18 +232,14 @@ class TestModelManagerDownloadModel:
         model_path.parent.mkdir(parents=True, exist_ok=True)
         model_path.touch()
 
-        # Create mock huggingface_hub module
-        mock_hf = MagicMock()
-        mock_hf.hf_hub_download = MagicMock(return_value=str(model_path))
-
         manager = ModelManager(cache_dir=tmp_path)
 
-        # Mock the import inside download_model
-        with patch.dict("sys.modules", {"huggingface_hub": mock_hf}):
+        # Mock faster-whisper's downloader so the test follows the real integration point.
+        with patch("faster_whisper.utils.download_model", return_value=str(tmp_path)) as mock_download:
             result = manager.download_model("base")
 
         assert result == model_path
-        mock_hf.hf_hub_download.assert_called_once()
+        mock_download.assert_called_once_with("base", cache_dir=str(tmp_path))
 
         # Cleanup
         ModelManager._instance = None
@@ -479,9 +475,9 @@ class TestGetModelInfo:
 class TestModelManagerErrorHandling:
     """Test ModelManager error handling."""
 
-    @patch.dict("sys.modules", {"huggingface_hub": None})
-    def test_download_without_huggingface_raises_error(self, tmp_path: Path) -> None:
-        """Should raise BackendUnavailableError if huggingface-hub not installed."""
+    @patch.dict("sys.modules", {"faster_whisper.utils": None})
+    def test_download_without_download_dependencies_raises_error(self, tmp_path: Path) -> None:
+        """Should raise BackendUnavailableError if model download dependencies are unavailable."""
         # Reset singleton
         ModelManager._instance = None
         ModelManager._persisted_cache_dir = None
@@ -490,7 +486,7 @@ class TestModelManagerErrorHandling:
 
         with pytest.raises(BackendUnavailableError) as exc_info:
             manager.download_model("base")
-        assert "huggingface-hub not installed" in str(exc_info.value).lower()
+        assert "model download dependencies" in str(exc_info.value).lower()
 
         # Cleanup
         ModelManager._instance = None

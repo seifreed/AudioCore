@@ -89,9 +89,6 @@ class TestSingletonPattern:
         """Verify singleton is initialized only once."""
         registry = BackendRegistry()
 
-        # Initial state
-        initial_backends = dict(registry._backends)
-
         # Register a backend
         registry.register(BackendType.OPENAI, MockTranscriptionBackend)
 
@@ -807,6 +804,29 @@ class TestSecretStrConfigMatching:
         config2 = AppConfig(openai=OpenAIConfig(api_key=SecretStr("sk-key-2")))
 
         assert BackendRegistry._configs_match(config1, config2) is False
+
+    def test_app_config_matches_openai_sub_config(self) -> None:
+        """Regression: AppConfig-to-OpenAIConfig comparison must work at runtime."""
+        from pydantic import SecretStr
+
+        from audiocore.config import AppConfig, OpenAIConfig
+
+        openai = OpenAIConfig(api_key=SecretStr("sk-test-key"))
+        app_config = AppConfig(openai=openai)
+
+        assert BackendRegistry._configs_match(app_config, openai) is True
+        assert BackendRegistry._configs_match(openai, app_config) is True
+
+    def test_app_config_matches_faster_whisper_sub_config(self) -> None:
+        """Regression: AppConfig-to-FasterWhisperConfig comparison must work at runtime."""
+        from audiocore.config import AppConfig, FasterWhisperConfig
+        from audiocore.types import ModelSize
+
+        faster_whisper = FasterWhisperConfig(model_size=ModelSize.TINY, device="cpu")
+        app_config = AppConfig(faster_whisper=faster_whisper)
+
+        assert BackendRegistry._configs_match(app_config, faster_whisper) is True
+        assert BackendRegistry._configs_match(faster_whisper, app_config) is True
 
 
 class TestGetBackendConfigRace:

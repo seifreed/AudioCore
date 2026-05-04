@@ -59,7 +59,10 @@ class PipelineError(AudioCoreError):
 
         # Add stage to context if provided
         if stage is not None:
-            context = context or {}
+            if context is None:
+                context = {}
+            else:
+                context = dict(context)
             context["stage"] = stage.value
 
         if suggestions is None:
@@ -115,11 +118,11 @@ class PipelineStageError(PipelineError):
             suggestions: List of actionable suggestions.
             original_error: The underlying exception from the stage.
         """
-        # Add stage to context
-        context = context or {}
-        context["stage"] = stage.value
-
         # Add original error type to context if available
+        if context is not None:
+            context = dict(context)
+        else:
+            context = {}
         if original_error is not None:
             context["original_error_type"] = type(original_error).__name__
 
@@ -213,6 +216,8 @@ class PipelineCancelledError(PipelineError):
 
         if context is None:
             context = {}
+        else:
+            context = dict(context)
 
         if stage is not None:
             context["stage"] = stage.value
@@ -270,7 +275,10 @@ class PartialResultError(PipelineError):
         self.failed_segments = failed_segments or []
 
         # Add partial result info to context
-        context = context or {}
+        if context is None:
+            context = {}
+        else:
+            context = dict(context)
         if partial_result is not None:
             context["segments_completed"] = len(partial_result.segments)
         if failed_segments:

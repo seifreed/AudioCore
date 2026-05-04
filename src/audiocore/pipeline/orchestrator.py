@@ -7,6 +7,7 @@ transcription workflow from media input to formatted output.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -139,7 +140,14 @@ class Pipeline:
             CancelledError: If cancellation is requested during execution.
         """
         path = Path(path)
-        options = options or TranscriptionOptions()
+        if options is None:
+            options = TranscriptionOptions(
+                backend=self.config.backend,
+                model_size=self.config.model,
+                language=self.config.language,
+                output_format=self.config.output_format,
+                backend_preference=self.config.backend_preference,
+            )
 
         # Helper to emit progress safely — never let callback exceptions
         # mask pipeline errors like CancelledError
@@ -277,6 +285,7 @@ class Pipeline:
                     options=options,
                     progress_callback=progress_callback,
                     cancellation_token=cancellation_token,
+                    emit_progress=emit_progress,
                 )
                 emit_progress(PipelineStage.TRANSCRIBING, 1.0, "Transcription complete")
                 check_cancellation()
@@ -304,9 +313,9 @@ class Pipeline:
             emit_progress(PipelineStage.COMPLETE, 0.0, "Pipeline cancelled")
             raise
         except PipelineStageError as e:
-            if isinstance(e.original_error, CancelledError):
+            if isinstance(e, CancelledError) or isinstance(e.original_error, CancelledError):
                 emit_progress(PipelineStage.COMPLETE, 0.0, "Pipeline cancelled")
-                raise e.original_error from e
+                raise (e.original_error if isinstance(e.original_error, CancelledError) else e) from e
             raise
 
     def _format_result(
@@ -342,6 +351,7 @@ class Pipeline:
         options: TranscriptionOptions,
         progress_callback: ProgressCallback | None = None,
         cancellation_token: CancellationToken | None = None,
+        emit_progress: Callable[[PipelineStage, float, str], None] | None = None,
     ) -> TranscriptionResult:
         """Transcribe audio using the selected backend.
 
@@ -358,6 +368,7 @@ class Pipeline:
             options: Transcription options.
             progress_callback: Optional callback for progress updates.
             cancellation_token: Optional token for cancellation.
+            emit_progress: Safe progress emitter from Pipeline.transcribe().
 
         Returns:
             TranscriptionResult: Complete transcription result.
@@ -366,12 +377,9 @@ class Pipeline:
             PipelineStageError: If transcription fails.
             PartialResultError: If partial transcription succeeded.
         """
-        # Report transcription progress
-        if progress_callback is not None:
-            try:
-                progress_callback(PipelineStage.TRANSCRIBING, 0.5, "Transcribing audio")
-            except Exception:
-                logger.debug("Progress callback raised, ignoring", exc_info=True)
+        # Report transcription progress using the safe emit_progress helper
+        if emit_progress is not None:
+            emit_progress(PipelineStage.TRANSCRIBING, 0.5, "Transcribing audio")
 
         try:
             result = backend.transcribe(audio_path, options)

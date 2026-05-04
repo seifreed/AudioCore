@@ -5,6 +5,7 @@ from io import StringIO
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from audiocore.errors.output import OutputDirectoryError, OutputFileExistsError
 from audiocore.models import MediaInfo, Segment, TranscriptionOptions, TranscriptionResult
@@ -35,12 +36,12 @@ class TestOutputFileConfig:
 
     def test_strict_mode_rejects_unknown_fields(self) -> None:
         """Strict mode rejects unknown fields."""
-        with pytest.raises(Exception):  # Pydantic ValidationError
+        with pytest.raises(ValidationError):
             OutputFileConfig(unknown_field="value")  # type: ignore
 
     def test_forbid_extra_fields(self) -> None:
         """Extra fields are forbidden."""
-        with pytest.raises(Exception):  # Pydantic ValidationError
+        with pytest.raises(ValidationError):
             OutputFileConfig(extra="data")  # type: ignore
 
 
@@ -251,7 +252,7 @@ class TestAtomicWriteFailure:
 
             # Try to create a file in read-only dir
             # This should fail during temp file creation
-            with pytest.raises(OSError) as exc_info:
+            with pytest.raises(OSError):
                 write_output("Content", output_path, OutputFileConfig(overwrite=True))
 
             # Verify no temp files left

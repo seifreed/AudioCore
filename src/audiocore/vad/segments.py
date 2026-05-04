@@ -59,10 +59,11 @@ def merge_short_segments(
     for start, end, conf in segments[1:]:
         prev_start, prev_end, prev_conf = merged[-1]
         prev_duration = prev_end - prev_start
+        curr_duration = end - start
         gap = start - prev_end
 
-        # Merge if previous is short and gap is small
-        if prev_duration < min_duration and gap < max_gap:
+        # Merge if either segment is short and gap is small
+        if (prev_duration < min_duration or curr_duration < min_duration) and gap < max_gap:
             merged[-1] = (prev_start, end, min(prev_conf, conf))
         else:
             merged.append((start, end, conf))
@@ -151,7 +152,7 @@ def pad_segments(
     merged = [result[0]]
     for start, end, conf in result[1:]:
         prev_start, prev_end, prev_conf = merged[-1]
-        if start <= prev_end:
+        if start < prev_end:
             # Overlap: merge segments, use max confidence of the two
             merged[-1] = (prev_start, max(prev_end, end), max(prev_conf, conf))
         else:
@@ -258,8 +259,11 @@ def process_segments(
     # 4. Pad segments
     segments = pad_segments(segments, config.speech_pad_ms, total_duration)
 
-    # 5. Validate segments
+    # 5. Enforce max duration again in case padding merged nearby segments.
+    segments = split_long_segments(segments, config)
+
+    # 6. Validate segments
     validate_segments(segments, total_duration, config)
 
-    # 6. Convert to Segment models
+    # 7. Convert to Segment models
     return to_segment_models(segments)

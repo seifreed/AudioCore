@@ -9,6 +9,8 @@ import pytest
 
 from audiocore.errors import InvalidInputError, MediaError
 from audiocore.media.probe import (
+    _parse_duration,
+    _validate_audio_stream,
     _validate_file_exists,
     probe,
 )
@@ -47,6 +49,40 @@ class TestValidateFileExists:
         assert exc_info.value.context is not None
         assert "file_path" in exc_info.value.context
         assert exc_info.value.context["file_path"] == str(missing_file)
+
+
+class TestValidateAudioStream:
+    """Tests for _validate_audio_stream helper."""
+
+    def test_validate_audio_stream_raises_when_no_audio(self, tmp_path: Path) -> None:
+        """Should raise MediaError when no audio stream is present."""
+        test_file = tmp_path / "video_only.mp4"
+        streams = [{"codec_type": "video", "codec_name": "h264"}]
+
+        with pytest.raises(MediaError, match="No audio stream"):
+            _validate_audio_stream(streams, test_file)
+
+    def test_validate_audio_stream_accepts_audio_stream(self, tmp_path: Path) -> None:
+        """Should not raise when at least one audio stream is present."""
+        test_file = tmp_path / "audio.mp3"
+        streams = [{"codec_type": "audio", "codec_name": "mp3"}]
+
+        _validate_audio_stream(streams, test_file)
+
+
+class TestParseDuration:
+    """Tests for ffprobe duration parsing."""
+
+    def test_parse_duration_returns_float_for_positive_value(self) -> None:
+        """Should parse positive duration values."""
+        assert _parse_duration("10.5") == 10.5
+
+    def test_parse_duration_returns_none_for_invalid_values(self) -> None:
+        """Should ignore invalid, zero, and negative duration values."""
+        assert _parse_duration("N/A") is None
+        assert _parse_duration(None) is None
+        assert _parse_duration("0") is None
+        assert _parse_duration("-1.0") is None
 
 
 class TestProbe:
@@ -192,7 +228,7 @@ class TestProbe:
 
         ffprobe_output = {
             "format": {"duration": "10.0", "format_name": "mp3"},
-            "streams": [],
+            "streams": [{"codec_type": "audio", "codec_name": "mp3"}],
         }
         mock_run.return_value = MagicMock(
             returncode=0, stdout=json.dumps(ffprobe_output), stderr=""
@@ -224,6 +260,26 @@ class TestProbe:
         assert result.duration == 100.5
 
     @patch("audiocore.media.probe.subprocess.run")
+    def test_probe_falls_back_to_stream_duration_when_format_duration_invalid(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        """Regression: invalid format duration should not escape as ValueError."""
+        test_file = tmp_path / "test.mp3"
+        test_file.write_text("fake audio")
+
+        ffprobe_output = {
+            "format": {"duration": "N/A", "format_name": "mp3"},
+            "streams": [{"codec_type": "audio", "duration": "12.5", "codec_name": "mp3"}],
+        }
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout=json.dumps(ffprobe_output), stderr=""
+        )
+
+        result = probe(test_file)
+
+        assert result.duration == 12.5
+
+    @patch("audiocore.media.probe.subprocess.run")
     def test_probe_handles_missing_audio_codec(self, mock_run: MagicMock, tmp_path: Path) -> None:
         """Should handle files without audio stream codec."""
         test_file = tmp_path / "test.mp3"
@@ -232,7 +288,7 @@ class TestProbe:
         ffprobe_output = {
             "format": {"duration": "10.0", "format_name": "mp3"},
             "streams": [
-                {"codec_type": "video", "codec_name": "h264"},
+                {"codec_type": "audio"},
             ],
         }
         mock_run.return_value = MagicMock(
@@ -247,6 +303,23 @@ class TestProbe:
         assert result.channels is None
 
     @patch("audiocore.media.probe.subprocess.run")
+    def test_probe_raises_when_no_audio_stream(self, mock_run: MagicMock, tmp_path: Path) -> None:
+        """Regression: transcription inputs must contain at least one audio stream."""
+        test_file = tmp_path / "video_only.mp4"
+        test_file.write_text("fake video")
+
+        ffprobe_output = {
+            "format": {"duration": "10.0", "format_name": "mp4"},
+            "streams": [{"codec_type": "video", "codec_name": "h264"}],
+        }
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout=json.dumps(ffprobe_output), stderr=""
+        )
+
+        with pytest.raises(MediaError, match="No audio stream"):
+            probe(test_file)
+
+    @patch("audiocore.media.probe.subprocess.run")
     def test_probe_timeout_parameter(self, mock_run: MagicMock, tmp_path: Path) -> None:
         """Should use custom timeout when provided."""
         test_file = tmp_path / "test.mp3"
@@ -254,7 +327,7 @@ class TestProbe:
 
         ffprobe_output = {
             "format": {"duration": "10.0", "format_name": "mp3"},
-            "streams": [],
+            "streams": [{"codec_type": "audio", "codec_name": "mp3"}],
         }
         mock_run.return_value = MagicMock(
             returncode=0, stdout=json.dumps(ffprobe_output), stderr=""
@@ -308,7 +381,7 @@ class TestProbe:
 
         ffprobe_output = {
             "format": {"duration": "10.0", "format_name": "mp3"},
-            "streams": [],
+            "streams": [{"codec_type": "audio", "codec_name": "mp3"}],
         }
         mock_run.return_value = MagicMock(
             returncode=0, stdout=json.dumps(ffprobe_output), stderr=""
@@ -362,7 +435,7 @@ class TestProbeCommand:
 
         ffprobe_output = {
             "format": {"duration": "10.0", "format_name": "mp3"},
-            "streams": [],
+            "streams": [{"codec_type": "audio", "codec_name": "mp3"}],
         }
         mock_run.return_value = MagicMock(
             returncode=0, stdout=json.dumps(ffprobe_output), stderr=""
@@ -382,7 +455,7 @@ class TestProbeCommand:
 
         ffprobe_output = {
             "format": {"duration": "10.0", "format_name": "mp3"},
-            "streams": [],
+            "streams": [{"codec_type": "audio", "codec_name": "mp3"}],
         }
         mock_run.return_value = MagicMock(
             returncode=0, stdout=json.dumps(ffprobe_output), stderr=""
@@ -404,7 +477,7 @@ class TestProbeCommand:
 
         ffprobe_output = {
             "format": {"duration": "10.0", "format_name": "mp3"},
-            "streams": [],
+            "streams": [{"codec_type": "audio", "codec_name": "mp3"}],
         }
         mock_run.return_value = MagicMock(
             returncode=0, stdout=json.dumps(ffprobe_output), stderr=""

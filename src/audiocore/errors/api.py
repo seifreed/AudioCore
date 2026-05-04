@@ -109,9 +109,14 @@ class RateLimitError(APIError):
         cause: Exception | None = None,
     ) -> None:
         if suggestions is None:
-            suggestions = ["Wait before retrying", "Reduce request frequency"]
-        # Add retry_after context to suggestions if available
-        if context and "retry_after" in context:
+            suggestions = ["Reduce request frequency"]
+            # Add retry_after context to suggestions if available
+            if context and "retry_after" in context:
+                retry_after = context["retry_after"]
+                suggestions = [f"Wait {retry_after} seconds before retrying"] + suggestions
+            else:
+                suggestions = ["Wait before retrying"] + suggestions
+        elif context and "retry_after" in context:
             retry_after = context["retry_after"]
             suggestions = [f"Wait {retry_after} seconds before retrying"] + suggestions
         super().__init__(message, context, suggestions, cause)

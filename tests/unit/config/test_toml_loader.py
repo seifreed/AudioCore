@@ -1,6 +1,5 @@
 """Tests for TOML configuration file loader."""
 
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -150,16 +149,22 @@ language = "fr"
         assert result["output_format"] == "srt"
         assert result["language"] == "fr"
 
-    def test_default_path_used_when_none_provided(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_default_path_used_when_none_provided(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
         """load_toml_config with None should use DEFAULT_CONFIG_PATH."""
-        # Mock DEFAULT_CONFIG_PATH to point to a test file
-        config_file = tmp_path if "tmp_path" in dir() else Path(tempfile.mkdtemp()) / "config.toml"
-        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file = tmp_path / "config.toml"
+        config_file.write_text(
+            """
+[backend]
+backend = "openai"
+""",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr("audiocore.config.toml_loader.DEFAULT_CONFIG_PATH", config_file)
 
-        # Create a nonexistent path to test empty dict return
-        nonexistent = Path("/nonexistent/config_12345.toml")
-        result = load_toml_config(nonexistent)
-        assert result == {}
+        result = load_toml_config(None)
+        assert result == {"backend": "openai"}
 
     def test_directory_instead_of_file_raises_error(self, tmp_path: Path) -> None:
         """Passing a directory should raise InvalidConfigError."""

@@ -262,11 +262,14 @@ class FasterWhisperBackend(TranscriptionBackend):
                 logger.info("Loading faster-whisper model: %s on %s", effective_model_size, device)
 
                 try:
-                    # WhisperModel downloads all necessary files automatically
+                    # WhisperModel downloads all necessary files automatically.
+                    # Use ModelManager's cache_dir so backend auto-downloads are
+                    # visible to ModelManager.is_model_downloaded().
                     self._model = WhisperModel(
                         effective_model_size,
                         device=device,
                         compute_type=compute_type,
+                        download_root=str(self._model_manager.cache_dir),
                     )
                     self._loaded_model_size = effective_model_size
 
@@ -334,9 +337,10 @@ class FasterWhisperBackend(TranscriptionBackend):
 
         # Model size: options.model_size > config.model_size
         # The model must be re-loaded if a different model size is requested
-        effective_model_size = (
-            options.model_size if options.model_size is not None else self.config.model_size
-        )
+        if "model_size" in options.model_fields_set:
+            effective_model_size = options.model_size
+        else:
+            effective_model_size = self.config.model_size
 
         # Load model lazily, passing effective model size for reload if needed
         model = self._load_model(model_size=effective_model_size.value)

@@ -30,15 +30,29 @@ register_builtin_backends()
 
 # Thread pool for async transcribe
 _executor: ThreadPoolExecutor | None = None
+_executor_max_workers = 0
+_retired_executors: list[ThreadPoolExecutor] = []
 _executor_lock = threading.Lock()
 
 
-def _get_executor() -> ThreadPoolExecutor:
-    """Get or create the thread pool executor for async operations."""
-    global _executor
+def _get_executor(max_workers: int = 4) -> ThreadPoolExecutor:
+    """Get or create the thread pool executor for async operations.
+
+    Args:
+        max_workers: Minimum number of threads needed by the caller.
+    """
+    if max_workers < 1:
+        raise ValueError("max_workers must be >= 1")
+
+    global _executor, _executor_max_workers
     with _executor_lock:
         if _executor is None:
-            _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="audiocore-")
+            _executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="audiocore-")
+            _executor_max_workers = max_workers
+        elif max_workers > _executor_max_workers:
+            _retired_executors.append(_executor)
+            _executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="audiocore-")
+            _executor_max_workers = max_workers
         return _executor
 
 
@@ -48,11 +62,14 @@ def _cleanup_executor() -> None:
     Uses wait=True to allow in-flight tasks to complete gracefully,
     matching the behavior of the explicit shutdown_executor() call.
     """
-    global _executor
+    global _executor, _executor_max_workers
     with _executor_lock:
+        while _retired_executors:
+            _retired_executors.pop().shutdown(wait=True)
         if _executor is not None:
             _executor.shutdown(wait=True)
             _executor = None
+            _executor_max_workers = 0
 
 
 # Register cleanup on module load
@@ -122,7 +139,13 @@ def transcribe(
 
     # Load options from config if not provided
     if options is None:
-        options = TranscriptionOptions()
+        options = TranscriptionOptions(
+            backend=config.backend,
+            model_size=config.model,
+            language=config.language,
+            output_format=config.output_format,
+            backend_preference=config.backend_preference,
+        )
 
     # Create pipeline and transcribe
     pipeline = Pipeline(config=config)
@@ -237,11 +260,14 @@ def shutdown_executor() -> None:
     Call this to clean up resources when done with async_transcribe.
     After calling this, async_transcribe will create a new executor.
     """
-    global _executor
+    global _executor, _executor_max_workers
     with _executor_lock:
+        while _retired_executors:
+            _retired_executors.pop().shutdown(wait=True)
         if _executor is not None:
             _executor.shutdown(wait=True)
             _executor = None
+            _executor_max_workers = 0
 
 
 __all__ = [

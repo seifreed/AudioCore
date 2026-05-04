@@ -563,7 +563,6 @@ class TestTempAudioFile:
     def test_temp_audio_file_deletes_on_exit(self):
         """Test that temp file is deleted on normal exit."""
         with temp_audio_file() as temp_path:
-            temp_path_str = str(temp_path)
             # File path exists in context
             assert temp_path.suffix == ".wav"
 
@@ -573,10 +572,9 @@ class TestTempAudioFile:
 
     def test_temp_audio_file_deletes_on_exception(self):
         """Test that temp file is deleted even on exception."""
-        temp_path_str = None
         with pytest.raises(ValueError):
             with temp_audio_file() as temp_path:
-                temp_path_str = str(temp_path)
+                assert temp_path.suffix == ".wav"
                 raise ValueError("test error")
 
         # The context manager should clean up even on exception

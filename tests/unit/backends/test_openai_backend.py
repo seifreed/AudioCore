@@ -18,9 +18,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from openai import (
-    APIError as OpenAIAPIError,
-)
-from openai import (
     APITimeoutError as OpenAITimeoutError,
 )
 from openai import (
@@ -32,7 +29,6 @@ from openai import (
 
 from audiocore.backends.openai_backend import OpenAIBackend
 from audiocore.errors import (
-    APIError,
     APITimeoutError,
     AuthenticationError,
     BackendUnavailableError,

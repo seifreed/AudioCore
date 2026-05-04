@@ -95,7 +95,7 @@ class TestSegmentValidation:
 
     def test_reject_nan_start_time(self) -> None:
         """Regression: float('nan') must be rejected for start_time."""
-        with pytest.raises(ValidationError, match="must be finite"):
+        with pytest.raises(ValidationError, match="greater than or equal to 0"):
             Segment(start_time=float("nan"), end_time=5.0, text="test")
 
 

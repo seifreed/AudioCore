@@ -100,7 +100,7 @@ class BackendAvailabilityChecker:
                     reason="faster-whisper module installed and dependencies verified",
                     suggestion=None,
                 )
-            except (ImportError, RuntimeError) as dep_error:
+            except (ImportError, RuntimeError, OSError) as dep_error:
                 return BackendStatus(
                     backend_type=BackendType.FASTER_WHISPER,
                     available=False,

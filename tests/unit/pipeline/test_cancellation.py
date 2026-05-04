@@ -161,7 +161,6 @@ class TestCancellationTokenThreadSafety:
         """check() raises CancelledError when cancelled from another thread."""
         token = CancellationToken()
         check_raised = threading.Event()
-        exception_caught = threading.Event()
 
         def cancel_and_check() -> None:
             # Cancel after a brief delay

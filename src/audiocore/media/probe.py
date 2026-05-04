@@ -58,6 +58,15 @@ def _validate_file_exists(file_path: Path) -> None:
         )
 
 
+def _parse_duration(value: object) -> float | None:
+    """Parse a positive ffprobe duration value, returning None for invalid values."""
+    try:
+        duration = float(value)
+    except (TypeError, ValueError):
+        return None
+    return duration if duration > 0 else None
+
+
 def probe(
     file_path: Path | str,
     ffprobe_path: str = "ffprobe",
@@ -169,14 +178,13 @@ def probe(
     format_info: dict[str, Any] = data.get("format", {})
     streams: list[dict[str, Any]] = data.get("streams", [])
 
-    duration: float
-    if "duration" in format_info:
-        duration = float(format_info["duration"])
-    else:
-        durations = []
-        for stream in streams:
-            if "duration" in stream:
-                durations.append(float(stream["duration"]))
+    duration = _parse_duration(format_info.get("duration"))
+    if duration is None:
+        durations = [
+            parsed_duration
+            for stream in streams
+            if (parsed_duration := _parse_duration(stream.get("duration"))) is not None
+        ]
         if durations:
             duration = max(durations)
         else:
@@ -198,15 +206,14 @@ def probe(
     channels: int | None = None
 
     audio_streams = [s for s in streams if s.get("codec_type") == "audio"]
-    if audio_streams:
-        stream = audio_streams[0]
-        codec = stream.get("codec_name")
-        if "sample_rate" in stream:
-            with contextlib.suppress(ValueError, TypeError):
-                sample_rate = int(stream["sample_rate"])
-        if "channels" in stream:
-            with contextlib.suppress(ValueError, TypeError):
-                channels = int(stream["channels"])
+    stream = audio_streams[0]
+    codec = stream.get("codec_name")
+    if "sample_rate" in stream:
+        with contextlib.suppress(ValueError, TypeError):
+            sample_rate = int(stream["sample_rate"])
+    if "channels" in stream:
+        with contextlib.suppress(ValueError, TypeError):
+            channels = int(stream["channels"])
 
     return MediaInfo(
         duration=duration,

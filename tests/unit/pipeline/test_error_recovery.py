@@ -606,7 +606,7 @@ class TestPartialResultPreservation:
         # Should have the failed segments
         assert result.failed_segments is not None
         assert len(result.failed_segments) == 1
-        assert result.failed_segments[0]["error"] == "Backend timeout"
+        assert result.failed_segments[0].error == "Backend timeout"
 
         # Default should be empty list when not provided
         result2 = TranscriptionResult(

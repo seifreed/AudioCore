@@ -38,6 +38,8 @@ class CancelledError(AudioCoreError):
         ...     print("Pipeline cancelled")
     """
 
+    error_code: str = "AUD-500"
+
     def __init__(
         self,
         message: str = "Pipeline execution was cancelled",

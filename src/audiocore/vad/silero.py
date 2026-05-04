@@ -107,7 +107,7 @@ class SileroVAD:
                     f"Model download timed out after {timeout_seconds} seconds"
                 ) from None
             finally:
-                executor.shutdown(wait=True, cancel_futures=True)
+                executor.shutdown(wait=False, cancel_futures=True)
 
             return model
 
@@ -288,6 +288,8 @@ class SileroVAD:
             data = data.astype(np.float32) / 2147483648.0
         elif data.dtype == np.uint8:
             data = (data.astype(np.float32) - 128) / 128.0
+        elif data.dtype == np.uint16:
+            data = (data.astype(np.float32) - 32768) / 32768.0
         elif data.dtype == np.float32 or data.dtype == np.float64:
             data = data.astype(np.float32)
             # Validate float32 data is in [-1, 1] range

@@ -193,42 +193,26 @@ class ModelManager:
         logger.info(f"Downloading model {model_name} from {repo_id}")
 
         try:
-            from huggingface_hub import hf_hub_download
+            from faster_whisper.utils import download_model as download_faster_whisper_model
 
-            # Pinned revisions for supply-chain security.
-            # These are specific commit hashes or tagged releases from the
-            # official Systran repos. Update only after manual verification.
-            model_revisions: dict[str, str] = {
-                ModelSize.TINY.value: "v4.0.0",
-                ModelSize.BASE.value: "v4.0.0",
-                ModelSize.SMALL.value: "v4.0.0",
-                ModelSize.MEDIUM.value: "v4.0.0",
-                ModelSize.LARGE.value: "v4.0.0",
-                ModelSize.LARGE_V3.value: "v4.0.0",
-                ModelSize.LARGE_V3_TURBO.value: "v4.0.0",
-            }
-            revision = model_revisions.get(model_name, "main")
-
-            # Download model with revision pinning for supply chain security
-            model_path = hf_hub_download(
-                repo_id=repo_id,
-                filename="model.bin",
-                cache_dir=self._cache_dir,
-                revision=revision,
+            model_dir = Path(
+                download_faster_whisper_model(model_name, cache_dir=str(self._cache_dir))
             )
+            model_file = model_dir / "model.bin"
+            model_path = model_file if model_file.exists() else model_dir
 
             logger.info(f"Model {model_name} downloaded to {model_path}")
-            return Path(model_path)
+            return model_path
 
         except ImportError as e:
             from audiocore.errors.backend import BackendUnavailableError
 
             raise BackendUnavailableError(
-                "huggingface-hub not installed",
+                "faster-whisper model download dependencies are not installed",
                 context={"model_name": model_name},
                 suggestions=[
+                    "Install faster-whisper: pip install faster-whisper",
                     "Install huggingface-hub: pip install huggingface-hub",
-                    "Or install audiocore with huggingface extras: pip install audiocore[huggingface]",
                 ],
             ) from e
         except Exception as e:

@@ -28,6 +28,8 @@ Example:
     <BLANKLINE>
 """
 
+import re
+
 from audiocore.models.transcription import TranscriptionOptions, TranscriptionResult
 
 
@@ -109,12 +111,12 @@ def format_srt(result: TranscriptionResult, options: TranscriptionOptions) -> st
         text = segment.text if segment.text else ""
         if text:
             text = (
-                text.replace("&", "&amp;")
+                text.replace("-->", "- ->")
+                .replace("&", "&amp;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
-                .replace("\n\n", "\n")
-                .replace("-->", "- ->")
             )
+            text = re.sub(r"\n{2,}", "\n", text)
 
         # SRT cue format:
         # - Sequential number

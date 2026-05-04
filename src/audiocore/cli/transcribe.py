@@ -173,7 +173,7 @@ def transcribe(
             "--format",
             "-f",
             help="Output format: text, json, srt, vtt",
-            callback=lambda v: parse_output_format(v) if v else None,
+            callback=parse_output_format,
         ),
     ] = "text",
     backend: Annotated[
@@ -182,7 +182,7 @@ def transcribe(
             "--backend",
             "-b",
             help="Backend to use: openai, faster_whisper, auto (default)",
-            callback=lambda v: parse_backend_type(v) if v else None,
+            callback=parse_backend_type,
         ),
     ] = "auto",
     language: Annotated[
@@ -199,7 +199,7 @@ def transcribe(
             "--model",
             "-m",
             help="Model size: tiny, base, small, medium, large",
-            callback=lambda v: parse_model_size(v) if v else None,
+            callback=parse_model_size,
         ),
     ] = "base",
     backend_preference: Annotated[
@@ -208,7 +208,7 @@ def transcribe(
             "--prefer",
             "-p",
             help="Backend preference: auto, prefer_local, prefer_cloud",
-            callback=lambda v: parse_selection_policy(v) if v else None,
+            callback=parse_selection_policy,
         ),
     ] = "auto",
     output_dir: Annotated[

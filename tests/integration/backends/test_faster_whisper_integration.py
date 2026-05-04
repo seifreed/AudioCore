@@ -12,7 +12,6 @@ Run with: pytest tests/integration/backends/test_faster_whisper_integration.py -
 from __future__ import annotations
 
 import struct
-import time
 import wave
 from pathlib import Path
 
@@ -141,14 +140,10 @@ class TestFasterWhisperIntegration:
 
         if not ModelManager().is_model_downloaded("tiny"):
             # Model will download on first transcribe
-            start_time = time.time()
             result = backend.transcribe(audio_path, TranscriptionOptions())
-            download_time = time.time() - start_time
 
             # Second transcription should be faster (model cached)
-            start_time = time.time()
             result2 = backend.transcribe(audio_path, TranscriptionOptions())
-            cached_time = time.time() - start_time
 
             # Cached should be much faster than download
             # (This is a heuristic, might not hold on slow networks)

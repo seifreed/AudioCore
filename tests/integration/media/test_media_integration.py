@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from audiocore.errors.input import MediaFormatError
+from audiocore.errors.input import InvalidInputError, MediaFormatError
 from audiocore.media import (
     SUPPORTED_AUDIO_FORMATS,
     SUPPORTED_FORMATS,
@@ -104,7 +104,7 @@ class TestProbeIntegration:
         """Test probing a non-existent file raises error."""
         missing_path = Path("/nonexistent/audio.mp3")
 
-        with pytest.raises(Exception):  # Will raise InvalidInputError or similar
+        with pytest.raises(InvalidInputError):
             probe(missing_path)
 
 

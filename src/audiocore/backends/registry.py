@@ -160,7 +160,7 @@ class BackendRegistry:
             # Check for cached instance with matching config
             if backend_type in self._instances:
                 cached = self._instances[backend_type]
-                cached_config = getattr(cached, "_config", None)
+                cached_config = getattr(cached, "_config", None) or getattr(cached, "config", None)
                 if config is None or (
                     cached_config is not None and self._configs_match(cached_config, config)
                 ):
@@ -195,21 +195,60 @@ class BackendRegistry:
         return backend_class(config=config)
 
     @staticmethod
+    def _normalize_config(config: object) -> object:
+        """Normalize AppConfig to the relevant sub-config for comparison.
+
+        If config is an AppConfig and we're comparing against a backend-specific
+        config, extract the matching sub-config to avoid AttributeError on
+        incompatible field sets.
+        """
+        from audiocore.config import AppConfig
+
+        if not isinstance(config, AppConfig):
+            return config
+
+        # Return the AppConfig itself — callers should extract sub-configs
+        # as needed for comparison. We handle normalization in _configs_match.
+        return config
+
+    @staticmethod
     def _configs_match(config_a: object, config_b: object) -> bool:
         """Compare two configs for equality, handling SecretStr correctly.
 
         Pydantic's default __eq__ for models with SecretStr fields compares
         by object identity for the SecretStr, not the wrapped value. This
         method ensures two configs with the same secret value are considered equal.
+
+        Also handles the case where one config is an AppConfig and the other
+        is a backend-specific sub-config by extracting the relevant sub-config.
         """
         if config_a is config_b:
             return True
+
+        from audiocore.config import AppConfig, FasterWhisperConfig, OpenAIConfig
+
+        # If one is AppConfig and the other is a sub-config, extract sub-config
+        if isinstance(config_a, AppConfig) and not isinstance(config_b, AppConfig):
+            if isinstance(config_b, OpenAIConfig):
+                config_a = config_a.openai
+            elif isinstance(config_b, FasterWhisperConfig):
+                config_a = config_a.faster_whisper
+        elif isinstance(config_b, AppConfig) and not isinstance(config_a, AppConfig):
+            if isinstance(config_a, OpenAIConfig):
+                config_b = config_b.openai
+            elif isinstance(config_a, FasterWhisperConfig):
+                config_b = config_b.faster_whisper
 
         # If both have model_fields, compare field-by-field to handle SecretStr
         if hasattr(config_a, "model_fields") and hasattr(config_b, "model_fields"):
             from pydantic import SecretStr
 
-            for field_name in config_a.model_fields:
+            common_fields = set(config_a.model_fields.keys()) & set(config_b.model_fields.keys())
+            if not common_fields:
+                # No common fields — configs are incomparable, treat as not matching
+                return False
+
+            for field_name in common_fields:
                 val_a = getattr(config_a, field_name)
                 val_b = getattr(config_b, field_name)
                 if isinstance(val_a, SecretStr) and isinstance(val_b, SecretStr):

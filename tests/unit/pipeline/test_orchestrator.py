@@ -624,7 +624,7 @@ class TestPipelineTranscribe:
         audio_file = tmp_path / "audio.mp3"
         audio_file.touch()
 
-        with pytest.raises(Exception):
+        with pytest.raises(PipelineStageError):
             pipeline.transcribe(audio_file)
 
         # Verify context manager __exit__ was called (cleanup)
@@ -748,7 +748,7 @@ class TestTranscribeConvenienceFunction:
         mock_transcribe.return_value = mock_transcription_result
 
         options = TranscriptionOptions(backend=BackendType.OPENAI)
-        result = transcribe(Path("audio.mp3"), options=options)
+        transcribe(Path("audio.mp3"), options=options)
 
         assert mock_transcribe.called
         call_args = mock_transcribe.call_args

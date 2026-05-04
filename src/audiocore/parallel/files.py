@@ -123,19 +123,21 @@ async def transcribe_files_concurrent(
                 # Run synchronous transcribe in the shared thread pool executor
                 # to avoid creating too many threads when used alongside async_transcribe
                 result = await asyncio.get_running_loop().run_in_executor(
-                    _get_executor(),
+                    _get_executor(max_workers=max_workers),
                     lambda: transcribe(
                         path=file_path, options=options, cancellation_token=cancellation_token
                     ),
                 )
 
-                # Update counter and call progress callback outside lock to avoid blocking
+                # Update counter and call progress callback
                 if progress_callback:
-                    async with counter_lock:
-                        completed_count += 1
-                        current_count = completed_count
-                    # Call callback outside lock to avoid blocking other coroutines
-                    progress_callback(current_count, total_count, file_path)
+                    try:
+                        async with counter_lock:
+                            completed_count += 1
+                            current_count = completed_count
+                        progress_callback(current_count, total_count, file_path)
+                    except Exception:
+                        pass  # Don't let callback errors affect the result
 
                 return FileResult(
                     path=file_path,
@@ -154,11 +156,13 @@ async def transcribe_files_concurrent(
 
                 # Update progress even for failures (thread-safe counter update)
                 if progress_callback:
-                    async with counter_lock:
-                        completed_count += 1
-                        current_count = completed_count
-                    # Call callback outside lock to avoid blocking other coroutines
-                    progress_callback(current_count, total_count, file_path)
+                    try:
+                        async with counter_lock:
+                            completed_count += 1
+                            current_count = completed_count
+                        progress_callback(current_count, total_count, file_path)
+                    except Exception:
+                        pass
 
                 return FileResult(
                     path=file_path,

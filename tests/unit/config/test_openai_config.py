@@ -5,7 +5,7 @@ with OpenAIBackend and AppConfig.
 """
 
 import pytest
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
 from audiocore.backends.openai_backend import OpenAIBackend
 from audiocore.config.openai_config import OpenAIConfig
@@ -87,12 +87,12 @@ class TestOpenAIConfigValidation:
 
     def test_timeout_invalid_below_min(self) -> None:
         """timeout below minimum should raise ValidationError."""
-        with pytest.raises(Exception):  # Pydantic ValidationError
+        with pytest.raises(ValidationError):
             OpenAIConfig(timeout=0)
 
     def test_timeout_invalid_above_max(self) -> None:
         """timeout above maximum should raise ValidationError."""
-        with pytest.raises(Exception):  # Pydantic ValidationError
+        with pytest.raises(ValidationError):
             OpenAIConfig(timeout=3601)
 
     def test_max_retries_min_value(self) -> None:
@@ -107,17 +107,17 @@ class TestOpenAIConfigValidation:
 
     def test_max_retries_invalid_below_min(self) -> None:
         """max_retries below minimum should raise ValidationError."""
-        with pytest.raises(Exception):  # Pydantic ValidationError
+        with pytest.raises(ValidationError):
             OpenAIConfig(max_retries=-1)
 
     def test_max_retries_invalid_above_max(self) -> None:
         """max_retries above maximum should raise ValidationError."""
-        with pytest.raises(Exception):  # Pydantic ValidationError
+        with pytest.raises(ValidationError):
             OpenAIConfig(max_retries=11)
 
     def test_extra_fields_forbidden(self) -> None:
         """Additional fields should be rejected."""
-        with pytest.raises(Exception):  # Pydantic ValidationError
+        with pytest.raises(ValidationError):
             OpenAIConfig(unknown_field="value")  # type: ignore[call-arg]
 
 

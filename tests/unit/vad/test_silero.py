@@ -150,13 +150,9 @@ class TestModelLoading:
         self, mock_path_class: MagicMock, mock_load: MagicMock
     ) -> None:
         """Test that loading falls back to local cache when torch.hub fails."""
-        import os
-
         # Make torch.hub.load fail
         mock_load.side_effect = RuntimeError("Network unavailable")
 
-        # Mock local cache path
-        cache_dir = os.path.expanduser("~/.cache/torch/hub/snakers4_silero-vad_master/")
         mock_cache_dir = MagicMock(spec=Path)
         mock_cache_dir.exists.return_value = True
 
@@ -434,7 +430,7 @@ class TestThreadSafety:
             t.join()
 
         # All threads should get the same model instance
-        assert len(set(id(r) for r in results)) == 1
+        assert len({id(r) for r in results}) == 1
 
         # torch.hub.load should only be called once
         assert call_count[0] == 1
