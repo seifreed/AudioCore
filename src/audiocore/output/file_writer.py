@@ -90,6 +90,26 @@ def write_output(
     # Convert to Path object
     file_path = Path(path) if isinstance(path, str) else path
 
+    if file_path.exists() and file_path.is_dir():
+        raise OutputDirectoryError(
+            f"Output path is not a file: {file_path}",
+            context={"file_path": str(file_path)},
+            suggestions=[
+                "Choose a file path inside the directory",
+                "Provide an output filename with an extension",
+            ],
+        )
+
+    if file_path.parent and file_path.parent.exists() and not file_path.parent.is_dir():
+        raise OutputDirectoryError(
+            f"Parent path is not a directory: {file_path.parent}",
+            context={"file_path": str(file_path), "parent_dir": str(file_path.parent)},
+            suggestions=[
+                "Choose a different output path",
+                "Remove or rename the parent file blocking directory creation",
+            ],
+        )
+
     # Validate parent directory exists when create_dirs is False
     if not config.create_dirs and file_path.parent and not file_path.parent.exists():
         raise OutputDirectoryError(

@@ -120,9 +120,9 @@ def _flatten_toml_section(section: dict[str, Any], prefix: str = "") -> dict[str
                     logger.warning(f"Unknown TOML config key '{full_key}' will be ignored")
                     continue
 
-            # Convert path fields to Path objects with ~ expansion
+            # Expand path fields while keeping AppConfig-compatible strings.
             if field_name in _PATH_FIELDS and isinstance(value, str):
-                result[field_name] = Path(value).expanduser()
+                result[field_name] = str(Path(value).expanduser())
             else:
                 result[field_name] = value
 

@@ -279,6 +279,23 @@ class TestTranscribeSuccess:
 
         assert "not found" in str(exc_info.value).lower()
 
+    @patch("audiocore.backends.openai_backend.OpenAI")
+    def test_transcribe_directory_raises_invalid_input_error(
+        self, mock_openai: MagicMock, tmp_path: Path
+    ) -> None:
+        """Existing directories should be rejected before opening the API file."""
+        from audiocore.errors import InvalidInputError
+
+        audio_dir = tmp_path / "audio.mp3"
+        audio_dir.mkdir()
+        backend = OpenAIBackend(api_key="sk-test123")
+
+        with pytest.raises(InvalidInputError) as exc_info:
+            backend.transcribe(audio_dir, TranscriptionOptions())
+
+        assert "not a file" in str(exc_info.value)
+        mock_openai.assert_not_called()
+
 
 class TestErrorHandling:
     """Test OpenAI exception to AudioCore exception mapping."""

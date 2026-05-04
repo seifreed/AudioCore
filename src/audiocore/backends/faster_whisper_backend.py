@@ -33,7 +33,7 @@ from audiocore.backends.faster_whisper import (
     ModelManager,
 )
 from audiocore.config.faster_whisper_config import FasterWhisperConfig
-from audiocore.errors import BackendUnavailableError, TranscriptionError
+from audiocore.errors import BackendUnavailableError, InvalidInputError, TranscriptionError
 from audiocore.models import Segment, TranscriptionOptions, TranscriptionResult
 from audiocore.types import BackendType
 
@@ -315,14 +315,21 @@ class FasterWhisperBackend(TranscriptionBackend):
 
         # Validate file exists
         if not audio_path.exists():
-            from audiocore.errors import InvalidInputError
-
             raise InvalidInputError(
                 f"Audio file not found: {audio_path}",
                 context={"file_path": str(audio_path), "backend": "faster_whisper"},
                 suggestions=[
                     "Verify the file path is correct",
                     "Check the file exists",
+                ],
+            )
+        if not audio_path.is_file():
+            raise InvalidInputError(
+                f"Audio path is not a file: {audio_path}",
+                context={"file_path": str(audio_path), "backend": "faster_whisper"},
+                suggestions=[
+                    "Provide an audio file path, not a directory",
+                    "Verify the file path is correct",
                 ],
             )
 

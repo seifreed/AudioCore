@@ -57,6 +57,15 @@ def _validate_file_exists(file_path: Path) -> None:
                 "Ensure the file exists",
             ],
         )
+    if not file_path.is_file():
+        raise InvalidInputError(
+            f"Path is not a file: {file_path}",
+            context={"file_path": str(file_path)},
+            suggestions=[
+                "Provide a media file path, not a directory",
+                "Verify the file path is correct",
+            ],
+        )
 
 
 def _parse_duration(value: object) -> float | None:
@@ -103,6 +112,12 @@ def probe(
     """
     file_path = Path(file_path)
     _validate_file_exists(file_path)
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise InvalidInputError(
+            f"Invalid timeout: {timeout}",
+            context={"file_path": str(file_path), "timeout": timeout},
+            suggestions=["Use a finite timeout greater than 0 seconds"],
+        )
 
     command = [
         ffprobe_path,

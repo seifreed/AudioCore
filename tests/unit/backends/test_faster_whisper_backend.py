@@ -140,6 +140,23 @@ class TestFasterWhisperBackendTranscribe:
         assert error.context.get("file_path") == "audio.mp3"
         assert error.context.get("backend") == "faster_whisper"
 
+    def test_transcribe_directory_raises_invalid_input_error(self, tmp_path: Path) -> None:
+        """Existing directories should be rejected before loading a model."""
+        from audiocore.errors import InvalidInputError
+
+        audio_dir = tmp_path / "audio.mp3"
+        audio_dir.mkdir()
+        backend = FasterWhisperBackend()
+
+        with (
+            patch.object(backend, "_load_model") as mock_load_model,
+            pytest.raises(InvalidInputError) as exc_info,
+        ):
+            backend.transcribe(audio_dir, TranscriptionOptions())
+
+        assert "not a file" in str(exc_info.value)
+        mock_load_model.assert_not_called()
+
 
 class TestFasterWhisperBackendModelLoading:
     """Test lazy model loading."""

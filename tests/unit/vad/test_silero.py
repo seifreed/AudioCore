@@ -450,6 +450,19 @@ class TestErrorHandling:
 
         assert "Audio file not found" in str(exc_info.value)
 
+    def test_detect_file_raises_invalid_input_for_directory(self, tmp_path: Path) -> None:
+        """Existing directories are invalid VAD audio inputs."""
+        from audiocore.errors import InvalidInputError
+
+        audio_dir = tmp_path / "audio.wav"
+        audio_dir.mkdir()
+        vad = SileroVAD()
+
+        with pytest.raises(InvalidInputError) as exc_info:
+            vad.detect_file(audio_dir)
+
+        assert "not a file" in str(exc_info.value)
+
     def test_detect_file_raises_vad_error_for_invalid_format(self, tmp_path: Path) -> None:
         """Test that invalid audio format raises VADError."""
         # Create a non-WAV file

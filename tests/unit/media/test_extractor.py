@@ -252,6 +252,21 @@ class TestExtractAudio:
 
         assert "Input file not found" in str(exc_info.value)
 
+    def test_extract_audio_rejects_directory_input(self, tmp_path: Path):
+        """Existing directories must be rejected before invoking ffmpeg."""
+        input_dir = tmp_path / "input.mp4"
+        input_dir.mkdir()
+        output_file = tmp_path / "output.wav"
+
+        with (
+            patch("audiocore.media.extractor.subprocess.Popen") as mock_popen,
+            pytest.raises(InvalidInputError) as exc_info,
+        ):
+            extract_audio(input_dir, output_file)
+
+        assert "not a file" in str(exc_info.value)
+        mock_popen.assert_not_called()
+
     @pytest.mark.parametrize("start_time", [-1.0, float("nan"), math.inf])
     def test_extract_audio_rejects_invalid_start_time(
         self, tmp_path: Path, start_time: float
@@ -286,6 +301,24 @@ class TestExtractAudio:
             extract_audio(input_file, output_file, duration=duration)
 
         assert "duration" in str(exc_info.value)
+        mock_popen.assert_not_called()
+
+    @pytest.mark.parametrize("timeout", [0.0, -1.0, float("nan"), math.inf])
+    def test_extract_audio_rejects_invalid_timeout(
+        self, tmp_path: Path, timeout: float
+    ) -> None:
+        """timeout must be finite and positive before calling ffmpeg."""
+        input_file = tmp_path / "input.mp4"
+        input_file.write_bytes(b"fake video content")
+        output_file = tmp_path / "output.wav"
+
+        with (
+            patch("audiocore.media.extractor.subprocess.Popen") as mock_popen,
+            pytest.raises(InvalidInputError) as exc_info,
+        ):
+            extract_audio(input_file, output_file, timeout=timeout)
+
+        assert "timeout" in str(exc_info.value)
         mock_popen.assert_not_called()
 
     def test_extract_audio_raises_media_error_for_ffmpeg_not_found(self, tmp_path: Path):

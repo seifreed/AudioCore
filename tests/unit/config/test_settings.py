@@ -204,6 +204,14 @@ class TestInvalidEnumValues:
             AppConfig()
         assert "backend_preference" in str(exc_info.value).lower()
 
+    @pytest.mark.parametrize("field_name", ["ffmpeg_path", "ffprobe_path"])
+    def test_empty_media_tool_path_raises_validation_error(self, field_name: str) -> None:
+        """Media tool paths must not be empty or whitespace-only."""
+        with pytest.raises(ValidationError) as exc_info:
+            AppConfig(**{field_name: "   "})
+
+        assert field_name in str(exc_info.value)
+
 
 class TestCaseInsensitiveEnvVars:
     """Test case_sensitive=False behavior."""

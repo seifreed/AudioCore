@@ -5,6 +5,7 @@ environment variable configuration with AUDIOCORE_ prefix and secure
 API key handling via SecretStr.
 """
 
+from pathlib import Path
 from typing import Any
 
 from pydantic import Field, SecretStr, field_validator, model_validator
@@ -164,6 +165,22 @@ class AppConfig(BaseSettings):
         if isinstance(v, SelectionPolicy):
             return v
         return SelectionPolicy.parse(v)
+
+    @field_validator("ffmpeg_path", "ffprobe_path", mode="before")
+    @classmethod
+    def validate_media_tool_path(cls, v: Any) -> str:
+        """Validate ffmpeg/ffprobe executable path fields."""
+        if isinstance(v, Path):
+            v = str(v)
+        if not isinstance(v, str):
+            raise ValueError(f"Expected string path, got {type(v).__name__}")
+
+        value = v.strip()
+        if not value:
+            raise ValueError("Executable path must not be empty")
+        if "\x00" in value:
+            raise ValueError("Executable path must not contain NUL bytes")
+        return value
 
     @property
     def model_size(self) -> ModelSize:

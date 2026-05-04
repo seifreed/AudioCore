@@ -50,6 +50,17 @@ class TestValidateFileExists:
         assert "file_path" in exc_info.value.context
         assert exc_info.value.context["file_path"] == str(missing_file)
 
+    def test_validate_file_exists_raises_for_directory(self, tmp_path: Path) -> None:
+        """Directories are invalid media inputs even when the path exists."""
+        media_dir = tmp_path / "audio.mp3"
+        media_dir.mkdir()
+
+        with pytest.raises(InvalidInputError) as exc_info:
+            _validate_file_exists(media_dir)
+
+        assert "not a file" in str(exc_info.value)
+        assert exc_info.value.context["file_path"] == str(media_dir)
+
 
 class TestValidateAudioStream:
     """Tests for _validate_audio_stream helper."""
@@ -339,6 +350,21 @@ class TestProbe:
 
         call_kwargs = mock_run.call_args[1]
         assert call_kwargs["timeout"] == 60
+
+    @patch("audiocore.media.probe.subprocess.run")
+    @pytest.mark.parametrize("timeout", [0.0, -1.0, float("nan"), float("inf")])
+    def test_probe_rejects_invalid_timeout(
+        self, mock_run: MagicMock, tmp_path: Path, timeout: float
+    ) -> None:
+        """timeout must be finite and positive before invoking ffprobe."""
+        test_file = tmp_path / "test.mp3"
+        test_file.write_text("fake audio")
+
+        with pytest.raises(InvalidInputError) as exc_info:
+            probe(test_file, timeout=timeout)
+
+        assert "timeout" in str(exc_info.value)
+        mock_run.assert_not_called()
 
     @patch("audiocore.media.probe.subprocess.run")
     def test_probe_raises_on_timeout_expired(self, mock_run: MagicMock, tmp_path: Path) -> None:

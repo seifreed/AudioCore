@@ -16,7 +16,7 @@ import scipy.io.wavfile as wavfile
 import torch
 from torch import nn
 
-from audiocore.errors import VADError
+from audiocore.errors import InvalidInputError, VADError
 from audiocore.vad.config import VADConfig
 
 if TYPE_CHECKING:
@@ -251,14 +251,21 @@ class SileroVAD:
         audio_path = Path(audio_path)
 
         if not audio_path.exists():
-            from audiocore.errors import InvalidInputError
-
             raise InvalidInputError(
                 f"Audio file not found: {audio_path}",
                 context={"file_path": str(audio_path)},
                 suggestions=[
                     "Verify the file path is correct",
                     "Check the file exists",
+                ],
+            )
+        if not audio_path.is_file():
+            raise InvalidInputError(
+                f"Audio path is not a file: {audio_path}",
+                context={"file_path": str(audio_path)},
+                suggestions=[
+                    "Provide an audio file path, not a directory",
+                    "Verify the file path is correct",
                 ],
             )
 

@@ -149,6 +149,23 @@ language = "fr"
         assert result["output_format"] == "srt"
         assert result["language"] == "fr"
 
+    def test_path_fields_expand_to_strings(self, tmp_path: Path) -> None:
+        """Path-like TOML fields must remain AppConfig-compatible strings."""
+        config_file = tmp_path / "config.toml"
+        config_file.write_text(
+            """
+ffmpeg_path = "~/bin/ffmpeg"
+ffprobe_path = "~/bin/ffprobe"
+"""
+        )
+
+        result = load_toml_config(config_file)
+
+        assert result["ffmpeg_path"] == str(Path("~/bin/ffmpeg").expanduser())
+        assert result["ffprobe_path"] == str(Path("~/bin/ffprobe").expanduser())
+        assert isinstance(result["ffmpeg_path"], str)
+        assert isinstance(result["ffprobe_path"], str)
+
     def test_default_path_used_when_none_provided(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:

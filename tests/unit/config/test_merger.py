@@ -309,6 +309,21 @@ backend = "faster_whisper"
         assert config.model_size == ModelSize.BASE  # default
         assert config.output_format == OutputFormat.TEXT  # default
 
+    def test_loads_toml_media_tool_paths(self, tmp_path: Path) -> None:
+        """TOML ffmpeg/ffprobe paths should validate as AppConfig strings."""
+        config_file = tmp_path / "paths.toml"
+        config_file.write_text(
+            """
+ffmpeg_path = "~/bin/ffmpeg"
+ffprobe_path = "~/bin/ffprobe"
+"""
+        )
+
+        config = load_config(config_path=config_file)
+
+        assert config.ffmpeg_path == str(Path("~/bin/ffmpeg").expanduser())
+        assert config.ffprobe_path == str(Path("~/bin/ffprobe").expanduser())
+
 
 class TestMergeConfigsDeepMerge:
     """Regression tests for deep-merge of nested sub-models (Bug #22)."""

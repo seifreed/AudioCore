@@ -145,6 +145,20 @@ class TestWriteOutput:
         assert result.exists()
         assert result.read_text() == "Content"
 
+    def test_output_path_directory_raises_directory_error(self, tmp_path: Path) -> None:
+        """An existing directory is not a valid output file path."""
+        with pytest.raises(OutputDirectoryError, match="not a file"):
+            write_output("Content", tmp_path, OutputFileConfig(overwrite=True))
+
+    def test_parent_path_file_raises_directory_error(self, tmp_path: Path) -> None:
+        """Parent path must be a directory before creating the output file."""
+        parent_file = tmp_path / "parent.txt"
+        parent_file.write_text("not a directory")
+        output_path = parent_file / "output.txt"
+
+        with pytest.raises(OutputDirectoryError, match="Parent path is not a directory"):
+            write_output("Content", output_path)
+
 
 class TestStdoutOutput:
     """Tests for stdout (path=None) handling."""

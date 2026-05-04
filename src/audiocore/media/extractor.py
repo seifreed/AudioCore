@@ -205,6 +205,22 @@ def extract_audio(
                 "Ensure the file exists",
             ],
         )
+    if not input_path.is_file():
+        raise InvalidInputError(
+            f"Input path is not a file: {input_path}",
+            context={"input_path": str(input_path)},
+            suggestions=[
+                "Provide a media file path, not a directory",
+                "Verify the file path is correct",
+            ],
+        )
+
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise InvalidInputError(
+            f"Invalid timeout: {timeout}",
+            context={"input_path": str(input_path), "timeout": timeout},
+            suggestions=["Use a finite timeout greater than 0 seconds"],
+        )
 
     if start_time is not None and (not math.isfinite(start_time) or start_time < 0):
         raise InvalidInputError(
