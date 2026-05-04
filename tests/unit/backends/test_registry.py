@@ -245,6 +245,29 @@ class TestGetBackend:
         assert "backend_type" in exc_info.value.context
         assert exc_info.value.context["backend_type"] == "faster_whisper"
 
+    def test_no_config_lookup_does_not_reuse_configured_instance(self) -> None:
+        """Regression: config=None must not match an explicitly configured backend."""
+        from pydantic import SecretStr
+
+        from audiocore.config import AppConfig, OpenAIConfig
+
+        class ConfigAwareBackend(MockTranscriptionBackend):
+            def __init__(self, config: AppConfig | None = None) -> None:
+                super().__init__()
+                self.config = config
+
+        registry = BackendRegistry()
+        registry._reset()
+        registry.register(BackendType.OPENAI, ConfigAwareBackend)
+
+        explicit_config = AppConfig(openai=OpenAIConfig(api_key=SecretStr("sk-explicit")))
+        configured_backend = registry.get_backend(BackendType.OPENAI, config=explicit_config)
+        default_backend = registry.get_backend(BackendType.OPENAI)
+
+        assert default_backend is not configured_backend
+        assert isinstance(default_backend, ConfigAwareBackend)
+        assert default_backend.config is None
+
 
 class TestListBackends:
     """Test listing registered backends."""

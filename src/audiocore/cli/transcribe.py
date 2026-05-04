@@ -34,7 +34,7 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from audiocore.config import load_config
+from audiocore.config import AppConfig, load_config
 from audiocore.errors import AudioCoreError, BackendError, ConfigurationError, OutputFileExistsError
 from audiocore.models import TranscriptionOptions
 from audiocore.parallel import FileResult, transcribe_files_concurrent
@@ -47,7 +47,7 @@ if TYPE_CHECKING:
 app = typer.Typer(help="Transcribe audio/video files")
 
 
-def parse_backend_type(value: str) -> BackendType:
+def parse_backend_type(value: str | None) -> BackendType | None:
     """Parse backend type from string.
 
     Args:
@@ -59,6 +59,8 @@ def parse_backend_type(value: str) -> BackendType:
     Raises:
         typer.BadParameter: If value is invalid
     """
+    if value is None:
+        return None
     try:
         return BackendType.parse(value)
     except ValueError as e:
@@ -66,7 +68,7 @@ def parse_backend_type(value: str) -> BackendType:
         raise typer.BadParameter(f"{e}. Valid options: {valid_options}") from e
 
 
-def parse_model_size(value: str) -> ModelSize:
+def parse_model_size(value: str | None) -> ModelSize | None:
     """Parse model size from string.
 
     Args:
@@ -78,6 +80,8 @@ def parse_model_size(value: str) -> ModelSize:
     Raises:
         typer.BadParameter: If value is invalid
     """
+    if value is None:
+        return None
     try:
         return ModelSize.parse(value)
     except ValueError as e:
@@ -85,7 +89,7 @@ def parse_model_size(value: str) -> ModelSize:
         raise typer.BadParameter(f"{e}. Valid options: {valid_options}") from e
 
 
-def parse_output_format(value: str) -> OutputFormat:
+def parse_output_format(value: str | None) -> OutputFormat | None:
     """Parse output format from string.
 
     Args:
@@ -97,6 +101,8 @@ def parse_output_format(value: str) -> OutputFormat:
     Raises:
         typer.BadParameter: If value is invalid
     """
+    if value is None:
+        return None
     try:
         return OutputFormat.parse(value)
     except ValueError as e:
@@ -104,7 +110,7 @@ def parse_output_format(value: str) -> OutputFormat:
         raise typer.BadParameter(f"{e}. Valid options: {valid_options}") from e
 
 
-def parse_selection_policy(value: str) -> SelectionPolicy:
+def parse_selection_policy(value: str | None) -> SelectionPolicy | None:
     """Parse selection policy from string.
 
     Args:
@@ -116,6 +122,8 @@ def parse_selection_policy(value: str) -> SelectionPolicy:
     Raises:
         typer.BadParameter: If value is invalid
     """
+    if value is None:
+        return None
     try:
         return SelectionPolicy.parse(value)
     except ValueError as e:
@@ -168,23 +176,23 @@ def transcribe(
         ),
     ] = None,
     output_format: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--format",
             "-f",
             help="Output format: text, json, srt, vtt",
             callback=parse_output_format,
         ),
-    ] = "text",
+    ] = None,
     backend: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--backend",
             "-b",
             help="Backend to use: openai, faster_whisper, auto (default)",
             callback=parse_backend_type,
         ),
-    ] = "auto",
+    ] = None,
     language: Annotated[
         str | None,
         typer.Option(
@@ -194,23 +202,23 @@ def transcribe(
         ),
     ] = None,
     model: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--model",
             "-m",
             help="Model size: tiny, base, small, medium, large",
             callback=parse_model_size,
         ),
-    ] = "base",
+    ] = None,
     backend_preference: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--prefer",
             "-p",
             help="Backend preference: auto, prefer_local, prefer_cloud",
             callback=parse_selection_policy,
         ),
-    ] = "auto",
+    ] = None,
     output_dir: Annotated[
         Path | None,
         typer.Option(
@@ -272,21 +280,47 @@ def transcribe(
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from None
 
+    try:
+        config = load_config()
+    except ConfigurationError as e:
+        console.print(f"[red]Configuration Error:[/red] {e}")
+        raise typer.Exit(2) from None
+
     # Build transcription options
+    effective_backend = (
+        backend
+        if isinstance(backend, BackendType)
+        else config.backend
+        if backend is None
+        else BackendType.parse(backend)
+    )
+    effective_model = (
+        model
+        if isinstance(model, ModelSize)
+        else config.model
+        if model is None
+        else ModelSize.parse(model)
+    )
+    effective_output_format = (
+        output_format
+        if isinstance(output_format, OutputFormat)
+        else config.output_format
+        if output_format is None
+        else OutputFormat.parse(output_format)
+    )
+    effective_backend_preference = (
+        backend_preference
+        if isinstance(backend_preference, SelectionPolicy)
+        else config.backend_preference
+        if backend_preference is None
+        else SelectionPolicy.parse(backend_preference)
+    )
     options = TranscriptionOptions(
-        language=language,
-        model_size=model if isinstance(model, ModelSize) else ModelSize.parse(model),
-        backend=(backend if isinstance(backend, BackendType) else BackendType.parse(backend)),
-        output_format=(
-            output_format
-            if isinstance(output_format, OutputFormat)
-            else OutputFormat.parse(output_format)
-        ),
-        backend_preference=(
-            backend_preference
-            if isinstance(backend_preference, SelectionPolicy)
-            else SelectionPolicy.parse(backend_preference)
-        ),
+        language=language if language is not None else config.language,
+        model_size=effective_model,
+        backend=effective_backend,
+        output_format=effective_output_format,
+        backend_preference=effective_backend_preference,
     )
 
     # Determine batch mode
@@ -299,11 +333,7 @@ def transcribe(
             input_files=input_files,
             options=options,
             output_dir=output_dir,
-            output_format=(
-                output_format
-                if isinstance(output_format, OutputFormat)
-                else OutputFormat.parse(output_format)
-            ),
+            output_format=options.output_format,
             max_workers=max_workers,
         )
     else:
@@ -315,11 +345,8 @@ def transcribe(
             options=options,
             output_path=output,
             output_dir=output_dir,
-            output_format=(
-                output_format
-                if isinstance(output_format, OutputFormat)
-                else OutputFormat.parse(output_format)
-            ),
+            output_format=options.output_format,
+            config=config,
         )
 
     if exit_code != 0:
@@ -333,6 +360,7 @@ def _run_single_transcription(
     output_path: Path | None,
     output_dir: Path | None,
     output_format: OutputFormat,
+    config: AppConfig,
 ) -> int:
     """Run transcription for a single file.
 
@@ -379,8 +407,6 @@ def _run_single_transcription(
                 total=100,
             )
 
-            # Create pipeline with loaded config
-            config = load_config()
             pipeline = Pipeline(config=config)
 
             # Create progress callback that updates progress bar

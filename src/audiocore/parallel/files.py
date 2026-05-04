@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from audiocore.api.transcribe import _get_executor, transcribe
+from audiocore.pipeline.cancellation import CancelledError
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +153,8 @@ async def transcribe_files_concurrent(
                     error=None,
                 )
 
+            except CancelledError:
+                raise
             except Exception as e:
                 # Extract error message
                 error_message = str(e)
@@ -185,8 +188,10 @@ async def transcribe_files_concurrent(
         task_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         for i, task_result in enumerate(task_results):
+            if isinstance(task_result, CancelledError):
+                raise task_result
             if isinstance(task_result, BaseException) and not isinstance(task_result, Exception):
-                # CancelledError and other BaseExceptions (not Exception)
+                # asyncio cancellations and other BaseExceptions (not Exception)
                 results[i] = FileResult(
                     path=files[i],
                     success=False,

@@ -16,6 +16,7 @@ import pytest
 
 from audiocore.models import MediaInfo, Segment, TranscriptionOptions, TranscriptionResult
 from audiocore.parallel.files import FileResult, transcribe_files_concurrent
+from audiocore.pipeline.cancellation import CancellationToken, CancelledError
 from audiocore.types import BackendType
 
 
@@ -402,6 +403,30 @@ class TestTranscribeFilesConcurrentErrors:
         )
 
         assert len(results) == 0
+
+    @pytest.mark.asyncio
+    async def test_cancelled_error_propagates_even_with_continue_on_error(
+        self,
+        tmp_path: Path,
+        transcription_options: TranscriptionOptions,
+    ) -> None:
+        """Regression: user cancellation should not be converted into a file failure."""
+        audio_file = tmp_path / "test.wav"
+        audio_file.write_bytes(b"fake audio")
+        token = CancellationToken()
+        token.cancel()
+
+        with patch("audiocore.parallel.files.transcribe") as mock_transcribe:
+            mock_transcribe.side_effect = CancelledError()
+
+            with pytest.raises(CancelledError):
+                await transcribe_files_concurrent(
+                    files=[audio_file],
+                    options=transcription_options,
+                    max_workers=1,
+                    continue_on_error=True,
+                    cancellation_token=token,
+                )
 
 
 class TestAsyncioIntegration:

@@ -287,6 +287,9 @@ class SileroVAD:
                 ],
             )
 
+        if data.size == 0:
+            return data.astype(np.float32).flatten(), sample_rate
+
         # Convert to float32 normalized to [-1, 1]
         if data.dtype == np.int16:
             data = data.astype(np.float32) / 32768.0
@@ -359,7 +362,7 @@ class SileroVAD:
 
         # Use provided config or create default
         if config is None:
-            config = VADConfig()
+            config = self.config
 
         # Get thread-local model instance with isolated state
         with self._inference_lock:

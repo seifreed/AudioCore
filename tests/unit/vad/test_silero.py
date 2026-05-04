@@ -289,6 +289,18 @@ class TestAudioLoading:
         assert exc_info.value.context.get("actual_rate") == 44100
         assert exc_info.value.context.get("required_rate") == 16000
 
+    def test_load_audio_empty_float_wav_returns_empty_array(self, tmp_path: Path) -> None:
+        """Regression: empty float WAV input should not fail during normalization."""
+        test_wav = tmp_path / "empty_float.wav"
+        wavfile.write(str(test_wav), 16000, np.array([], dtype=np.float32))
+
+        vad = SileroVAD()
+        audio_data, sample_rate = vad._load_audio(test_wav)
+
+        assert sample_rate == 16000
+        assert audio_data.dtype == np.float32
+        assert audio_data.size == 0
+
 
 class TestSpeechDetection:
     """Test speech detection functionality."""
@@ -349,6 +361,29 @@ class TestSpeechDetection:
         # Model should be called once per chunk
         # (actual call count depends on implementation details)
         assert mock_model.call_count >= 1
+
+    @patch("audiocore.vad.silero.SileroVAD.get_model")
+    def test_detect_audio_uses_instance_config_by_default(
+        self, mock_get_model: MagicMock
+    ) -> None:
+        """Regression: constructor config should apply when detect_audio config is omitted."""
+        from audiocore.vad.config import VADConfig
+
+        mock_model = MagicMock()
+        mock_model.return_value = torch.tensor(0.6)
+        mock_model.reset_states = MagicMock()
+        mock_get_model.return_value = mock_model
+
+        vad = SileroVAD(
+            config=VADConfig(
+                speech_threshold=0.9,
+                silence_threshold=0.3,
+                min_segment_duration=0.1,
+            )
+        )
+        segments = vad.detect_audio(np.ones(16000, dtype=np.float32), 16000)
+
+        assert segments == []
 
     @patch("audiocore.vad.silero.SileroVAD._load_audio")
     @patch("audiocore.vad.silero.SileroVAD.detect_audio")

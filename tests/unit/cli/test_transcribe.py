@@ -140,6 +140,36 @@ class TestTranscribeCommand:
         options = call_args[1]["options"]
         assert options.backend_preference == SelectionPolicy.PREFER_LOCAL
 
+    def test_transcribe_uses_config_defaults_when_flags_omitted(
+        self, audio_file: Path, mock_pipeline: MagicMock
+    ) -> None:
+        """Regression: omitted CLI flags should not overwrite loaded config values."""
+        from audiocore.config import AppConfig
+
+        config = AppConfig(
+            backend=BackendType.OPENAI,
+            model=ModelSize.SMALL,
+            language="es",
+            output_format=OutputFormat.JSON,
+            backend_preference=SelectionPolicy.PREFER_CLOUD,
+        )
+
+        with (
+            patch("audiocore.cli.transcribe.load_config", return_value=config),
+            patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline),
+        ):
+            result = runner.invoke(app, [str(audio_file)])
+
+        assert result.exit_code == 0
+        call_args = mock_pipeline.transcribe.call_args
+        assert call_args is not None
+        options = call_args[1]["options"]
+        assert options.backend == BackendType.OPENAI
+        assert options.model_size == ModelSize.SMALL
+        assert options.language == "es"
+        assert options.output_format == OutputFormat.JSON
+        assert options.backend_preference == SelectionPolicy.PREFER_CLOUD
+
     def test_transcribe_file_not_found(self, mock_pipeline: MagicMock) -> None:
         """Test transcription with non-existent file."""
         with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):

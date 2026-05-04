@@ -69,7 +69,12 @@ class BackendRegistry:
                     instance = super().__new__(cls)
                     instance._backends: dict[BackendType, type[TranscriptionBackend]] = {}
                     instance._instances: dict[BackendType, TranscriptionBackend] = {}
+                    instance._instance_configs: dict[BackendType, object | None] = {}
                     cls._instance = instance
+        if not hasattr(cls._instance, "_instance_configs"):
+            with cls._lock:
+                if not hasattr(cls._instance, "_instance_configs"):
+                    cls._instance._instance_configs = {}
         return cls._instance
 
     def __init__(self) -> None:
@@ -111,6 +116,7 @@ class BackendRegistry:
         self._backends[backend_type] = backend_class
         if backend_type in self._instances:
             del self._instances[backend_type]
+            self._instance_configs.pop(backend_type, None)
 
     def get_backend(
         self, backend_type: BackendType, config: AppConfig | None = None
@@ -159,16 +165,14 @@ class BackendRegistry:
 
             # Check for cached instance with matching config
             if backend_type in self._instances:
-                cached = self._instances[backend_type]
-                cached_config = getattr(cached, "_config", None) or getattr(cached, "config", None)
-                if config is None or (
-                    cached_config is not None and self._configs_match(cached_config, config)
-                ):
-                    return cached
+                cached_requested_config = self._instance_configs.get(backend_type)
+                if self._requested_configs_match(cached_requested_config, config):
+                    return self._instances[backend_type]
 
             backend_class = self._backends[backend_type]
             instance = self._create_backend_instance(backend_class, config)
             self._instances[backend_type] = instance
+            self._instance_configs[backend_type] = config
             return instance
 
     @staticmethod
@@ -266,6 +270,16 @@ class BackendRegistry:
         # Fallback to standard equality
         return config_a == config_b
 
+    @staticmethod
+    def _requested_configs_match(
+        cached_requested_config: object | None,
+        requested_config: object | None,
+    ) -> bool:
+        """Compare the config intent used to create a cached backend instance."""
+        if cached_requested_config is None or requested_config is None:
+            return cached_requested_config is None and requested_config is None
+        return BackendRegistry._configs_match(cached_requested_config, requested_config)
+
     def list_backends(self) -> list[BackendType]:
         """List all registered backend types.
 
@@ -305,7 +319,10 @@ class BackendRegistry:
                 return False
 
             # If an instance is already cached, check its availability
-            if backend_type in self._instances:
+            if (
+                backend_type in self._instances
+                and self._instance_configs.get(backend_type) is None
+            ):
                 try:
                     return self._instances[backend_type].is_available()
                 except Exception:
@@ -317,6 +334,7 @@ class BackendRegistry:
                 backend_class = self._backends[backend_type]
                 instance = self._create_backend_instance(backend_class, None)
                 self._instances[backend_type] = instance
+                self._instance_configs[backend_type] = None
                 return instance.is_available()
             except Exception:
                 return False
@@ -343,6 +361,7 @@ class BackendRegistry:
         with self._instance_lock:
             self._backends.clear()
             self._instances.clear()
+            self._instance_configs.clear()
             # Re-register built-in backends so the registry stays usable after clear()
             self._register_unlocked(BackendType.OPENAI, OpenAIBackend)
             self._register_unlocked(BackendType.FASTER_WHISPER, FasterWhisperBackend)
@@ -356,4 +375,5 @@ class BackendRegistry:
         with self._instance_lock:
             self._backends.clear()
             self._instances.clear()
+            self._instance_configs.clear()
             BackendRegistry._builtins_registered = False
