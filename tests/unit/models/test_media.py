@@ -54,6 +54,12 @@ class TestMediaInfoValidation:
             MediaInfo(duration=-10.0, format="mp4")
         assert "duration" in str(exc_info.value)
 
+    def test_reject_infinite_duration(self) -> None:
+        """Reject infinite duration values."""
+        with pytest.raises(ValidationError) as exc_info:
+            MediaInfo(duration=float("inf"), format="mp4")
+        assert "duration" in str(exc_info.value)
+
     def test_reject_zero_sample_rate(self) -> None:
         """Reject sample_rate <= 0."""
         with pytest.raises(ValidationError):

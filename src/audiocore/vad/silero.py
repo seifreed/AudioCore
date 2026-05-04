@@ -202,7 +202,6 @@ class SileroVAD:
             VADError: If model loading fails.
         """
         if cls._model is None:
-            assert cls._lock is not None
             with cls._lock:
                 # Double-check locking pattern
                 if cls._model is None:

@@ -6,8 +6,9 @@ and SecretStr masking for secure API key handling.
 
 
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 
+from audiocore.config.openai_config import OpenAIConfig
 from audiocore.config.settings import AppConfig
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
 
@@ -156,6 +157,16 @@ class TestSecretStrMasking:
         config = AppConfig()
         dumped = config.model_dump(context={"hide_secrets": False})
         assert dumped["openai_api_key"].get_secret_value() == "sk-secret-12345"
+
+    def test_top_level_openai_api_key_overrides_nested_key(self) -> None:
+        """Top-level OpenAI API key should take priority over nested openai.api_key."""
+        config = AppConfig(
+            openai_api_key=SecretStr("sk-top-level"),
+            openai=OpenAIConfig(api_key=SecretStr("sk-nested")),
+        )
+
+        assert config.openai.api_key is not None
+        assert config.openai.api_key.get_secret_value() == "sk-top-level"
 
 
 class TestInvalidEnumValues:

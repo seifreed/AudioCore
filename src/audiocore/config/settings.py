@@ -184,7 +184,7 @@ class AppConfig(BaseSettings):
         Returns:
             Self, after reconciliation.
         """
-        if self.openai_api_key is not None and self.openai.api_key is None:
+        if self.openai_api_key is not None:
             key_value = self.openai_api_key.get_secret_value()
             if key_value:
                 # Rebuild the openai sub-config to keep Pydantic validation intact

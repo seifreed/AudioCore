@@ -160,7 +160,7 @@ class TestPipelineTranscribe:
     @patch("audiocore.pipeline.orchestrator.extract_audio")
     @patch("audiocore.pipeline.orchestrator.detect_speech")
     @patch("audiocore.pipeline.orchestrator.temp_audio_file")
-    def test_transcribe_calls_probe(
+    def test_transcribe_calls_probe_with_configured_ffprobe_path(
         self,
         mock_temp_file,
         mock_detect_speech,
@@ -172,7 +172,7 @@ class TestPipelineTranscribe:
         mock_segments,
         tmp_path,
     ):
-        """transcribe() calls probe() with correct path."""
+        """transcribe() calls probe() with the configured ffprobe path."""
         # Setup mocks
         mock_validate.return_value = None
         mock_probe.return_value = mock_media_info
@@ -185,7 +185,8 @@ class TestPipelineTranscribe:
         mock_temp_file.return_value.__exit__ = MagicMock(return_value=False)
 
         # Mock registry and selector
-        pipeline = Pipeline()
+        config = AppConfig(ffprobe_path="/custom/bin/ffprobe")
+        pipeline = Pipeline(config=config)
         pipeline._registry.get_backend = MagicMock(return_value=mock_backend)
         pipeline._selector.select = MagicMock(return_value=BackendType.OPENAI)
 
@@ -194,10 +195,7 @@ class TestPipelineTranscribe:
         audio_file.touch()
         pipeline.transcribe(audio_file)
 
-        # Assert probe was called
-        mock_probe.assert_called_once()
-        called_path = mock_probe.call_args[0][0]
-        assert str(audio_file) in str(called_path) or called_path == audio_file
+        mock_probe.assert_called_once_with(audio_file, ffprobe_path="/custom/bin/ffprobe")
 
     @patch("audiocore.pipeline.orchestrator.validate_format_or_raise")
     @patch("audiocore.pipeline.orchestrator.probe")

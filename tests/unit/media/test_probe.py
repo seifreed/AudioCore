@@ -83,6 +83,8 @@ class TestParseDuration:
         assert _parse_duration(None) is None
         assert _parse_duration("0") is None
         assert _parse_duration("-1.0") is None
+        assert _parse_duration("inf") is None
+        assert _parse_duration("nan") is None
 
 
 class TestProbe:

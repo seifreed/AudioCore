@@ -69,6 +69,23 @@ class TestTranscribeFilesConcurrent:
     """Test transcribe_files_concurrent function."""
 
     @pytest.mark.asyncio
+    async def test_rejects_invalid_max_workers(
+        self,
+        tmp_path: Path,
+        transcription_options: TranscriptionOptions,
+    ) -> None:
+        """max_workers must be positive before creating the semaphore."""
+        audio_file = tmp_path / "test.wav"
+        audio_file.write_bytes(b"fake audio")
+
+        with pytest.raises(ValueError, match="max_workers"):
+            await transcribe_files_concurrent(
+                files=[audio_file],
+                options=transcription_options,
+                max_workers=0,
+            )
+
+    @pytest.mark.asyncio
     async def test_single_file(
         self,
         tmp_path: Path,

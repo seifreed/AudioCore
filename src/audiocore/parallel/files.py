@@ -10,10 +10,13 @@ with a configurable worker limit, ensuring memory and resource control.
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from audiocore.api.transcribe import _get_executor, transcribe
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -97,6 +100,9 @@ async def transcribe_files_concurrent(
         ...     else:
         ...         print(f"{result.path}: Error - {result.error}")
     """
+    if max_workers < 1:
+        raise ValueError("max_workers must be >= 1")
+
     semaphore = asyncio.Semaphore(max_workers)
     results: list[FileResult | None] = [None] * len(files)
     completed_count = 0
@@ -137,7 +143,7 @@ async def transcribe_files_concurrent(
                             current_count = completed_count
                         progress_callback(current_count, total_count, file_path)
                     except Exception:
-                        pass  # Don't let callback errors affect the result
+                        logger.debug("Progress callback raised, ignoring", exc_info=True)
 
                 return FileResult(
                     path=file_path,
@@ -162,7 +168,7 @@ async def transcribe_files_concurrent(
                             current_count = completed_count
                         progress_callback(current_count, total_count, file_path)
                     except Exception:
-                        pass
+                        logger.debug("Progress callback raised, ignoring", exc_info=True)
 
                 return FileResult(
                     path=file_path,

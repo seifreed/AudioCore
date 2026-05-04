@@ -176,7 +176,7 @@ class Pipeline:
             # Step 2: Probe media for metadata
             emit_progress(PipelineStage.PROBING, 0.0, "Starting media probe")
             try:
-                media_info = probe(path)
+                media_info = probe(path, ffprobe_path=self.config.ffprobe_path)
             except MediaError as e:
                 raise PipelineStageError(
                     "Failed to probe media file",

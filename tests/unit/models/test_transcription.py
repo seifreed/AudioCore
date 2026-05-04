@@ -3,7 +3,13 @@
 import pytest
 from pydantic import ValidationError
 
-from audiocore.models import MediaInfo, Segment, TranscriptionOptions, TranscriptionResult
+from audiocore.models import (
+    FailedSegment,
+    MediaInfo,
+    Segment,
+    TranscriptionOptions,
+    TranscriptionResult,
+)
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
 
 
@@ -223,6 +229,17 @@ class TestTranscriptionResultValidation:
                 backend_used=BackendType.OPENAI,
             )
 
+    def test_reject_infinite_processing_time(self) -> None:
+        """Reject infinite processing_time_seconds."""
+        with pytest.raises(ValidationError):
+            TranscriptionResult(
+                segments=[],
+                media_info=MediaInfo(duration=10.0, format="mp4"),
+                config_used=TranscriptionOptions(),
+                processing_time_seconds=float("inf"),
+                backend_used=BackendType.OPENAI,
+            )
+
     def test_accept_zero_duration(self) -> None:
         """Accept zero duration_seconds."""
         result = TranscriptionResult(
@@ -244,6 +261,14 @@ class TestTranscriptionResultValidation:
                 processing_time_seconds="5.0",  # type: ignore
                 backend_used=BackendType.OPENAI,
             )
+
+    def test_reject_invalid_failed_segment_times(self) -> None:
+        """Reject invalid failed segment timing metadata."""
+        with pytest.raises(ValidationError):
+            FailedSegment(start_time=float("inf"), end_time=10.0, error="timeout")
+
+        with pytest.raises(ValidationError):
+            FailedSegment(start_time=10.0, end_time=5.0, error="timeout")
 
     def test_validate_nested_segments(self) -> None:
         """Validate nested segment models."""

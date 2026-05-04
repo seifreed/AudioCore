@@ -7,6 +7,7 @@ using ffmpeg subprocess calls.
 from __future__ import annotations
 
 import logging
+import math
 import re
 import subprocess
 import time
@@ -146,7 +147,7 @@ def _parse_progress(stderr_line: str, total_duration: float) -> float | None:
 
 def extract_audio(
     input_path: Path | str,
-    output_path: Path | None = None,
+    output_path: Path | str | None = None,
     start_time: float | None = None,
     duration: float | None = None,
     ffmpeg_path: str = "ffmpeg",
@@ -190,6 +191,8 @@ def extract_audio(
         >>> output = extract_audio(Path("video.mp4"), progress_callback=on_progress)
     """
     input_path = Path(input_path)
+    if output_path is not None:
+        output_path = Path(output_path)
 
     # Validate input file exists
     if not input_path.exists():
@@ -201,6 +204,20 @@ def extract_audio(
                 "Check file permissions",
                 "Ensure the file exists",
             ],
+        )
+
+    if start_time is not None and (not math.isfinite(start_time) or start_time < 0):
+        raise InvalidInputError(
+            f"Invalid start_time: {start_time}",
+            context={"input_path": str(input_path), "start_time": start_time},
+            suggestions=["Use a finite start_time greater than or equal to 0"],
+        )
+
+    if duration is not None and (not math.isfinite(duration) or duration <= 0):
+        raise InvalidInputError(
+            f"Invalid duration: {duration}",
+            context={"input_path": str(input_path), "duration": duration},
+            suggestions=["Use a finite duration greater than 0"],
         )
 
     # Get total duration for progress callback if needed
@@ -266,7 +283,18 @@ def extract_audio(
             communicate_timeout = timeout if timeout > 0 else None
             deadline = time.monotonic() + timeout if timeout > 0 else None
             try:
-                assert process.stderr is not None
+                if process.stderr is None:
+                    with suppress(ProcessLookupError):
+                        process.kill()
+                    process.wait()
+                    raise MediaError(
+                        "ffmpeg stderr pipe was not available for progress tracking",
+                        context={"input_path": str(input_path), "ffmpeg_path": ffmpeg_path},
+                        suggestions=[
+                            "Retry without a progress callback",
+                            "Verify ffmpeg can be started normally",
+                        ],
+                    )
                 for line in process.stderr:
                     if deadline is not None and time.monotonic() > deadline:
                         with suppress(ProcessLookupError):

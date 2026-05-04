@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Self
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from audiocore.models.media import MediaInfo
 from audiocore.models.segment import Segment
@@ -22,9 +22,26 @@ class FailedSegment(BaseModel):
 
     model_config = {"strict": True, "extra": "forbid"}
 
-    start_time: float = Field(ge=0, description="Start time of the failed segment")
-    end_time: float = Field(ge=0, description="End time of the failed segment")
+    start_time: float = Field(
+        ge=0,
+        allow_inf_nan=False,
+        description="Start time of the failed segment",
+    )
+    end_time: float = Field(
+        ge=0,
+        allow_inf_nan=False,
+        description="End time of the failed segment",
+    )
     error: str = Field(description="Error message describing the failure")
+
+    @model_validator(mode="after")
+    def validate_time_order(self) -> Self:
+        """Validate that failed segment times are ordered."""
+        if self.end_time < self.start_time:
+            raise ValueError(
+                f"end_time ({self.end_time}) must be >= start_time ({self.start_time})"
+            )
+        return self
 
 
 class TranscriptionOptions(BaseModel):
@@ -123,6 +140,7 @@ class TranscriptionResult(BaseModel):
     )
     processing_time_seconds: float = Field(
         ge=0,
+        allow_inf_nan=False,
         description="Time taken to process the transcription in seconds (not media duration)",
     )
     backend_used: BackendType = Field(description="Backend that performed this transcription")

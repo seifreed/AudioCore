@@ -6,6 +6,7 @@ using ffprobe (part of ffmpeg).
 
 import contextlib
 import json
+import math
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -63,6 +64,8 @@ def _parse_duration(value: object) -> float | None:
     try:
         duration = float(value)
     except (TypeError, ValueError):
+        return None
+    if not math.isfinite(duration):
         return None
     return duration if duration > 0 else None
 

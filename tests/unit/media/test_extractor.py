@@ -1,5 +1,6 @@
 """Unit tests for audio extractor module."""
 
+import math
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
@@ -251,6 +252,42 @@ class TestExtractAudio:
 
         assert "Input file not found" in str(exc_info.value)
 
+    @pytest.mark.parametrize("start_time", [-1.0, float("nan"), math.inf])
+    def test_extract_audio_rejects_invalid_start_time(
+        self, tmp_path: Path, start_time: float
+    ) -> None:
+        """start_time must be finite and non-negative before calling ffmpeg."""
+        input_file = tmp_path / "input.mp4"
+        input_file.write_bytes(b"fake video content")
+        output_file = tmp_path / "output.wav"
+
+        with (
+            patch("audiocore.media.extractor.subprocess.Popen") as mock_popen,
+            pytest.raises(InvalidInputError) as exc_info,
+        ):
+            extract_audio(input_file, output_file, start_time=start_time)
+
+        assert "start_time" in str(exc_info.value)
+        mock_popen.assert_not_called()
+
+    @pytest.mark.parametrize("duration", [0.0, -1.0, float("nan"), math.inf])
+    def test_extract_audio_rejects_invalid_duration(
+        self, tmp_path: Path, duration: float
+    ) -> None:
+        """duration must be finite and positive before calling ffmpeg."""
+        input_file = tmp_path / "input.mp4"
+        input_file.write_bytes(b"fake video content")
+        output_file = tmp_path / "output.wav"
+
+        with (
+            patch("audiocore.media.extractor.subprocess.Popen") as mock_popen,
+            pytest.raises(InvalidInputError) as exc_info,
+        ):
+            extract_audio(input_file, output_file, duration=duration)
+
+        assert "duration" in str(exc_info.value)
+        mock_popen.assert_not_called()
+
     def test_extract_audio_raises_media_error_for_ffmpeg_not_found(self, tmp_path: Path):
         """Test that MediaError is raised when ffmpeg is not found."""
         input_file = tmp_path / "input.mp4"
@@ -460,6 +497,23 @@ class TestExtractAudio:
 
             # Should accept string path
             result = extract_audio(str(input_file), output_file)
+
+            assert result == output_file
+
+    def test_extract_audio_accepts_string_output_path(self, tmp_path: Path):
+        """Test that string path is accepted for output."""
+        input_file = tmp_path / "input.mp4"
+        input_file.write_bytes(b"fake video content")
+        output_file = tmp_path / "output.wav"
+
+        def mock_subprocess(*args, **kwargs):
+            output_file.write_bytes(b"fake wav content")
+            return _make_mock_popen()
+
+        with patch("audiocore.media.extractor.subprocess.Popen") as mock_run:
+            mock_run.side_effect = mock_subprocess
+
+            result = extract_audio(input_file, str(output_file))
 
             assert result == output_file
 
