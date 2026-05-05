@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
+    from audiocore.config import AppConfig
     from audiocore.models import TranscriptionOptions, TranscriptionResult
     from audiocore.pipeline.cancellation import CancellationToken
 
@@ -61,6 +62,7 @@ async def transcribe_files_concurrent(
     continue_on_error: bool = True,
     progress_callback: Callable[[int, int, Path], None] | None = None,
     cancellation_token: CancellationToken | None = None,
+    config: AppConfig | None = None,
 ) -> list[FileResult]:
     """Transcribe multiple files concurrently with controlled parallelism.
 
@@ -80,6 +82,8 @@ async def transcribe_files_concurrent(
             Called with (completed_count, total_count, current_path).
             Warning: this is a synchronous callback called from an async context.
             Keep it fast (avoid blocking I/O) to prevent stalling the event loop.
+        cancellation_token: Optional token for cancellation support.
+        config: Optional application configuration to pass to each transcription.
 
     Returns:
         List of FileResult objects in the same order as input files.
@@ -129,11 +133,23 @@ async def transcribe_files_concurrent(
             try:
                 # Run synchronous transcribe in the shared thread pool executor
                 # to avoid creating too many threads when used alongside async_transcribe
+                def transcribe_call() -> TranscriptionResult:
+                    if config is None:
+                        return transcribe(
+                            path=file_path,
+                            options=options,
+                            cancellation_token=cancellation_token,
+                        )
+                    return transcribe(
+                        path=file_path,
+                        options=options,
+                        config=config,
+                        cancellation_token=cancellation_token,
+                    )
+
                 result = await asyncio.get_running_loop().run_in_executor(
                     _get_executor(max_workers=max_workers),
-                    lambda: transcribe(
-                        path=file_path, options=options, cancellation_token=cancellation_token
-                    ),
+                    transcribe_call,
                 )
 
                 # Update counter and call progress callback

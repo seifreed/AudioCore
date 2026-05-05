@@ -6,8 +6,8 @@ selection, handling audio extraction, VAD segmentation, and output
 formatting so developers don't have to.
 
 Public API:
-    - transcribe(path, options): Synchronous transcription
-    - async_transcribe(path, options): Asynchronous transcription
+    - transcribe(path, options, ...): Synchronous transcription
+    - async_transcribe(path, options, ...): Asynchronous transcription and async batch
 
 Configuration:
     - AppConfig: Application configuration
@@ -46,6 +46,9 @@ Example:
     >>> import asyncio
     >>> from audiocore import async_transcribe
     >>> result = asyncio.run(async_transcribe("audio.mp3"))
+
+    >>> # Convenience keyword options
+    >>> result = transcribe("video.mp4", backend="openai", output_format=OutputFormat.SRT)
 """
 
 __version__ = "1.0.0"

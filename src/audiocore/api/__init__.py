@@ -5,8 +5,8 @@ This module provides the public API for AudioCore, enabling programmatic
 use without the CLI. It re-exports all public symbols for convenience.
 
 Main Functions:
-    - transcribe(path, options): Synchronous transcription
-    - async_transcribe(path, options): Asynchronous transcription
+    - transcribe(path, options, ...): Synchronous transcription
+    - async_transcribe(path, options, ...): Asynchronous transcription and async batch
 
 Result Types:
     - TranscriptionResult: Complete transcription output
@@ -38,6 +38,9 @@ Example:
     >>> import asyncio
     >>> result = asyncio.run(async_transcribe("audio.mp3"))
     >>> print(result.segments[0].text)
+
+    >>> # Convenience keyword options
+    >>> result = transcribe("video.mp4", backend="openai", output_format=OutputFormat.SRT)
 """
 
 # Import exceptions - these don't have circular import issues

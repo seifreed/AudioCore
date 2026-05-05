@@ -11,7 +11,9 @@ import asyncio
 import atexit
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from typing import TYPE_CHECKING
+from functools import partial
+from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
 from audiocore.backends import register_builtin_backends
 from audiocore.errors import AudioCoreError
@@ -21,11 +23,13 @@ from audiocore.models import (
     transcription_options_from_config,
 )
 from audiocore.pipeline import Pipeline
+from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    from collections.abc import Callable
 
     from audiocore.config import AppConfig
+    from audiocore.parallel.files import FileResult
     from audiocore.pipeline.cancellation import CancellationToken
     from audiocore.pipeline.progress import ProgressCallback
 
@@ -80,12 +84,119 @@ def _cleanup_executor() -> None:
 atexit.register(_cleanup_executor)
 
 
+def _parse_backend(value: BackendType | str | None) -> BackendType | None:
+    """Parse a public API backend override."""
+    if value is None or isinstance(value, BackendType):
+        return value
+    if isinstance(value, str):
+        return BackendType.parse(value)
+    raise TypeError("backend must be a BackendType, string, or None")
+
+
+def _parse_model_size(value: ModelSize | str | None) -> ModelSize | None:
+    """Parse a public API model-size override."""
+    if value is None or isinstance(value, ModelSize):
+        return value
+    if isinstance(value, str):
+        return ModelSize.parse(value)
+    raise TypeError("model_size must be a ModelSize, string, or None")
+
+
+def _parse_output_format(value: OutputFormat | str | None) -> OutputFormat | None:
+    """Parse a public API output-format override."""
+    if value is None or isinstance(value, OutputFormat):
+        return value
+    if isinstance(value, str):
+        return OutputFormat.parse(value)
+    raise TypeError("output_format must be an OutputFormat, string, or None")
+
+
+def _parse_backend_preference(
+    value: SelectionPolicy | str | None,
+) -> SelectionPolicy | None:
+    """Parse a public API backend-preference override."""
+    if value is None or isinstance(value, SelectionPolicy):
+        return value
+    if isinstance(value, str):
+        return SelectionPolicy.parse(value)
+    raise TypeError("backend_preference must be a SelectionPolicy, string, or None")
+
+
+def _parse_strict_vad(value: bool | None) -> bool | None:
+    """Validate a public API strict_vad override."""
+    if value is None or isinstance(value, bool):
+        return value
+    raise TypeError("strict_vad must be a bool or None")
+
+
+def _resolve_options(
+    config: AppConfig,
+    options: TranscriptionOptions | None,
+    *,
+    backend: BackendType | str | None = None,
+    model_size: ModelSize | str | None = None,
+    language: str | None = None,
+    output_format: OutputFormat | str | None = None,
+    backend_preference: SelectionPolicy | str | None = None,
+    strict_vad: bool | None = None,
+) -> TranscriptionOptions:
+    """Build effective options from config/options plus public API overrides."""
+    backend_override = _parse_backend(backend)
+    model_size_override = _parse_model_size(model_size)
+    output_format_override = _parse_output_format(output_format)
+    backend_preference_override = _parse_backend_preference(backend_preference)
+    strict_vad_override = _parse_strict_vad(strict_vad)
+
+    if language is not None and not isinstance(language, str):
+        raise TypeError("language must be a string or None")
+
+    if options is None:
+        resolved = transcription_options_from_config(
+            config,
+            backend=backend_override,
+            model_size=model_size_override,
+            language=language,
+            output_format=output_format_override,
+            backend_preference=backend_preference_override,
+        )
+    else:
+        updates: dict[str, object] = {}
+        if backend_override is not None:
+            updates["backend"] = backend_override
+        if model_size_override is not None:
+            updates["model_size"] = model_size_override
+        if language is not None:
+            updates["language"] = language
+        if output_format_override is not None:
+            updates["output_format"] = output_format_override
+        if backend_preference_override is not None:
+            updates["backend_preference"] = backend_preference_override
+        resolved = options.model_copy(update=updates) if updates else options
+
+    if strict_vad_override is not None:
+        resolved = resolved.model_copy(update={"strict_vad": strict_vad_override})
+
+    return resolved
+
+
+def _is_batch_path(path: object) -> bool:
+    """Return True for the public async batch path form."""
+    return isinstance(path, (list, tuple))
+
+
 def transcribe(
     path: str | Path,
     options: TranscriptionOptions | None = None,
     config: AppConfig | None = None,
     progress_callback: ProgressCallback | None = None,
     cancellation_token: CancellationToken | None = None,
+    *,
+    backend: BackendType | str | None = None,
+    model_size: ModelSize | str | None = None,
+    language: str | None = None,
+    output_format: OutputFormat | str | None = None,
+    backend_preference: SelectionPolicy | str | None = None,
+    strict_vad: bool | None = None,
 ) -> TranscriptionResult:
     """Transcribe an audio/video file synchronously.
 
@@ -102,6 +213,12 @@ def transcribe(
         progress_callback: Optional callback for progress notifications.
             Called with (stage, progress, message) at each stage transition.
         cancellation_token: Optional token for cancellation support.
+        backend: Optional backend override (enum or string).
+        model_size: Optional model-size override (enum or string).
+        language: Optional language override.
+        output_format: Optional output-format override (enum or string).
+        backend_preference: Optional automatic backend selection preference.
+        strict_vad: Optional VAD failure behavior override.
 
     Returns:
         TranscriptionResult with segments, media info, and metadata.
@@ -133,6 +250,9 @@ def transcribe(
         >>> from audiocore import TranscriptionOptions, BackendType
         >>> options = TranscriptionOptions(backend=BackendType.OPENAI)
         >>> result = transcribe("audio.mp3", options=options)
+
+        >>> # With convenience keyword options
+        >>> result = transcribe("audio.mp3", backend="openai", language="es")
     """
     # Lazy import to avoid circular import
     from audiocore.config import load_config
@@ -141,9 +261,16 @@ def transcribe(
     if config is None:
         config = load_config()
 
-    # Load options from config if not provided
-    if options is None:
-        options = transcription_options_from_config(config)
+    options = _resolve_options(
+        config,
+        options,
+        backend=backend,
+        model_size=model_size,
+        language=language,
+        output_format=output_format,
+        backend_preference=backend_preference,
+        strict_vad=strict_vad,
+    )
 
     # Create pipeline and transcribe
     pipeline = Pipeline(config=config)
@@ -156,17 +283,26 @@ def transcribe(
 
 
 async def async_transcribe(
-    path: str | Path,
+    path: str | Path | list[str | Path] | tuple[str | Path, ...],
     options: TranscriptionOptions | None = None,
     config: AppConfig | None = None,
     progress_callback: ProgressCallback | None = None,
     cancellation_token: CancellationToken | None = None,
-) -> TranscriptionResult:
+    max_workers: int = 4,
+    *,
+    backend: BackendType | str | None = None,
+    model_size: ModelSize | str | None = None,
+    language: str | None = None,
+    output_format: OutputFormat | str | None = None,
+    backend_preference: SelectionPolicy | str | None = None,
+    strict_vad: bool | None = None,
+) -> TranscriptionResult | list[FileResult]:
     """Transcribe an audio/video file asynchronously.
 
     This function provides an async API for non-blocking transcription.
     It runs the synchronous transcribe() in a thread pool, allowing
-    the event loop to remain responsive.
+    the event loop to remain responsive. Passing a list or tuple of paths
+    enables concurrent batch transcription.
 
     Args:
         path: Path to the audio/video file to transcribe.
@@ -177,6 +313,13 @@ async def async_transcribe(
         progress_callback: Optional callback for progress notifications.
             Called from background thread, so callbacks should be thread-safe.
         cancellation_token: Optional token for cancellation support.
+        max_workers: Maximum thread workers for async or batch processing.
+        backend: Optional backend override (enum or string).
+        model_size: Optional model-size override (enum or string).
+        language: Optional language override.
+        output_format: Optional output-format override (enum or string).
+        backend_preference: Optional automatic backend selection preference.
+        strict_vad: Optional VAD failure behavior override.
 
     Returns:
         TranscriptionResult with segments, media info, and metadata.
@@ -208,6 +351,9 @@ async def async_transcribe(
         ...     async_transcribe("audio2.mp3"),
         ...     async_transcribe("audio3.mp3"),
         ... )
+
+        >>> # Batch transcription
+        >>> results = await async_transcribe(["audio1.mp3", "audio2.mp3"], max_workers=2)
     """
     # Create a CancellationToken if none provided so cancellation always propagates
     from audiocore.pipeline.cancellation import CancellationToken
@@ -215,22 +361,55 @@ async def async_transcribe(
     if cancellation_token is None:
         cancellation_token = CancellationToken()
 
-    # Get the thread pool executor
-    executor = _get_executor()
-
-    # Run synchronous transcribe in thread pool
-    loop = asyncio.get_running_loop()
-
     try:
-        result = await loop.run_in_executor(
-            executor,
+        if _is_batch_path(path):
+            from audiocore.config import load_config
+            from audiocore.parallel.files import transcribe_files_concurrent
+
+            if config is None:
+                config = load_config()
+
+            effective_options = _resolve_options(
+                config,
+                options,
+                backend=backend,
+                model_size=model_size,
+                language=language,
+                output_format=output_format,
+                backend_preference=backend_preference,
+                strict_vad=strict_vad,
+            )
+            batch_progress_callback = cast(
+                "Callable[[int, int, Path], None] | None",
+                progress_callback,
+            )
+            batch_path = cast("list[str | Path] | tuple[str | Path, ...]", path)
+            return await transcribe_files_concurrent(
+                files=[Path(file_path) for file_path in batch_path],
+                options=effective_options,
+                max_workers=max_workers,
+                config=config,
+                progress_callback=batch_progress_callback,
+                cancellation_token=cancellation_token,
+            )
+
+        # Run synchronous transcribe in thread pool
+        loop = asyncio.get_running_loop()
+        sync_call = partial(
             transcribe,
-            path,
-            options,
-            config,
-            progress_callback,
-            cancellation_token,
+            path=path,
+            options=options,
+            config=config,
+            progress_callback=progress_callback,
+            cancellation_token=cancellation_token,
+            backend=backend,
+            model_size=model_size,
+            language=language,
+            output_format=output_format,
+            backend_preference=backend_preference,
+            strict_vad=strict_vad,
         )
+        result = await loop.run_in_executor(_get_executor(max_workers=max_workers), sync_call)
         return result
     except asyncio.CancelledError:
         # Propagate cancellation to the running thread via CancellationToken

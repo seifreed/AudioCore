@@ -340,6 +340,7 @@ def transcribe(
             output_dir=output_dir,
             output_format=options.output_format,
             max_workers=max_workers,
+            config=config,
         )
     else:
         # Single file mode
@@ -480,6 +481,7 @@ def _run_batch_transcription(
     output_dir: Path | None,
     output_format: OutputFormat,
     max_workers: int,
+    config: AppConfig,
 ) -> int:
     """Run transcription for multiple files concurrently.
 
@@ -490,6 +492,7 @@ def _run_batch_transcription(
         output_dir: Optional output directory
         output_format: Output format
         max_workers: Maximum concurrent workers
+        config: Application configuration to use for all transcriptions
 
     Returns:
         Exit code (0 for all success, 1 for any failure)
@@ -516,6 +519,7 @@ def _run_batch_transcription(
             max_workers=max_workers,
             continue_on_error=True,
             progress_callback=progress_callback,
+            config=config,
         )
 
     try:

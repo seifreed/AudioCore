@@ -14,13 +14,17 @@ from audiocore import (
     AudioCoreError,
     BackendType,
     MediaFormatError,
+    OutputFormat,
     TranscriptionOptions,
     TranscriptionResult,
     async_transcribe,
     transcribe,
 )
+from audiocore.config import AppConfig
 from audiocore.models import MediaInfo
 from audiocore.models.segment import Segment
+from audiocore.parallel import FileResult
+from audiocore.types import ModelSize
 
 
 class TestSyncTranscribe:
@@ -152,6 +156,67 @@ class TestSyncTranscribe:
         used_options = mock_pipeline.transcribe.call_args[1]["options"]
         assert "model_size" not in used_options.model_fields_set
 
+    def test_transcribe_accepts_documented_keyword_options(self):
+        """Regression: README-documented convenience keywords are part of the public API."""
+        mock_result = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=5.0, text="Test")],
+            media_info=MediaInfo(duration=5.0, format="wav"),
+            config_used=TranscriptionOptions(),
+            processing_time_seconds=1.0,
+            backend_used=BackendType.OPENAI,
+        )
+
+        with patch("audiocore.api.transcribe.Pipeline") as mock_pipeline_class:
+            mock_pipeline = MagicMock()
+            mock_pipeline.transcribe.return_value = mock_result
+            mock_pipeline_class.return_value = mock_pipeline
+
+            transcribe(
+                "audio.mp3",
+                config=AppConfig(),
+                backend=BackendType.OPENAI,
+                language="es",
+                output_format=OutputFormat.SRT,
+            )
+
+        used_options = mock_pipeline.transcribe.call_args[1]["options"]
+        assert used_options.backend == BackendType.OPENAI
+        assert used_options.language == "es"
+        assert used_options.output_format == OutputFormat.SRT
+
+    def test_transcribe_string_keyword_options_merge_with_existing_options(self):
+        """Keyword overrides should be friendly strings and preserve untouched options."""
+        base_options = TranscriptionOptions(
+            backend=BackendType.FASTER_WHISPER,
+            model_size=ModelSize.TINY,
+        )
+        mock_result = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=5.0, text="Test")],
+            media_info=MediaInfo(duration=5.0, format="wav"),
+            config_used=base_options,
+            processing_time_seconds=1.0,
+            backend_used=BackendType.OPENAI,
+        )
+
+        with patch("audiocore.api.transcribe.Pipeline") as mock_pipeline_class:
+            mock_pipeline = MagicMock()
+            mock_pipeline.transcribe.return_value = mock_result
+            mock_pipeline_class.return_value = mock_pipeline
+
+            transcribe(
+                "audio.mp3",
+                options=base_options,
+                config=AppConfig(),
+                backend="openai",
+                output_format="json",
+            )
+
+        used_options = mock_pipeline.transcribe.call_args[1]["options"]
+        assert used_options.backend == BackendType.OPENAI
+        assert used_options.output_format == OutputFormat.JSON
+        assert used_options.model_size == ModelSize.TINY
+        assert "model_size" in used_options.model_fields_set
+
 
 class TestAsyncTranscribe:
     """Tests for asynchronous async_transcribe function."""
@@ -270,6 +335,66 @@ class TestAsyncTranscribe:
                 assert "Unexpected error" in str(exc_info.value)
 
             asyncio.run(run_test())
+
+    def test_async_transcribe_accepts_documented_keyword_options(self):
+        """Regression: async_transcribe must mirror transcribe convenience options."""
+        mock_result = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=5.0, text="Async test")],
+            media_info=MediaInfo(duration=5.0, format="wav"),
+            config_used=TranscriptionOptions(),
+            processing_time_seconds=1.0,
+            backend_used=BackendType.OPENAI,
+        )
+
+        with patch("audiocore.api.transcribe.transcribe") as mock_sync_transcribe:
+            mock_sync_transcribe.return_value = mock_result
+
+            result = asyncio.run(
+                async_transcribe(
+                    "audio.mp3",
+                    config=AppConfig(),
+                    backend=BackendType.OPENAI,
+                    output_format=OutputFormat.JSON,
+                    max_workers=1,
+                )
+            )
+
+        assert result == mock_result
+        used_kwargs = mock_sync_transcribe.call_args.kwargs
+        assert used_kwargs["backend"] == BackendType.OPENAI
+        assert used_kwargs["output_format"] == OutputFormat.JSON
+
+    def test_async_transcribe_accepts_documented_file_list_batch(self):
+        """Regression: README-documented async batch API should process file lists."""
+        files = [Path("audio1.mp3"), Path("audio2.mp3")]
+        config = AppConfig()
+        batch_results = [
+            FileResult(path=files[0], success=True, result=None, error=None),
+            FileResult(path=files[1], success=True, result=None, error=None),
+        ]
+
+        async def fake_transcribe_files_concurrent(*args, **kwargs):
+            return batch_results
+
+        with patch(
+            "audiocore.parallel.files.transcribe_files_concurrent",
+            side_effect=fake_transcribe_files_concurrent,
+        ) as mock_batch:
+            results = asyncio.run(
+                async_transcribe(
+                    files,
+                    config=config,
+                    backend=BackendType.FASTER_WHISPER,
+                    max_workers=2,
+                )
+            )
+
+        assert results == batch_results
+        used_kwargs = mock_batch.call_args.kwargs
+        assert used_kwargs["files"] == files
+        assert used_kwargs["config"] is config
+        assert used_kwargs["max_workers"] == 2
+        assert used_kwargs["options"].backend == BackendType.FASTER_WHISPER
 
 
 class TestShutdownExecutor:

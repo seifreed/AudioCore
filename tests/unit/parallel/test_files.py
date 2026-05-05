@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 import pytest
 
+from audiocore.config import AppConfig
 from audiocore.models import MediaInfo, Segment, TranscriptionOptions, TranscriptionResult
 from audiocore.parallel.files import FileResult, transcribe_files_concurrent
 from audiocore.pipeline.cancellation import CancellationToken, CancelledError
@@ -111,6 +112,31 @@ class TestTranscribeFilesConcurrent:
         assert results[0].path == audio_file
         assert results[0].result is not None
         assert results[0].error is None
+
+    @pytest.mark.asyncio
+    async def test_passes_config_to_each_transcription(
+        self,
+        tmp_path: Path,
+        transcription_options: TranscriptionOptions,
+        mock_transcription_result: TranscriptionResult,
+    ) -> None:
+        """Regression: batch transcription must preserve the caller's loaded AppConfig."""
+        audio_file = tmp_path / "test.wav"
+        audio_file.write_bytes(b"fake audio")
+        config = AppConfig()
+
+        with patch("audiocore.parallel.files.transcribe") as mock_transcribe:
+            mock_transcribe.return_value = mock_transcription_result
+
+            results = await transcribe_files_concurrent(
+                files=[audio_file],
+                options=transcription_options,
+                max_workers=1,
+                config=config,
+            )
+
+        assert results[0].success is True
+        assert mock_transcribe.call_args.kwargs["config"] is config
 
     @pytest.mark.asyncio
     async def test_multiple_files(

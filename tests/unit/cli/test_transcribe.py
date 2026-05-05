@@ -601,6 +601,52 @@ class TestBatchTranscription:
         assert result.exit_code == 0
         assert captured_kwargs.get("max_workers") == 2
 
+    def test_batch_mode_passes_loaded_config_to_workers(self, tmp_path: Path) -> None:
+        """Regression: CLI batch mode must keep the config loaded by the command."""
+        from audiocore.config import AppConfig
+        from audiocore.parallel.files import FileResult
+
+        files = []
+        for i in range(2):
+            audio_file = tmp_path / f"test{i}.wav"
+            audio_file.write_bytes(b"fake audio data")
+            files.append(audio_file)
+
+        mock_results = [
+            FileResult(
+                path=f,
+                success=True,
+                result=TranscriptionResult(
+                    segments=[Segment(start_time=0.0, end_time=5.0, text="test")],
+                    media_info=MediaInfo(duration=5.0, format="wav", sample_rate=16000, channels=1),
+                    config_used=TranscriptionOptions(),
+                    processing_time_seconds=2.0,
+                    backend_used=BackendType.OPENAI,
+                    formatted_output="test",
+                ),
+                error=None,
+            )
+            for f in files
+        ]
+        config = AppConfig()
+        captured_kwargs = {}
+
+        async def mock_transcribe_concurrent(*args, **kwargs):
+            captured_kwargs.update(kwargs)
+            return mock_results
+
+        with (
+            patch("audiocore.cli.transcribe.load_config", return_value=config),
+            patch(
+                "audiocore.cli.transcribe.transcribe_files_concurrent",
+                side_effect=mock_transcribe_concurrent,
+            ),
+        ):
+            result = runner.invoke(app, [str(f) for f in files])
+
+        assert result.exit_code == 0
+        assert captured_kwargs["config"] is config
+
     def test_batch_mode_with_output_dir(self, tmp_path: Path) -> None:
         """Test batch mode with output directory."""
         from audiocore.parallel.files import FileResult
