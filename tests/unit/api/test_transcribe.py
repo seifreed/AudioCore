@@ -121,6 +121,37 @@ class TestSyncTranscribe:
             mock_pipeline_class.assert_called_once()
             assert result.segments[0].text == "Test"
 
+    def test_transcribe_default_options_do_not_mask_faster_whisper_config_model(self):
+        """Regression: public API defaults must not override nested faster-whisper model."""
+        from audiocore.config import AppConfig
+        from audiocore.config.faster_whisper_config import FasterWhisperConfig
+        from audiocore.types import ModelSize
+
+        mock_result = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=5.0, text="Test")],
+            media_info=MediaInfo(duration=5.0, format="wav"),
+            config_used=TranscriptionOptions(),
+            processing_time_seconds=1.0,
+            backend_used=BackendType.FASTER_WHISPER,
+        )
+        config = AppConfig(
+            backend=BackendType.FASTER_WHISPER,
+            faster_whisper=FasterWhisperConfig(model_size=ModelSize.TINY),
+        )
+
+        with (
+            patch("audiocore.config.load_config", return_value=config),
+            patch("audiocore.api.transcribe.Pipeline") as mock_pipeline_class,
+        ):
+            mock_pipeline = MagicMock()
+            mock_pipeline.transcribe.return_value = mock_result
+            mock_pipeline_class.return_value = mock_pipeline
+
+            transcribe("audio.mp3")
+
+        used_options = mock_pipeline.transcribe.call_args[1]["options"]
+        assert "model_size" not in used_options.model_fields_set
+
 
 class TestAsyncTranscribe:
     """Tests for asynchronous async_transcribe function."""
@@ -326,9 +357,8 @@ class TestShutdownExecutor:
 
         assert not errors, f"Errors during concurrent _get_executor: {errors}"
         # All threads must get the same executor instance
-        assert len(set(executors)) == 1, (
-            f"Expected single executor instance, got {len(set(executors))} different ones"
-        )
+        executor_count = len(set(executors))
+        assert executor_count == 1, f"Expected one executor instance, got {executor_count}"
 
         # Clean up
         transcribe_module.shutdown_executor()

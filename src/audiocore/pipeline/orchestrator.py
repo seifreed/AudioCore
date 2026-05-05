@@ -30,6 +30,7 @@ from audiocore.models import (
     Segment,
     TranscriptionOptions,
     TranscriptionResult,
+    transcription_options_from_config,
 )
 from audiocore.output import format_json, format_srt, format_text, format_vtt
 from audiocore.pipeline.cancellation import CancellationToken, CancelledError
@@ -141,13 +142,7 @@ class Pipeline:
         """
         path = Path(path)
         if options is None:
-            options = TranscriptionOptions(
-                backend=self.config.backend,
-                model_size=self.config.model,
-                language=self.config.language,
-                output_format=self.config.output_format,
-                backend_preference=self.config.backend_preference,
-            )
+            options = transcription_options_from_config(self.config)
 
         # Helper to emit progress safely — never let callback exceptions
         # mask pipeline errors like CancelledError
@@ -315,7 +310,9 @@ class Pipeline:
         except PipelineStageError as e:
             if isinstance(e, CancelledError) or isinstance(e.original_error, CancelledError):
                 emit_progress(PipelineStage.COMPLETE, 0.0, "Pipeline cancelled")
-                raise (e.original_error if isinstance(e.original_error, CancelledError) else e) from e
+                raise (
+                    e.original_error if isinstance(e.original_error, CancelledError) else e
+                ) from e
             raise
 
     def _format_result(

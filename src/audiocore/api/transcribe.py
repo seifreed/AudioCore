@@ -15,7 +15,11 @@ from typing import TYPE_CHECKING
 
 from audiocore.backends import register_builtin_backends
 from audiocore.errors import AudioCoreError
-from audiocore.models import TranscriptionOptions, TranscriptionResult
+from audiocore.models import (
+    TranscriptionOptions,
+    TranscriptionResult,
+    transcription_options_from_config,
+)
 from audiocore.pipeline import Pipeline
 
 if TYPE_CHECKING:
@@ -139,13 +143,7 @@ def transcribe(
 
     # Load options from config if not provided
     if options is None:
-        options = TranscriptionOptions(
-            backend=config.backend,
-            model_size=config.model,
-            language=config.language,
-            output_format=config.output_format,
-            backend_preference=config.backend_preference,
-        )
+        options = transcription_options_from_config(config)
 
     # Create pipeline and transcribe
     pipeline = Pipeline(config=config)

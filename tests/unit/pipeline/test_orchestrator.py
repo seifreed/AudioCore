@@ -19,13 +19,14 @@ import pytest
 
 from audiocore.backends import BackendRegistry
 from audiocore.config import AppConfig
+from audiocore.config.faster_whisper_config import FasterWhisperConfig
 from audiocore.errors import BackendUnavailableError, MediaError, MediaFormatError
 from audiocore.models import MediaInfo, Segment, TranscriptionOptions, TranscriptionResult
 from audiocore.pipeline import Pipeline, transcribe
 from audiocore.pipeline.cancellation import CancelledError
 from audiocore.pipeline.errors import PipelineStageError
 from audiocore.pipeline.progress import PipelineStage
-from audiocore.types import BackendType, OutputFormat, SelectionPolicy
+from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
 
 
 @pytest.fixture
@@ -238,6 +239,48 @@ class TestPipelineTranscribe:
 
         # Assert extract_audio was called
         mock_extract_audio.assert_called_once()
+
+    @patch("audiocore.pipeline.orchestrator.validate_format_or_raise")
+    @patch("audiocore.pipeline.orchestrator.probe")
+    @patch("audiocore.pipeline.orchestrator.extract_audio")
+    @patch("audiocore.pipeline.orchestrator.detect_speech")
+    @patch("audiocore.pipeline.orchestrator.temp_audio_file")
+    def test_default_options_do_not_mask_faster_whisper_config_model(
+        self,
+        mock_temp_file,
+        mock_detect_speech,
+        mock_extract_audio,
+        mock_probe,
+        mock_validate,
+        mock_backend,
+        mock_media_info,
+        mock_segments,
+        tmp_path,
+    ):
+        """Regression: default top-level model must not override backend config model."""
+        mock_validate.return_value = None
+        mock_probe.return_value = mock_media_info
+        mock_detect_speech.return_value = mock_segments
+
+        temp_path = tmp_path / "temp.wav"
+        temp_path.touch()
+        mock_temp_file.return_value.__enter__ = MagicMock(return_value=temp_path)
+        mock_temp_file.return_value.__exit__ = MagicMock(return_value=False)
+
+        config = AppConfig(
+            backend=BackendType.FASTER_WHISPER,
+            faster_whisper=FasterWhisperConfig(model_size=ModelSize.TINY),
+        )
+        pipeline = Pipeline(config=config)
+        pipeline._registry.get_backend = MagicMock(return_value=mock_backend)
+        pipeline._selector.select = MagicMock(return_value=BackendType.FASTER_WHISPER)
+
+        audio_file = tmp_path / "audio.mp3"
+        audio_file.touch()
+        pipeline.transcribe(audio_file)
+
+        used_options = mock_backend.transcribe.call_args[0][1]
+        assert "model_size" not in used_options.model_fields_set
 
     @patch("audiocore.pipeline.orchestrator.validate_format_or_raise")
     @patch("audiocore.pipeline.orchestrator.probe")
@@ -1386,7 +1429,10 @@ class TestOutputFormatting:
 
                                 assert result.formatted_output is not None
                                 # SRT format uses comma for milliseconds
-                                assert "-->" in result.formatted_output or "1" in result.formatted_output
+                                assert (
+                                    "-->" in result.formatted_output
+                                    or "1" in result.formatted_output
+                                )
 
     def test_transcribe_uses_vtt_formatter(
         self, mock_media_info, mock_segments, mock_transcription_result
@@ -1421,9 +1467,7 @@ class TestOutputFormatting:
                                 # VTT format starts with WEBVTT header
                                 assert "WEBVTT" in result.formatted_output
 
-    def test_vad_config_strict_vad_respected(
-        self, mock_media_info, mock_transcription_result
-    ):
+    def test_vad_config_strict_vad_respected(self, mock_media_info, mock_transcription_result):
         """Regression: Pipeline respects VADConfig.strict_vad in addition to
         TranscriptionOptions.strict_vad.
 

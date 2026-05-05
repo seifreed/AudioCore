@@ -170,6 +170,30 @@ class TestTranscribeCommand:
         assert options.output_format == OutputFormat.JSON
         assert options.backend_preference == SelectionPolicy.PREFER_CLOUD
 
+    def test_transcribe_omitted_model_does_not_mask_faster_whisper_config_model(
+        self, audio_file: Path, mock_pipeline: MagicMock
+    ) -> None:
+        """Regression: omitted --model must not override nested faster-whisper model."""
+        from audiocore.config import AppConfig
+        from audiocore.config.faster_whisper_config import FasterWhisperConfig
+
+        config = AppConfig(
+            backend=BackendType.FASTER_WHISPER,
+            faster_whisper=FasterWhisperConfig(model_size=ModelSize.TINY),
+        )
+
+        with (
+            patch("audiocore.cli.transcribe.load_config", return_value=config),
+            patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline),
+        ):
+            result = runner.invoke(app, [str(audio_file)])
+
+        assert result.exit_code == 0
+        call_args = mock_pipeline.transcribe.call_args
+        assert call_args is not None
+        options = call_args[1]["options"]
+        assert "model_size" not in options.model_fields_set
+
     def test_transcribe_file_not_found(self, mock_pipeline: MagicMock) -> None:
         """Test transcription with non-existent file."""
         with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):

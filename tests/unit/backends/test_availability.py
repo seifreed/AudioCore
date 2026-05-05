@@ -127,6 +127,16 @@ class TestBackendAvailabilityChecker:
         assert status.available is False
         assert "API key not configured" in status.reason
 
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-env-key"}, clear=True)
+    def test_check_openai_falls_back_to_env_when_config_key_is_blank(self):
+        """Regression: blank config keys must not block a valid environment key."""
+        config = AppConfig(openai=OpenAIConfig(api_key=SecretStr("   ")))
+        checker = BackendAvailabilityChecker(config=config)
+        status = checker.check_backend(BackendType.OPENAI)
+
+        assert status.available is True
+        assert "API key" in status.reason
+
     def test_check_faster_whisper_installed(self):
         """Test faster-whisper availability when installed."""
         mock_fw = MagicMock()

@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Self
+from typing import TYPE_CHECKING, Annotated, Self
 
 from pydantic import BaseModel, Field, model_validator
 
 from audiocore.models.media import MediaInfo
 from audiocore.models.segment import Segment
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
+
+if TYPE_CHECKING:
+    from audiocore.config import AppConfig
 
 
 class FailedSegment(BaseModel):
@@ -152,3 +155,38 @@ class TranscriptionResult(BaseModel):
         default_factory=list,
         description="Segments that failed transcription (start_time, end_time, error)",
     )
+
+
+def transcription_options_from_config(
+    config: AppConfig,
+    *,
+    backend: BackendType | None = None,
+    model_size: ModelSize | None = None,
+    language: str | None = None,
+    output_format: OutputFormat | None = None,
+    backend_preference: SelectionPolicy | None = None,
+) -> TranscriptionOptions:
+    """Build transcription options from AppConfig without inventing model overrides.
+
+    ``TranscriptionOptions`` tracks which fields were explicitly provided.
+    FasterWhisperBackend uses that to distinguish a caller's model override
+    from its own backend-specific ``faster_whisper.model_size`` config. Passing
+    the top-level default model as an explicit option would accidentally mask
+    the backend-specific model setting.
+    """
+    option_values: dict[str, object] = {
+        "backend": backend if backend is not None else config.backend,
+        "language": language if language is not None else config.language,
+        "output_format": output_format if output_format is not None else config.output_format,
+        "backend_preference": (
+            backend_preference if backend_preference is not None else config.backend_preference
+        ),
+    }
+
+    default_model_size = TranscriptionOptions.model_fields["model_size"].default
+    if model_size is not None:
+        option_values["model_size"] = model_size
+    elif config.model != default_model_size:
+        option_values["model_size"] = config.model
+
+    return TranscriptionOptions.model_validate(option_values)

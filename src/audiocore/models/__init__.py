@@ -11,7 +11,12 @@ All models use strict validation for type safety.
 
 from audiocore.models.media import MediaInfo
 from audiocore.models.segment import Segment
-from audiocore.models.transcription import FailedSegment, TranscriptionOptions, TranscriptionResult
+from audiocore.models.transcription import (
+    FailedSegment,
+    TranscriptionOptions,
+    TranscriptionResult,
+    transcription_options_from_config,
+)
 
 __all__ = [
     "FailedSegment",
@@ -19,4 +24,5 @@ __all__ = [
     "MediaInfo",
     "TranscriptionOptions",
     "TranscriptionResult",
+    "transcription_options_from_config",
 ]

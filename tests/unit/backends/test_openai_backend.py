@@ -71,9 +71,7 @@ class TestOpenAIBackendBasics:
         # No api_key provided, no env var set
         assert backend.is_available() is False
 
-    def test_is_available_true_with_non_sk_key(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_is_available_true_with_non_sk_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify is_available returns True with any non-empty key.
 
         OpenAI now issues keys in various formats (sk-proj-, sk-org-, etc.)
@@ -87,6 +85,17 @@ class TestOpenAIBackendBasics:
         """Verify is_available returns True with valid env var."""
         monkeypatch.setenv("OPENAI_API_KEY", "sk-env-key-123")
         backend = OpenAIBackend()
+        assert backend.is_available() is True
+
+    def test_is_available_uses_audiocore_env_when_openai_env_is_blank(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: blank OPENAI_API_KEY should not block AUDIOCORE_OPENAI_API_KEY."""
+        monkeypatch.setenv("OPENAI_API_KEY", "   ")
+        monkeypatch.setenv("AUDIOCORE_OPENAI_API_KEY", "sk-fallback-key")
+
+        backend = OpenAIBackend()
+
         assert backend.is_available() is True
 
     def test_is_available_true_with_non_sk_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -239,7 +248,9 @@ class TestTranscribeSuccess:
         assert call_kwargs["language"] == "en"
 
     @patch("audiocore.backends.openai_backend.OpenAI")
-    def test_transcribe_no_model_size_to_temperature_mapping(self, mock_openai: MagicMock, tmp_path: Path) -> None:
+    def test_transcribe_no_model_size_to_temperature_mapping(
+        self, mock_openai: MagicMock, tmp_path: Path
+    ) -> None:
         """Verify model_size does NOT map to temperature (removed arbitrary mapping)."""
         mock_client = MagicMock()
         mock_openai.return_value = mock_client
@@ -503,6 +514,12 @@ class TestAPIKeyRedaction:
         assert api_key not in repr_str
         assert api_key not in str_str
 
+    def test_blank_api_key_redaction_does_not_rewrite_entire_message(self) -> None:
+        """Regression: blank keys must not trigger empty-string replacement."""
+        backend = OpenAIBackend(api_key="   ")
+
+        assert backend._redact_api_key("plain error") == "plain error"
+
 
 class TestBackendUnavailable:
     """Test backend unavailable scenarios."""
@@ -528,9 +545,12 @@ class TestBackendUnavailable:
 
     @patch("audiocore.backends.openai_backend.OpenAI")
     def test_transcribe_with_blank_api_key_raises_unavailable(
-        self, mock_openai: MagicMock, tmp_path: Path
+        self, mock_openai: MagicMock, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Regression: whitespace-only API keys should not create OpenAI clients."""
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("AUDIOCORE_OPENAI_API_KEY", raising=False)
+
         backend = OpenAIBackend(api_key="   ")
         options = TranscriptionOptions()
 
@@ -542,6 +562,29 @@ class TestBackendUnavailable:
 
         assert "not configured" in str(exc_info.value).lower()
         mock_openai.assert_not_called()
+
+    @patch("audiocore.backends.openai_backend.OpenAI")
+    def test_transcribe_uses_fallback_env_key_when_primary_env_key_is_blank(
+        self, mock_openai: MagicMock, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: fallback env key should be used when OPENAI_API_KEY is blank."""
+        monkeypatch.setenv("OPENAI_API_KEY", "   ")
+        monkeypatch.setenv("AUDIOCORE_OPENAI_API_KEY", "  sk-fallback-key  ")
+
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+        mock_response = MagicMock()
+        mock_response.segments = []
+        mock_response.duration = 1.0
+        mock_client.audio.transcriptions.create.return_value = mock_response
+
+        audio_file = tmp_path / "test.mp3"
+        audio_file.write_bytes(b"fake audio data")
+
+        backend = OpenAIBackend()
+        backend.transcribe(audio_file, TranscriptionOptions())
+
+        mock_openai.assert_called_once_with(api_key="sk-fallback-key")
 
 
 class TestFileHandling:
@@ -709,6 +752,32 @@ class TestTranscriptionResultParsing:
         assert result.segments == []
         # When no duration is available, we use a small minimum duration
         assert result.media_info.duration == 0.01
+
+    @patch("audiocore.backends.openai_backend.OpenAI")
+    def test_text_response_without_segments_keeps_transcript(
+        self, mock_openai: MagicMock, tmp_path: Path
+    ) -> None:
+        """Regression: response.text must not be dropped when segments are absent."""
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+
+        audio_file = tmp_path / "test.mp3"
+        audio_file.write_bytes(b"fake audio data")
+
+        mock_response = MagicMock()
+        mock_response.segments = []
+        mock_response.duration = 3.5
+        mock_response.text = "Whole file transcript"
+
+        mock_client.audio.transcriptions.create.return_value = mock_response
+
+        backend = OpenAIBackend(api_key="sk-test123")
+        result = backend.transcribe(audio_file, TranscriptionOptions())
+
+        assert len(result.segments) == 1
+        assert result.segments[0].start_time == 0.0
+        assert result.segments[0].end_time == 3.5
+        assert result.segments[0].text == "Whole file transcript"
 
 
 class TestLogging:

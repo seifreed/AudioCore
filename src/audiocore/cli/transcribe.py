@@ -36,7 +36,7 @@ from rich.progress import (
 
 from audiocore.config import AppConfig, load_config
 from audiocore.errors import AudioCoreError, BackendError, ConfigurationError, OutputFileExistsError
-from audiocore.models import TranscriptionOptions
+from audiocore.models import TranscriptionOptions, transcription_options_from_config
 from audiocore.parallel import FileResult, transcribe_files_concurrent
 from audiocore.pipeline import Pipeline
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
@@ -286,41 +286,40 @@ def transcribe(
         console.print(f"[red]Configuration Error:[/red] {e}")
         raise typer.Exit(2) from None
 
-    # Build transcription options
-    effective_backend = (
-        backend
-        if isinstance(backend, BackendType)
-        else config.backend
-        if backend is None
-        else BackendType.parse(backend)
-    )
-    effective_model = (
-        model
-        if isinstance(model, ModelSize)
-        else config.model
-        if model is None
-        else ModelSize.parse(model)
-    )
-    effective_output_format = (
-        output_format
-        if isinstance(output_format, OutputFormat)
-        else config.output_format
-        if output_format is None
-        else OutputFormat.parse(output_format)
-    )
-    effective_backend_preference = (
-        backend_preference
-        if isinstance(backend_preference, SelectionPolicy)
-        else config.backend_preference
-        if backend_preference is None
-        else SelectionPolicy.parse(backend_preference)
-    )
-    options = TranscriptionOptions(
-        language=language if language is not None else config.language,
-        model_size=effective_model,
-        backend=effective_backend,
-        output_format=effective_output_format,
-        backend_preference=effective_backend_preference,
+    # Build transcription options. Omitted --model must remain an implicit
+    # default so backend-specific model config is still respected.
+    backend_override = None
+    if backend is not None:
+        backend_override = (
+            backend if isinstance(backend, BackendType) else BackendType.parse(backend)
+        )
+
+    model_override = None
+    if model is not None:
+        model_override = model if isinstance(model, ModelSize) else ModelSize.parse(model)
+
+    output_format_override = None
+    if output_format is not None:
+        output_format_override = (
+            output_format
+            if isinstance(output_format, OutputFormat)
+            else OutputFormat.parse(output_format)
+        )
+
+    backend_preference_override = None
+    if backend_preference is not None:
+        backend_preference_override = (
+            backend_preference
+            if isinstance(backend_preference, SelectionPolicy)
+            else SelectionPolicy.parse(backend_preference)
+        )
+    options = transcription_options_from_config(
+        config,
+        language=language,
+        model_size=model_override,
+        backend=backend_override,
+        output_format=output_format_override,
+        backend_preference=backend_preference_override,
     )
 
     # Determine batch mode

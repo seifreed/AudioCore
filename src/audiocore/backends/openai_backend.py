@@ -168,18 +168,7 @@ class OpenAIBackend(TranscriptionBackend):
         except ImportError:
             return False
 
-        # Check if API key is provided in constructor
-        if self._api_key is not None:
-            return bool(self._api_key.strip())
-
-        # Check environment variables (OPENAI_API_KEY takes priority, AUDIOCORE_OPENAI_API_KEY as fallback)
-        import os
-
-        env_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("AUDIOCORE_OPENAI_API_KEY")
-        if env_key is not None:
-            return bool(env_key.strip())
-
-        return False
+        return self._resolve_api_key() is not None
 
     def get_model_options(self) -> list[str]:
         """Return valid model options for OpenAI Whisper API.
@@ -201,16 +190,9 @@ class OpenAIBackend(TranscriptionBackend):
             BackendUnavailableError: If API key is not configured.
         """
         if self._client is None:
-            # Determine API key source (priority: config > constructor > env var)
-            api_key = self._api_key
+            api_key = self._resolve_api_key()
+
             if api_key is None:
-                import os
-
-                api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get(
-                    "AUDIOCORE_OPENAI_API_KEY"
-                )
-
-            if api_key is None or not api_key.strip():
                 raise BackendUnavailableError(
                     "OpenAI API key not configured",
                     context={"backend": "openai"},
@@ -237,6 +219,18 @@ class OpenAIBackend(TranscriptionBackend):
 
         return self._client
 
+    def _resolve_api_key(self) -> str | None:
+        """Resolve the first non-blank API key by priority."""
+        if self._api_key and self._api_key.strip():
+            return self._api_key.strip()
+
+        import os
+
+        for key in (os.environ.get("OPENAI_API_KEY"), os.environ.get("AUDIOCORE_OPENAI_API_KEY")):
+            if key and key.strip():
+                return key.strip()
+        return None
+
     def _redact_api_key(self, message: str) -> str:
         """Redact API key from error messages.
 
@@ -249,6 +243,10 @@ class OpenAIBackend(TranscriptionBackend):
         # Redact constructor-provided key
         if self._api_key and self._api_key in message:
             message = message.replace(self._api_key, "[REDACTED]")
+        if self._api_key:
+            stripped_api_key = self._api_key.strip()
+            if stripped_api_key and stripped_api_key in message:
+                message = message.replace(stripped_api_key, "[REDACTED]")
 
         # Redact environment keys
         import os
@@ -257,6 +255,10 @@ class OpenAIBackend(TranscriptionBackend):
             env_key = os.environ.get(env_var)
             if env_key and env_key in message:
                 message = message.replace(env_key, "[REDACTED]")
+            if env_key:
+                stripped_env_key = env_key.strip()
+                if stripped_env_key and stripped_env_key in message:
+                    message = message.replace(stripped_env_key, "[REDACTED]")
 
         return message
 
@@ -476,6 +478,19 @@ class OpenAIBackend(TranscriptionBackend):
             else:
                 # Use a small minimum duration since MediaInfo requires duration > 0
                 media_duration = 0.01
+
+            # Some compatible providers may return top-level text without segment
+            # details even when verbose_json was requested. Preserve that text
+            # instead of returning an empty transcription.
+            response_text = getattr(response, "text", None)
+            if not segments and isinstance(response_text, str) and response_text.strip():
+                segments.append(
+                    Segment(
+                        start_time=0.0,
+                        end_time=media_duration,
+                        text=response_text.strip(),
+                    )
+                )
 
             # Build media info
             media_info = MediaInfo(
