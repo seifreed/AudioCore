@@ -101,6 +101,17 @@ class TestPipelineInit:
         assert pipeline._registry is not None
         assert pipeline._selector is not None
 
+    def test_init_registers_builtin_backends(self):
+        """Regression: direct Pipeline use must not depend on importing public API first."""
+        from audiocore.backends import BackendRegistry
+
+        registry = BackendRegistry()
+        registry._reset()
+
+        pipeline = Pipeline()
+
+        assert pipeline._registry.list_backends()
+
 
 class TestPipelineTranscribe:
     """Test Pipeline.transcribe method."""
@@ -858,6 +869,51 @@ class TestPipelineStageEnum:
 
 class TestPipelineProgressCallbacks:
     """Test progress callback integration in Pipeline."""
+
+    @patch("audiocore.pipeline.orchestrator.validate_format_or_raise")
+    @patch("audiocore.pipeline.orchestrator.probe")
+    @patch("audiocore.pipeline.orchestrator.extract_audio")
+    @patch("audiocore.pipeline.orchestrator.detect_speech")
+    @patch("audiocore.pipeline.orchestrator.temp_audio_file")
+    def test_constructor_progress_callback_is_used_by_default(
+        self,
+        mock_temp_file,
+        mock_detect_speech,
+        mock_extract_audio,
+        mock_probe,
+        mock_validate,
+        mock_backend,
+        mock_media_info,
+        mock_segments,
+        tmp_path,
+    ):
+        """Regression: README-documented Pipeline(progress_callback=...) should work."""
+        from audiocore.pipeline.progress import PipelineStage
+
+        mock_validate.return_value = None
+        mock_probe.return_value = mock_media_info
+        mock_detect_speech.return_value = mock_segments
+
+        temp_path = tmp_path / "temp.wav"
+        temp_path.touch()
+        mock_temp_file.return_value.__enter__ = MagicMock(return_value=temp_path)
+        mock_temp_file.return_value.__exit__ = MagicMock(return_value=False)
+
+        callback_events: list[tuple[PipelineStage, float, str]] = []
+
+        def progress_callback(stage: PipelineStage, progress: float, message: str) -> None:
+            callback_events.append((stage, progress, message))
+
+        pipeline = Pipeline(progress_callback=progress_callback)
+        pipeline._registry.get_backend = MagicMock(return_value=mock_backend)
+        pipeline._selector.select = MagicMock(return_value=BackendType.OPENAI)
+
+        audio_file = tmp_path / "audio.mp3"
+        audio_file.touch()
+        pipeline.transcribe(audio_file)
+
+        assert callback_events
+        assert PipelineStage.COMPLETE in [event[0] for event in callback_events]
 
     @patch("audiocore.pipeline.orchestrator.validate_format_or_raise")
     @patch("audiocore.pipeline.orchestrator.probe")

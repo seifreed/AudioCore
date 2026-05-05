@@ -83,7 +83,7 @@ from audiocore.errors import (
 from audiocore.models import Segment, TranscriptionOptions, TranscriptionResult
 
 # Import pipeline utilities
-from audiocore.pipeline.cancellation import CancellationToken
+from audiocore.pipeline.cancellation import CancellationToken, CancelledError
 
 # Import types - these have no circular import issues
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
@@ -97,6 +97,7 @@ __all__ = [
     # Main functions (lazy loaded)
     "transcribe",
     "async_transcribe",
+    "Pipeline",
     "AppConfig",
     # Result types
     "TranscriptionResult",
@@ -139,6 +140,7 @@ __all__ = [
     "PartialResultError",
     # Cancellation
     "CancellationToken",
+    "CancelledError",
 ]
 
 
@@ -163,6 +165,11 @@ def __getattr__(name: str):
 
         globals()[name] = async_transcribe
         return async_transcribe
+    if name == "Pipeline":
+        from audiocore.pipeline import Pipeline
+
+        globals()[name] = Pipeline
+        return Pipeline
     if name == "AppConfig":
         from audiocore.config import AppConfig
 

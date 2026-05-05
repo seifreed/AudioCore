@@ -11,7 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from audiocore.backends import BackendRegistry, BackendSelector
+from audiocore.backends import BackendRegistry, BackendSelector, register_builtin_backends
 from audiocore.config import AppConfig
 from audiocore.errors import (
     BackendUnavailableError,
@@ -88,13 +88,20 @@ class Pipeline:
     def __init__(
         self,
         config: AppConfig | None = None,
+        progress_callback: ProgressCallback | None = None,
+        cancellation_token: CancellationToken | None = None,
     ):
         """Initialize the pipeline with optional configuration.
 
         Args:
             config: Application configuration. If None, uses default AppConfig.
+            progress_callback: Optional default progress callback for transcribe().
+            cancellation_token: Optional default cancellation token for transcribe().
         """
+        register_builtin_backends()
         self.config = config or AppConfig()
+        self._progress_callback = progress_callback
+        self._cancellation_token = cancellation_token
         self._registry = BackendRegistry()
         self._selector = BackendSelector(config=self.config)
 
@@ -143,20 +150,26 @@ class Pipeline:
         path = Path(path)
         if options is None:
             options = transcription_options_from_config(self.config)
+        effective_progress_callback = (
+            progress_callback if progress_callback is not None else self._progress_callback
+        )
+        effective_cancellation_token = (
+            cancellation_token if cancellation_token is not None else self._cancellation_token
+        )
 
         # Helper to emit progress safely — never let callback exceptions
         # mask pipeline errors like CancelledError
         def emit_progress(stage: PipelineStage, progress: float, message: str) -> None:
-            if progress_callback is not None:
+            if effective_progress_callback is not None:
                 try:
-                    progress_callback(stage, progress, message)
+                    effective_progress_callback(stage, progress, message)
                 except Exception:
                     logger.debug("Progress callback raised, ignoring", exc_info=True)
 
         # Helper to check cancellation safely
         def check_cancellation() -> None:
-            if cancellation_token is not None:
-                cancellation_token.check()
+            if effective_cancellation_token is not None:
+                effective_cancellation_token.check()
 
         try:
             # Step 1: Validate format
@@ -283,8 +296,8 @@ class Pipeline:
                     segments=segments,
                     media_info=media_info,
                     options=options,
-                    progress_callback=progress_callback,
-                    cancellation_token=cancellation_token,
+                    progress_callback=effective_progress_callback,
+                    cancellation_token=effective_cancellation_token,
                     emit_progress=emit_progress,
                 )
                 emit_progress(PipelineStage.TRANSCRIBING, 1.0, "Transcription complete")

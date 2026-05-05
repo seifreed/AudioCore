@@ -221,6 +221,18 @@ class TestPublicAPIImports:
         assert TranscriptionResult is not None
         assert TranscriptionOptions is not None
 
+    def test_pipeline_class_importable_from_main_package(self):
+        """Regression: README-documented top-level Pipeline import should work."""
+        from audiocore import Pipeline
+
+        assert Pipeline is not None
+
+    def test_cancelled_error_importable_from_main_package(self):
+        """Regression: cancellation examples should expose CancelledError."""
+        from audiocore import CancelledError
+
+        assert CancelledError is not None
+
     def test_api_all_declares_importable_symbols(self):
         """Regression: every name in audiocore.api.__all__ must be exported."""
         import audiocore.api as api
@@ -251,6 +263,14 @@ class TestPublicAPIImports:
         exec("from audiocore import *", namespace)
 
         assert namespace["AppConfig"] is not None
+
+    def test_main_package_star_import_includes_pipeline(self):
+        """Regression: Pipeline should be part of the documented top-level API."""
+        namespace: dict[str, object] = {}
+
+        exec("from audiocore import *", namespace)
+
+        assert namespace["Pipeline"] is not None
 
     def test_async_transcribe_importable_from_api(self):
         """Verify async_transcribe is importable from api module."""

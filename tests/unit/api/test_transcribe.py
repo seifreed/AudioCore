@@ -396,6 +396,46 @@ class TestAsyncTranscribe:
         assert used_kwargs["max_workers"] == 2
         assert used_kwargs["options"].backend == BackendType.FASTER_WHISPER
 
+    def test_async_batch_progress_callback_uses_public_pipeline_signature(self):
+        """Regression: async batch progress should honor the documented callback shape."""
+        from audiocore.pipeline.progress import PipelineStage
+
+        files = [Path("audio1.mp3"), Path("audio2.mp3")]
+        config = AppConfig()
+        batch_results = [
+            FileResult(path=files[0], success=True, result=None, error=None),
+            FileResult(path=files[1], success=True, result=None, error=None),
+        ]
+        progress_calls: list[tuple[PipelineStage, float, str]] = []
+
+        def progress_callback(stage: PipelineStage, progress: float, message: str) -> None:
+            progress_calls.append((stage, progress, message))
+
+        async def fake_transcribe_files_concurrent(*args, **kwargs):
+            callback = kwargs["progress_callback"]
+            callback(1, 2, files[0])
+            callback(2, 2, files[1])
+            return batch_results
+
+        with patch(
+            "audiocore.parallel.files.transcribe_files_concurrent",
+            side_effect=fake_transcribe_files_concurrent,
+        ):
+            results = asyncio.run(
+                async_transcribe(
+                    files,
+                    config=config,
+                    max_workers=2,
+                    progress_callback=progress_callback,
+                )
+            )
+
+        assert results == batch_results
+        assert progress_calls == [
+            (PipelineStage.TRANSCRIBING, 0.5, "Processed audio1.mp3"),
+            (PipelineStage.TRANSCRIBING, 1.0, "Processed audio2.mp3"),
+        ]
+
 
 class TestShutdownExecutor:
     """Tests for executor shutdown."""

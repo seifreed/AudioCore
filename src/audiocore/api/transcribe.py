@@ -26,8 +26,6 @@ from audiocore.pipeline import Pipeline
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from audiocore.config import AppConfig
     from audiocore.parallel.files import FileResult
     from audiocore.pipeline.cancellation import CancellationToken
@@ -365,6 +363,7 @@ async def async_transcribe(
         if _is_batch_path(path):
             from audiocore.config import load_config
             from audiocore.parallel.files import transcribe_files_concurrent
+            from audiocore.pipeline.progress import PipelineStage
 
             if config is None:
                 config = load_config()
@@ -379,10 +378,22 @@ async def async_transcribe(
                 backend_preference=backend_preference,
                 strict_vad=strict_vad,
             )
-            batch_progress_callback = cast(
-                "Callable[[int, int, Path], None] | None",
-                progress_callback,
-            )
+
+            batch_progress_callback = None
+            if progress_callback is not None:
+
+                def batch_progress_callback(
+                    completed: int,
+                    total: int,
+                    current_path: Path,
+                ) -> None:
+                    progress = completed / total if total else 1.0
+                    progress_callback(
+                        PipelineStage.TRANSCRIBING,
+                        progress,
+                        f"Processed {current_path}",
+                    )
+
             batch_path = cast("list[str | Path] | tuple[str | Path, ...]", path)
             return await transcribe_files_concurrent(
                 files=[Path(file_path) for file_path in batch_path],
