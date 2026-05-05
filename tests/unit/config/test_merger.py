@@ -286,6 +286,49 @@ backend = "openai"
         assert config.backend == BackendType.AUTO
         assert config.model_size == ModelSize.BASE
 
+    def test_load_config_prefers_cwd_audiocore_toml(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Regression: load_config(None) should load ./audiocore.toml before global config."""
+        cwd_config = tmp_path / "audiocore.toml"
+        cwd_config.write_text("""
+[backend]
+backend = "openai"
+""")
+        default_config = tmp_path / "home-config.toml"
+        default_config.write_text("""
+[backend]
+backend = "faster_whisper"
+""")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr("audiocore.config.toml_loader.DEFAULT_CONFIG_PATH", default_config)
+
+        config = load_config(config_path=None)
+
+        assert config.backend == BackendType.OPENAI
+
+    def test_load_config_accepts_documented_audiocore_section(self, tmp_path: Path) -> None:
+        """Regression: [audiocore] section should produce a valid AppConfig."""
+        config_file = tmp_path / "config.toml"
+        config_file.write_text("""
+[audiocore]
+backend = "openai"
+model = "large"
+output_format = "srt"
+strict_vad = true
+
+[faster_whisper]
+model = "small"
+""")
+
+        config = load_config(config_path=config_file)
+
+        assert config.backend == BackendType.OPENAI
+        assert config.model_size == ModelSize.LARGE
+        assert config.output_format == OutputFormat.SRT
+        assert config.vad.strict_vad is True
+        assert config.faster_whisper.model_size == ModelSize.SMALL
+
     def test_partial_toml_config(self, tmp_path: Path) -> None:
         """Partial TOML config should merge with defaults."""
         config_file = tmp_path / "partial.toml"

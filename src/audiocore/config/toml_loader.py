@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 DEFAULT_CONFIG_PATH = Path.home() / ".config" / "audiocore" / "config.toml"
 """Default configuration file path: ~/.config/audiocore/config.toml"""
 
+CWD_CONFIG_FILENAME = "audiocore.toml"
+"""Project-local configuration file name searched before the global config."""
+
 # Fields that should be converted to Path objects with ~ expansion
 _PATH_FIELDS: set[str] = {"ffmpeg_path", "ffprobe_path"}
 
@@ -25,6 +28,20 @@ _PATH_FIELDS: set[str] = {"ffmpeg_path", "ffprobe_path"}
 # to prevent silent misconfiguration (e.g. [backend] language = "en"
 # should not set the top-level "language" field).
 _FIELD_MAPPING = {
+    # Top-level aliases
+    "model_size": "model",
+    "strict_vad": "vad.strict_vad",
+    # Documented [audiocore] wrapper for top-level app settings
+    "audiocore.backend": "backend",
+    "audiocore.model": "model",
+    "audiocore.model_size": "model",
+    "audiocore.language": "language",
+    "audiocore.output_format": "output_format",
+    "audiocore.backend_preference": "backend_preference",
+    "audiocore.ffmpeg_path": "ffmpeg_path",
+    "audiocore.ffprobe_path": "ffprobe_path",
+    "audiocore.strict_vad": "vad.strict_vad",
+    "audiocore.openai_api_key": "openai_api_key",
     "backend.backend": "backend",
     "backend.model_size": "model",
     "backend.backend_preference": "backend_preference",
@@ -46,6 +63,7 @@ _FIELD_MAPPING = {
     "vad.window_size_samples": "vad.window_size_samples",
     "vad.strict_vad": "vad.strict_vad",
     # Faster-Whisper nested config
+    "faster_whisper.model": "faster_whisper.model_size",
     "faster_whisper.model_size": "faster_whisper.model_size",
     "faster_whisper.device": "faster_whisper.device",
     "faster_whisper.compute_type": "faster_whisper.compute_type",
@@ -62,6 +80,18 @@ _FIELD_MAPPING = {
     "faster_whisper.word_timestamps": "faster_whisper.word_timestamps",
     "faster_whisper.vad_filter": "faster_whisper.vad_filter",
 }
+
+
+def _resolve_config_path(path: Path | None = None) -> Path:
+    """Resolve the TOML config path, preferring ./audiocore.toml by default."""
+    if path is not None:
+        return path.expanduser()
+
+    cwd_config = Path.cwd() / CWD_CONFIG_FILENAME
+    if cwd_config.exists():
+        return cwd_config
+
+    return DEFAULT_CONFIG_PATH.expanduser()
 
 
 def _flatten_toml_section(section: dict[str, Any], prefix: str = "") -> dict[str, Any]:
@@ -187,7 +217,7 @@ def load_toml_config(path: Path | None = None) -> dict[str, Any]:
         >>> config["model"]
         'medium'
     """
-    config_path = (path or DEFAULT_CONFIG_PATH).expanduser()
+    config_path = _resolve_config_path(path)
 
     # Handle missing file
     if not config_path.exists():

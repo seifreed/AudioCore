@@ -11,6 +11,8 @@ Example:
     >>> audiocore config path
 """
 
+from pathlib import Path
+
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -132,19 +134,26 @@ def config_path() -> None:
     Example:
         >>> audiocore config path
     """
-    from audiocore.config.toml_loader import DEFAULT_CONFIG_PATH
+    from audiocore.config.toml_loader import CWD_CONFIG_FILENAME, DEFAULT_CONFIG_PATH
 
-    console.print("[cyan]Default configuration path:[/cyan]")
-    path_obj = DEFAULT_CONFIG_PATH
-    exists_str = "[green]✓ exists[/green]" if path_obj.exists() else "[dim](not found)[/dim]"
-    console.print(f"  {path_obj} {exists_str}")
+    project_path = Path.cwd() / CWD_CONFIG_FILENAME
+    global_path = DEFAULT_CONFIG_PATH
+
+    console.print("[cyan]Project configuration path:[/cyan]")
+    exists_str = "[green]✓ exists[/green]" if project_path.exists() else "[dim](not found)[/dim]"
+    console.print(f"  {project_path} {exists_str}")
+
+    console.print("[cyan]Global configuration path:[/cyan]")
+    exists_str = "[green]✓ exists[/green]" if global_path.exists() else "[dim](not found)[/dim]"
+    console.print(f"  {global_path} {exists_str}")
 
     console.print()
     console.print("[cyan]Priority:[/cyan]")
     console.print("  1. CLI arguments")
     console.print("  2. Environment variables (AUDIOCORE_*)")
-    console.print("  3. audiocore.toml config file")
-    console.print("  4. Default values")
+    console.print("  3. ./audiocore.toml")
+    console.print("  4. ~/.config/audiocore/config.toml")
+    console.print("  5. Default values")
 
 
 if __name__ == "__main__":

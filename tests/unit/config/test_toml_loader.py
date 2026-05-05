@@ -183,6 +183,94 @@ backend = "openai"
         result = load_toml_config(None)
         assert result == {"backend": "openai"}
 
+    def test_cwd_audiocore_toml_wins_over_default_when_none_provided(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Regression: default loading should prefer ./audiocore.toml."""
+        cwd_config = tmp_path / "audiocore.toml"
+        cwd_config.write_text(
+            """
+[backend]
+backend = "openai"
+""",
+            encoding="utf-8",
+        )
+        default_config = tmp_path / "home-config.toml"
+        default_config.write_text(
+            """
+[backend]
+backend = "faster_whisper"
+""",
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr("audiocore.config.toml_loader.DEFAULT_CONFIG_PATH", default_config)
+
+        result = load_toml_config(None)
+
+        assert result == {"backend": "openai"}
+
+    def test_default_path_used_when_cwd_config_missing(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """The global config remains the fallback when ./audiocore.toml is absent."""
+        default_config = tmp_path / "home-config.toml"
+        default_config.write_text(
+            """
+[backend]
+backend = "faster_whisper"
+""",
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr("audiocore.config.toml_loader.DEFAULT_CONFIG_PATH", default_config)
+
+        result = load_toml_config(None)
+
+        assert result == {"backend": "faster_whisper"}
+
+    def test_audiocore_section_loads_top_level_config(self, tmp_path: Path) -> None:
+        """Regression: documented [audiocore] section should not be ignored."""
+        config_file = tmp_path / "config.toml"
+        config_file.write_text(
+            """
+[audiocore]
+backend = "openai"
+language = "es"
+model = "large"
+output_format = "json"
+backend_preference = "prefer_cloud"
+ffmpeg_path = "~/bin/ffmpeg"
+strict_vad = true
+""",
+            encoding="utf-8",
+        )
+
+        result = load_toml_config(config_file)
+
+        assert result["backend"] == "openai"
+        assert result["language"] == "es"
+        assert result["model"] == "large"
+        assert result["output_format"] == "json"
+        assert result["backend_preference"] == "prefer_cloud"
+        assert result["ffmpeg_path"] == str(Path("~/bin/ffmpeg").expanduser())
+        assert result["vad"]["strict_vad"] is True
+
+    def test_faster_whisper_model_alias_loads_model_size(self, tmp_path: Path) -> None:
+        """Regression: documented faster_whisper.model should map to model_size."""
+        config_file = tmp_path / "config.toml"
+        config_file.write_text(
+            """
+[faster_whisper]
+model = "small"
+""",
+            encoding="utf-8",
+        )
+
+        result = load_toml_config(config_file)
+
+        assert result == {"faster_whisper": {"model_size": "small"}}
+
     def test_directory_instead_of_file_raises_error(self, tmp_path: Path) -> None:
         """Passing a directory should raise InvalidConfigError."""
         with pytest.raises(InvalidConfigError) as exc_info:
@@ -201,6 +289,28 @@ class TestFlattenTomlSection:
 
         assert result["backend"] == "openai"
         assert result["model"] == "medium"
+
+    def test_flatten_audiocore_section(self) -> None:
+        """Documented [audiocore] wrapper should flatten to AppConfig fields."""
+        data = {
+            "audiocore": {
+                "backend": "openai",
+                "model": "large",
+                "strict_vad": True,
+            }
+        }
+        result = _flatten_toml_section(data)
+
+        assert result["backend"] == "openai"
+        assert result["model"] == "large"
+        assert result["vad.strict_vad"] is True
+
+    def test_flatten_faster_whisper_model_alias(self) -> None:
+        """Documented faster_whisper.model alias should flatten to model_size."""
+        data = {"faster_whisper": {"model": "small"}}
+        result = _flatten_toml_section(data)
+
+        assert result["faster_whisper.model_size"] == "small"
 
     def test_flatten_output_section(self) -> None:
         """Output section should flatten correctly."""

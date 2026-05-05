@@ -181,6 +181,17 @@ class TestConfigPath:
         # Should mention environment variables and config file
         assert "environment" in result.output.lower() or "env" in result.output.lower()
 
+    def test_config_path_shows_project_and_global_paths(self, monkeypatch, tmp_path) -> None:
+        """Regression: config path should show both local and global config locations."""
+        monkeypatch.chdir(tmp_path)
+
+        result = runner.invoke(app, ["path"])
+
+        assert result.exit_code == 0
+        assert "project configuration path" in result.output.lower()
+        assert "audiocore.toml" in result.output
+        assert "global" in result.output.lower()
+
 
 class TestConfigErrorHandling:
     """Test error handling in config commands."""
