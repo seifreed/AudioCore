@@ -382,7 +382,9 @@ class TestValidateSegments:
         """Empty list should pass validation."""
         validate_segments([], total_duration=10.0, config=default_config)
 
-    def test_validate_raises_for_segment_exceeding_duration(self, default_config: VADConfig) -> None:
+    def test_validate_raises_for_segment_exceeding_duration(
+        self, default_config: VADConfig
+    ) -> None:
         """Regression: segment end_time exceeding total_duration must raise.
 
         Previously, validate_segments accepted total_duration but never
@@ -472,6 +474,24 @@ class TestProcessSegments:
         """Empty VAD output should return empty list."""
         result = process_segments([], default_config, total_duration=10.0)
         assert result == []
+
+    def test_process_segments_sorts_raw_vad_output(self) -> None:
+        """Regression: unordered VAD output should not merge segments backward."""
+        config = VADConfig(
+            min_segment_duration=0.1,
+            speech_pad_ms=0,
+        )
+        vad_output = [
+            (2.0, 3.0, 0.80),
+            (0.0, 1.0, 0.90),
+        ]
+
+        result = process_segments(vad_output, config, total_duration=5.0)
+
+        assert [(segment.start_time, segment.end_time) for segment in result] == [
+            (0.0, 1.0),
+            (2.0, 3.0),
+        ]
 
     def test_process_segments_merges_short(self) -> None:
         """Should merge short segments."""

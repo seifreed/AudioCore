@@ -247,8 +247,11 @@ def process_segments(
     Returns:
         List of Segment models.
     """
-    # 1. Filter by confidence
-    segments = filter_by_confidence(vad_output, config.speech_threshold)
+    # 1. Filter by confidence and normalize to chronological order.
+    segments = sorted(
+        filter_by_confidence(vad_output, config.speech_threshold),
+        key=lambda segment: (segment[0], segment[1]),
+    )
 
     # 2. Merge short segments
     segments = merge_short_segments(segments, config)

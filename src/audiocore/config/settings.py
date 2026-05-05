@@ -196,14 +196,15 @@ class AppConfig(BaseSettings):
         """Propagate top-level openai_api_key to openai.api_key if not set.
 
         Resolves the ambiguity between AUDIOCORE_OPENAI_API_KEY (top-level)
-        and AUDIOCORE_OPENAI__API_KEY (nested). Top-level takes priority.
+        and AUDIOCORE_OPENAI__API_KEY (nested). A non-blank top-level key
+        takes priority.
 
         Returns:
             Self, after reconciliation.
         """
         if self.openai_api_key is not None:
             key_value = self.openai_api_key.get_secret_value()
-            if key_value:
+            if key_value.strip():
                 # Rebuild the openai sub-config to keep Pydantic validation intact
                 openai_data = self.openai.model_dump()
                 openai_data["api_key"] = self.openai_api_key

@@ -404,8 +404,8 @@ class SileroVAD:
                     # Already in speech: exit only when prob drops below silence_threshold
                     is_speech = speech_prob >= config.silence_threshold
                 else:
-                    # Not in speech: enter only when prob exceeds speech_threshold
-                    is_speech = speech_prob > config.speech_threshold
+                    # Not in speech: enter when prob reaches speech_threshold
+                    is_speech = speech_prob >= config.speech_threshold
 
                 # Track state transitions
                 if is_speech and not in_speech:

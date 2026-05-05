@@ -71,6 +71,9 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-v --tb=short"
 filterwarnings = ["ignore::DeprecationWarning"]
+markers = [
+    "integration: marks tests that exercise integration paths",
+]
 
 [tool.coverage.run]
 source = ["src/audiocore"]

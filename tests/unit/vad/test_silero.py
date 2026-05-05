@@ -363,9 +363,7 @@ class TestSpeechDetection:
         assert mock_model.call_count >= 1
 
     @patch("audiocore.vad.silero.SileroVAD.get_model")
-    def test_detect_audio_uses_instance_config_by_default(
-        self, mock_get_model: MagicMock
-    ) -> None:
+    def test_detect_audio_uses_instance_config_by_default(self, mock_get_model: MagicMock) -> None:
         """Regression: constructor config should apply when detect_audio config is omitted."""
         from audiocore.vad.config import VADConfig
 
@@ -546,6 +544,29 @@ class TestErrorHandling:
         assert mock_model.reset_states.call_count > first_reset_count
 
     @patch("audiocore.vad.silero.SileroVAD.get_model")
+    def test_detect_audio_enters_speech_at_threshold(self, mock_get_model: MagicMock) -> None:
+        """Regression: speech_threshold is inclusive when entering speech."""
+        from audiocore.vad.config import VADConfig
+
+        mock_model = MagicMock()
+        mock_model.return_value = torch.tensor(0.5)
+        mock_model.reset_states = MagicMock()
+        mock_get_model.return_value = mock_model
+
+        vad = SileroVAD()
+        audio = np.zeros(16000, dtype=np.float32)
+        config = VADConfig(
+            speech_threshold=0.5,
+            silence_threshold=0.3,
+            min_segment_duration=0.1,
+        )
+
+        segments = vad.detect_audio(audio, 16000, config)
+
+        assert len(segments) == 1
+        assert segments[0] == (0.0, 1.0, 0.5)
+
+    @patch("audiocore.vad.silero.SileroVAD.get_model")
     def test_detect_audio_uses_silence_threshold_for_exit(self, mock_get_model: MagicMock) -> None:
         """Regression: detect_audio should use silence_threshold for segment exit.
 
@@ -575,7 +596,9 @@ class TestErrorHandling:
         mock_model.reset_states = MagicMock()
         mock_get_model.return_value = mock_model
 
-        vad = SileroVAD(config=VADConfig(speech_threshold=0.5, silence_threshold=0.3, min_segment_duration=0.1))
+        vad = SileroVAD(
+            config=VADConfig(speech_threshold=0.5, silence_threshold=0.3, min_segment_duration=0.1)
+        )
         # Create enough audio for multiple chunks
         audio = np.random.rand(16000 * 2).astype(np.float32)
         segments = vad.detect_audio(audio, 16000)
@@ -610,12 +633,14 @@ class TestErrorHandling:
         mock_get_model.return_value = mock_model
 
         # With min_silence_duration_ms=500ms (much longer than the brief dip)
-        vad = SileroVAD(config=VADConfig(
-            speech_threshold=0.5,
-            silence_threshold=0.3,
-            min_silence_duration_ms=500,
-            min_segment_duration=0.1,
-        ))
+        vad = SileroVAD(
+            config=VADConfig(
+                speech_threshold=0.5,
+                silence_threshold=0.3,
+                min_silence_duration_ms=500,
+                min_segment_duration=0.1,
+            )
+        )
         audio = np.random.rand(16000).astype(np.float32)
         segments = vad.detect_audio(audio, 16000)
 
@@ -650,9 +675,7 @@ class TestErrorHandling:
         assert mock_model.call_count == 3
 
     @patch("audiocore.vad.silero.SileroVAD.get_model")
-    def test_detect_audio_processes_exact_multiple_length(
-        self, mock_get_model: MagicMock
-    ) -> None:
+    def test_detect_audio_processes_exact_multiple_length(self, mock_get_model: MagicMock) -> None:
         """Regression: detect_audio handles audio length that is exact multiple of chunk_size.
 
         Previously, `len(audio_data) - chunk_size + 1` could cause an off-by-one

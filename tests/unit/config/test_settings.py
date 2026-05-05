@@ -4,7 +4,6 @@ Tests environment variable loading, default values, enum coercion,
 and SecretStr masking for secure API key handling.
 """
 
-
 import pytest
 from pydantic import SecretStr, ValidationError
 
@@ -167,6 +166,16 @@ class TestSecretStrMasking:
 
         assert config.openai.api_key is not None
         assert config.openai.api_key.get_secret_value() == "sk-top-level"
+
+    def test_blank_top_level_openai_api_key_does_not_override_nested_key(self) -> None:
+        """Blank top-level key should not replace a valid nested OpenAI key."""
+        config = AppConfig(
+            openai_api_key=SecretStr("   "),
+            openai=OpenAIConfig(api_key=SecretStr("sk-nested")),
+        )
+
+        assert config.openai.api_key is not None
+        assert config.openai.api_key.get_secret_value() == "sk-nested"
 
 
 class TestInvalidEnumValues:
