@@ -135,6 +135,11 @@ class TestValidateDevice:
         device = validate_device("CUDA")
         assert device in {DEVICE_CUDA, DEVICE_MPS, DEVICE_CPU}
 
+    def test_strips_surrounding_whitespace(self) -> None:
+        """Regression: device values with incidental whitespace should parse."""
+        device = validate_device(" cpu ")
+        assert device == DEVICE_CPU
+
     def test_invalid_device_raises_error(self) -> None:
         """validate_device should raise ValueError for invalid device."""
         with pytest.raises(ValueError) as exc_info:
@@ -222,3 +227,7 @@ class TestDeviceStringNormalization:
         assert validate_device("Cuda") in {DEVICE_CUDA, DEVICE_MPS, DEVICE_CPU}
         assert validate_device("MpS") in {DEVICE_MPS, DEVICE_CPU}
         assert validate_device("CpU") == DEVICE_CPU
+
+    def test_whitespace_normalization(self) -> None:
+        """Regression: normalization should strip surrounding whitespace."""
+        assert validate_device("\tCPU\n") == DEVICE_CPU

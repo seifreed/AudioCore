@@ -5,7 +5,6 @@ This module tests that all public symbols are importable and that
 the error hierarchy is properly organized.
 """
 
-
 from audiocore import (
     AudioCoreError,
     BackendError,
@@ -236,6 +235,22 @@ class TestPublicAPIImports:
         exec("from audiocore.api import *", namespace)
 
         assert namespace["InputError"] is not None
+
+    def test_api_star_import_includes_app_config(self):
+        """Regression: AppConfig should be part of the documented API star import."""
+        namespace: dict[str, object] = {}
+
+        exec("from audiocore.api import *", namespace)
+
+        assert namespace["AppConfig"] is not None
+
+    def test_main_package_star_import_includes_app_config(self):
+        """Regression: AppConfig should be part of the documented top-level API."""
+        namespace: dict[str, object] = {}
+
+        exec("from audiocore import *", namespace)
+
+        assert namespace["AppConfig"] is not None
 
     def test_async_transcribe_importable_from_api(self):
         """Verify async_transcribe is importable from api module."""

@@ -218,13 +218,11 @@ class TestLoadConfig:
     def test_loads_toml_config(self, tmp_path: Path) -> None:
         """load_config should load TOML configuration."""
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 [backend]
 backend = "faster_whisper"
 model_size = "medium"
-"""
-        )
+""")
 
         config = load_config(config_path=config_file)
 
@@ -234,13 +232,11 @@ model_size = "medium"
     def test_env_overrides_toml(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Environment variables should override TOML config."""
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 [backend]
 backend = "faster_whisper"
 model_size = "small"
-"""
-        )
+""")
 
         monkeypatch.setenv("AUDIOCORE_BACKEND", "openai")
 
@@ -253,13 +249,11 @@ model_size = "small"
     def test_cli_overrides_all(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """CLI overrides should have highest priority."""
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 [backend]
 backend = "faster_whisper"
 model_size = "small"
-"""
-        )
+""")
 
         monkeypatch.setenv("AUDIOCORE_MODEL", "medium")
 
@@ -275,12 +269,10 @@ model_size = "small"
     def test_accepts_string_path(self, tmp_path: Path) -> None:
         """load_config should accept both Path and string paths."""
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 [backend]
 backend = "openai"
-"""
-        )
+""")
 
         # Test with string path
         config = load_config(config_path=str(config_file))
@@ -297,12 +289,10 @@ backend = "openai"
     def test_partial_toml_config(self, tmp_path: Path) -> None:
         """Partial TOML config should merge with defaults."""
         config_file = tmp_path / "partial.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 [backend]
 backend = "faster_whisper"
-"""
-        )
+""")
 
         config = load_config(config_path=config_file)
 
@@ -313,12 +303,10 @@ backend = "faster_whisper"
     def test_loads_toml_media_tool_paths(self, tmp_path: Path) -> None:
         """TOML ffmpeg/ffprobe paths should validate as AppConfig strings."""
         config_file = tmp_path / "paths.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 ffmpeg_path = "~/bin/ffmpeg"
 ffprobe_path = "~/bin/ffprobe"
-"""
-        )
+""")
 
         config = load_config(config_path=config_file)
 
@@ -328,12 +316,10 @@ ffprobe_path = "~/bin/ffprobe"
     def test_invalid_toml_value_raises_invalid_config_error(self, tmp_path: Path) -> None:
         """Regression: invalid TOML values should use AudioCore config errors."""
         config_file = tmp_path / "invalid.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 [backend]
 backend = "not_a_backend"
-"""
-        )
+""")
 
         with pytest.raises(InvalidConfigError) as exc_info:
             load_config(config_path=config_file)
@@ -350,6 +336,22 @@ backend = "not_a_backend"
             load_config(config_path=tmp_path / "missing.toml")
 
         assert "Invalid environment configuration" in str(exc_info.value)
+
+    def test_blank_env_nested_api_key_does_not_override_toml_key(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: blank env secrets must not mask lower-priority valid TOML keys."""
+        config_file = tmp_path / "openai.toml"
+        config_file.write_text("""
+[openai]
+api_key = "sk-toml-key"
+""")
+        monkeypatch.setenv("AUDIOCORE_OPENAI__API_KEY", "   ")
+
+        config = load_config(config_path=config_file)
+
+        assert config.openai.api_key is not None
+        assert config.openai.api_key.get_secret_value() == "sk-toml-key"
 
 
 class TestMergeConfigsDeepMerge:
@@ -375,7 +377,10 @@ class TestMergeConfigsDeepMerge:
 
     def test_toml_deep_merge_preserves_defaults_not_in_toml(self) -> None:
         """Deep merge should not lose defaults that aren't overridden."""
-        defaults = {"backend": "auto", "openai": {"api_key": None, "timeout": 300, "max_retries": 2}}
+        defaults = {
+            "backend": "auto",
+            "openai": {"api_key": None, "timeout": 300, "max_retries": 2},
+        }
         toml = {"openai": {"api_key": "sk-override"}}
         result = merge_configs(defaults, toml, {}, {})
 

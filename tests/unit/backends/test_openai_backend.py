@@ -779,6 +779,55 @@ class TestTranscriptionResultParsing:
         assert result.segments[0].end_time == 3.5
         assert result.segments[0].text == "Whole file transcript"
 
+    @patch("audiocore.backends.openai_backend.OpenAI")
+    def test_dict_segments_are_parsed(self, mock_openai: MagicMock, tmp_path: Path) -> None:
+        """Regression: compatible providers may return dict segments."""
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+
+        audio_file = tmp_path / "test.mp3"
+        audio_file.write_bytes(b"fake audio data")
+
+        mock_response = MagicMock()
+        mock_response.segments = [
+            {"start": 0.0, "end": 1.5, "text": "First"},
+            {"start": 1.5, "end": 2.5, "text": "Second"},
+        ]
+        mock_response.duration = 2.5
+        mock_client.audio.transcriptions.create.return_value = mock_response
+
+        backend = OpenAIBackend(api_key="sk-test123")
+        result = backend.transcribe(audio_file, TranscriptionOptions())
+
+        assert [segment.text for segment in result.segments] == ["First", "Second"]
+        assert result.media_info.duration == 2.5
+
+    @patch("audiocore.backends.openai_backend.OpenAI")
+    def test_invalid_response_duration_falls_back_to_last_segment(
+        self, mock_openai: MagicMock, tmp_path: Path
+    ) -> None:
+        """Regression: invalid response.duration must not break valid segment output."""
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+
+        audio_file = tmp_path / "test.mp3"
+        audio_file.write_bytes(b"fake audio data")
+
+        mock_seg = MagicMock()
+        mock_seg.start = 0.0
+        mock_seg.end = 4.25
+        mock_seg.text = "Valid segment"
+
+        mock_response = MagicMock()
+        mock_response.segments = [mock_seg]
+        mock_response.duration = -1.0
+        mock_client.audio.transcriptions.create.return_value = mock_response
+
+        backend = OpenAIBackend(api_key="sk-test123")
+        result = backend.transcribe(audio_file, TranscriptionOptions())
+
+        assert result.media_info.duration == 4.25
+
 
 class TestLogging:
     """Test logging behavior."""

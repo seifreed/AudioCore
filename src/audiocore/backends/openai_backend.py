@@ -17,9 +17,11 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import math
 import time
+from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from openai import (
     APIConnectionError,
@@ -62,6 +64,24 @@ if TYPE_CHECKING:
     from audiocore.config.openai_config import OpenAIConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _get_response_value(obj: object, key: str) -> object | None:
+    """Read an OpenAI response field from SDK objects or dict-compatible data."""
+    if isinstance(obj, Mapping):
+        return obj.get(key)
+    return getattr(obj, key, None)
+
+
+def _parse_positive_duration(value: object) -> float | None:
+    """Parse positive finite durations from provider responses."""
+    try:
+        duration = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(duration) or duration <= 0:
+        return None
+    return duration
 
 
 class OpenAIBackend(TranscriptionBackend):
@@ -459,20 +479,25 @@ class OpenAIBackend(TranscriptionBackend):
         try:
             # Extract segments from verbose_json response
             segments: list[Segment] = []
-            if hasattr(response, "segments") and response.segments:
-                for seg in response.segments:
+            response_segments = _get_response_value(response, "segments")
+            if response_segments:
+                for seg in cast("list[object]", response_segments):
+                    start = _get_response_value(seg, "start")
+                    end = _get_response_value(seg, "end")
+                    text = _get_response_value(seg, "text")
                     segments.append(
                         Segment(
-                            start_time=seg.start,  # type: ignore[arg-type]
-                            end_time=seg.end,  # type: ignore[arg-type]
-                            text=seg.text,  # type: ignore[arg-type]
+                            start_time=float(start),  # type: ignore[arg-type]
+                            end_time=float(end),  # type: ignore[arg-type]
+                            text=text if isinstance(text, str) else str(text or ""),
                         )
                     )
 
             # Get duration from response or calculate from last segment
             media_duration: float
-            if hasattr(response, "duration") and response.duration:
-                media_duration = response.duration
+            response_duration = _parse_positive_duration(_get_response_value(response, "duration"))
+            if response_duration is not None:
+                media_duration = response_duration
             elif segments:
                 media_duration = segments[-1].end_time
             else:
@@ -482,7 +507,7 @@ class OpenAIBackend(TranscriptionBackend):
             # Some compatible providers may return top-level text without segment
             # details even when verbose_json was requested. Preserve that text
             # instead of returning an empty transcription.
-            response_text = getattr(response, "text", None)
+            response_text = _get_response_value(response, "text")
             if not segments and isinstance(response_text, str) and response_text.strip():
                 segments.append(
                     Segment(

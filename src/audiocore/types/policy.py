@@ -32,7 +32,7 @@ class SelectionPolicy(StrEnum):
         """
         # Handle camelCase or PascalCase: insert underscore before uppercase letters
         # "PreferLocal" → "Prefer_Local", then lowercase
-        normalized = re.sub(r"([a-z])([A-Z])", r"\1_\2", value)
+        normalized = re.sub(r"([a-z])([A-Z])", r"\1_\2", value.strip())
         # Now normalize: lowercase and replace spaces/hyphens with underscores
         normalized = normalized.lower().replace("-", "_").replace(" ", "_")
 

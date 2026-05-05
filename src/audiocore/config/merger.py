@@ -288,8 +288,11 @@ def load_config(
             default_secret = (
                 default_value if isinstance(default_value, SecretStr) else SecretStr("")
             )
-            current_secret = SecretStr(current_value.get_secret_value())
-            if current_secret.get_secret_value() != default_secret.get_secret_value():
+            current_secret_value = current_value.get_secret_value()
+            if (
+                current_secret_value.strip()
+                and current_secret_value != default_secret.get_secret_value()
+            ):
                 env_values[field_name] = current_value
         elif hasattr(current_value, "model_fields") and hasattr(default_value, "model_fields"):
             # Both are Pydantic models — compare sub-fields individually
@@ -302,7 +305,11 @@ def load_config(
                     default_secret_sub = (
                         default_sub if isinstance(default_sub, SecretStr) else SecretStr("")
                     )
-                    if current_sub.get_secret_value() != default_secret_sub.get_secret_value():
+                    current_secret_sub_value = current_sub.get_secret_value()
+                    if (
+                        current_secret_sub_value.strip()
+                        and current_secret_sub_value != default_secret_sub.get_secret_value()
+                    ):
                         sub_env[sub_field_name] = current_sub
                 elif current_sub != default_sub:
                     sub_env[sub_field_name] = current_sub

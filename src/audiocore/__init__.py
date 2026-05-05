@@ -94,6 +94,7 @@ __all__ = [
     # Main functions (lazy loaded)
     "transcribe",
     "async_transcribe",
+    "AppConfig",
     # Result types
     "TranscriptionResult",
     "TranscriptionOptions",

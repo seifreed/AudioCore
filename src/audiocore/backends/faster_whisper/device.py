@@ -156,7 +156,7 @@ def validate_device(device: str) -> str:
         # Raises ValueError
     """
     # Normalize device string
-    device_lower = device.lower()
+    device_lower = device.strip().lower()
 
     # Validate device string
     valid_devices = {DEVICE_CUDA, DEVICE_MPS, DEVICE_CPU}

@@ -30,6 +30,11 @@ class TestBackendType:
         assert BackendType.parse("auto") == BackendType.AUTO
         assert BackendType.parse("AUTO") == BackendType.AUTO
 
+    def test_parse_strips_surrounding_whitespace(self) -> None:
+        """Regression: config/CLI values with incidental whitespace should parse."""
+        assert BackendType.parse(" openai ") == BackendType.OPENAI
+        assert BackendType.parse("\tfaster-whisper\n") == BackendType.FASTER_WHISPER
+
     def test_parse_invalid_value(self) -> None:
         """Test parse() raises ValueError for invalid values."""
         with pytest.raises(ValueError) as exc_info:
@@ -125,3 +130,8 @@ class TestModelSize:
         """
         assert ModelSize.parse("largeV3") == ModelSize.LARGE_V3
         assert ModelSize.parse("largeV3Turbo") == ModelSize.LARGE_V3_TURBO
+
+    def test_parse_strips_surrounding_whitespace(self) -> None:
+        """Regression: model config should tolerate incidental whitespace."""
+        assert ModelSize.parse(" small ") == ModelSize.SMALL
+        assert ModelSize.parse("\tlarge_v3_turbo\n") == ModelSize.LARGE_V3_TURBO

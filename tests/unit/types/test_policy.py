@@ -30,6 +30,11 @@ class TestSelectionPolicy:
         assert SelectionPolicy.parse("auto") == SelectionPolicy.AUTO
         assert SelectionPolicy.parse("AUTO") == SelectionPolicy.AUTO
 
+    def test_parse_strips_surrounding_whitespace(self) -> None:
+        """Regression: policy config should tolerate incidental whitespace."""
+        assert SelectionPolicy.parse(" prefer-local ") == SelectionPolicy.PREFER_LOCAL
+        assert SelectionPolicy.parse("\tPrefer Cloud\n") == SelectionPolicy.PREFER_CLOUD
+
     def test_parse_invalid_value(self) -> None:
         """Test parse() raises ValueError for invalid values."""
         with pytest.raises(ValueError) as exc_info:

@@ -62,7 +62,7 @@ class ComputeType(StrEnum):
         Raises:
             ValueError: If value is not valid
         """
-        normalized = value.lower().replace("-", "_").replace(" ", "_")
+        normalized = value.strip().lower().replace("-", "_").replace(" ", "_")
         try:
             return cls(normalized)
         except ValueError:
@@ -214,7 +214,7 @@ class FasterWhisperConfig(BaseModel):
             return v
         valid_devices = {"cuda", "mps", "cpu", "auto"}
         if isinstance(v, str):
-            normalized = v.lower()
+            normalized = v.strip().lower()
             if normalized not in valid_devices:
                 raise ValueError(
                     f"Invalid device '{v}'. Valid options: None, 'cuda', 'mps', 'cpu', 'auto'"
@@ -240,7 +240,7 @@ class FasterWhisperConfig(BaseModel):
             return v
         # Accept 2-3 char codes or BCP 47 tags (e.g., "en-US", "zh-Hans")
         if isinstance(v, str):
-            normalized = v.lower()
+            normalized = v.strip().lower()
             if not re.match(r"^[a-z]{2,3}(-[a-z]{2,8})?$", normalized):
                 raise ValueError(
                     f"Invalid language code '{v}'. Expected 2-3 character code (e.g., 'en', 'es') or BCP 47 tag (e.g., 'en-US', 'zh-Hans')"

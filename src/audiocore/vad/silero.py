@@ -428,8 +428,10 @@ class SileroVAD:
                         # Confirmed exit: silence is long enough
                         speech_duration = silence_start_time - (speech_start_time or 0.0)
 
-                        # Only record if above minimum duration
-                        if speech_duration >= config.min_segment_duration:
+                        # Keep raw speech detections. Minimum duration handling
+                        # belongs to process_segments(), where short utterances
+                        # can be merged with neighbors or preserved if orphaned.
+                        if speech_duration > 0:
                             mean_confidence = float(np.mean(chunk_confidences))
                             segments.append(
                                 (speech_start_time or 0.0, silence_start_time, mean_confidence)
@@ -446,7 +448,7 @@ class SileroVAD:
                 end_time = len(audio_data) / sample_rate
                 speech_duration = end_time - speech_start_time
 
-                if speech_duration >= config.min_segment_duration:
+                if speech_duration > 0:
                     mean_confidence = float(np.mean(chunk_confidences))
                     segments.append((speech_start_time, end_time, mean_confidence))
 

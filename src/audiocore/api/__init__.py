@@ -86,6 +86,7 @@ __all__ = [
     # Main functions
     "transcribe",
     "async_transcribe",
+    "AppConfig",
     # Result types
     "TranscriptionResult",
     "TranscriptionOptions",
@@ -135,5 +136,6 @@ def __getattr__(name: str):
     if name == "AppConfig":
         from audiocore.config import AppConfig
 
+        globals()[name] = AppConfig
         return AppConfig
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

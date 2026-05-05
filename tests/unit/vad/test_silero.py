@@ -383,6 +383,34 @@ class TestSpeechDetection:
 
         assert segments == []
 
+    @patch("audiocore.vad.silero.SileroVAD.get_model")
+    def test_detect_audio_keeps_short_raw_segments_for_postprocessing(
+        self, mock_get_model: MagicMock
+    ) -> None:
+        """Regression: raw VAD must not drop short speech before merging/padding."""
+        from audiocore.vad.config import VADConfig
+
+        mock_model = MagicMock()
+        mock_model.reset_states = MagicMock()
+        mock_model.side_effect = [
+            torch.tensor(0.9),
+            torch.tensor(0.1),
+            torch.tensor(0.1),
+            torch.tensor(0.1),
+        ]
+        mock_get_model.return_value = mock_model
+
+        vad = SileroVAD()
+        segments = vad.detect_audio(
+            np.ones(2048, dtype=np.float32),
+            16000,
+            VADConfig(min_segment_duration=0.5, min_silence_duration_ms=50),
+        )
+
+        assert len(segments) == 1
+        assert segments[0][0] == 0.0
+        assert segments[0][1] > 0.0
+
     @patch("audiocore.vad.silero.SileroVAD._load_audio")
     @patch("audiocore.vad.silero.SileroVAD.detect_audio")
     def test_detect_file_loads_and_processes_audio(

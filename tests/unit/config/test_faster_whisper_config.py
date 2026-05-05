@@ -120,6 +120,11 @@ class TestFasterWhisperConfigDeviceValidation:
         config = FasterWhisperConfig(device="CUDA")
         assert config.device == "cuda"
 
+    def test_device_strips_surrounding_whitespace(self) -> None:
+        """Regression: device config should tolerate incidental whitespace."""
+        config = FasterWhisperConfig(device=" cuda ")
+        assert config.device == "cuda"
+
     def test_invalid_device_raises_error(self) -> None:
         """Should raise ValidationError for invalid device."""
         with pytest.raises(ValidationError) as exc_info:
@@ -158,6 +163,11 @@ class TestFasterWhisperConfigComputeTypeValidation:
         config = FasterWhisperConfig(compute_type="int8_float16")
         assert config.compute_type == ComputeType.INT8_FLOAT16
 
+    def test_compute_type_strips_surrounding_whitespace(self) -> None:
+        """Regression: compute_type config should tolerate incidental whitespace."""
+        config = FasterWhisperConfig(compute_type=" int8-float16 ")
+        assert config.compute_type == ComputeType.INT8_FLOAT16
+
     def test_invalid_compute_type_raises_error(self) -> None:
         """Should raise ValidationError for invalid compute type."""
         with pytest.raises(ValidationError):
@@ -181,6 +191,11 @@ class TestFasterWhisperConfigLanguageValidation:
         """Should normalize language to lowercase."""
         config = FasterWhisperConfig(language="EN")
         assert config.language == "en"
+
+    def test_language_strips_surrounding_whitespace(self) -> None:
+        """Regression: language config should tolerate incidental whitespace."""
+        config = FasterWhisperConfig(language=" en-US ")
+        assert config.language == "en-us"
 
     def test_invalid_language_single_letter_raises_error(self) -> None:
         """Should raise ValidationError for single-letter language codes."""
