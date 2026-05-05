@@ -35,7 +35,13 @@ from rich.progress import (
 )
 
 from audiocore.config import AppConfig, load_config
-from audiocore.errors import AudioCoreError, BackendError, ConfigurationError, OutputFileExistsError
+from audiocore.errors import (
+    AudioCoreError,
+    BackendError,
+    ConfigurationError,
+    OutputDirectoryError,
+    OutputFileExistsError,
+)
 from audiocore.models import TranscriptionOptions, transcription_options_from_config
 from audiocore.parallel import FileResult, transcribe_files_concurrent
 from audiocore.pipeline import Pipeline
@@ -457,7 +463,7 @@ def _run_single_transcription(
         elif isinstance(e, BackendError):
             console.print(f"[red]Backend Error:[/red] {e}")
             exit_code = 4
-        elif isinstance(e, OutputFileExistsError):
+        elif isinstance(e, (OutputDirectoryError, OutputFileExistsError)):
             console.print(f"[red]Output Error:[/red] {e}")
             exit_code = 5
         else:
@@ -561,7 +567,7 @@ def _run_batch_transcription(
         elif isinstance(e, BackendError):
             console.print(f"[red]Backend Error:[/red] {e}")
             return 4
-        elif isinstance(e, OutputFileExistsError):
+        elif isinstance(e, (OutputDirectoryError, OutputFileExistsError)):
             console.print(f"[red]Output Error:[/red] {e}")
             return 5
         else:

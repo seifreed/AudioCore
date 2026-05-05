@@ -44,6 +44,21 @@ class TestOutputFileConfig:
         with pytest.raises(ValidationError):
             OutputFileConfig(extra="data")  # type: ignore
 
+    def test_blank_encoding_rejected(self) -> None:
+        """Regression: blank encodings should fail at config validation."""
+        with pytest.raises(ValidationError):
+            OutputFileConfig(encoding="   ")
+
+    def test_unknown_encoding_rejected(self) -> None:
+        """Regression: unknown encodings should fail before writing."""
+        with pytest.raises(ValidationError):
+            OutputFileConfig(encoding="not-a-real-codec")
+
+    def test_encoding_is_stripped(self) -> None:
+        """Surrounding whitespace in encoding names should be normalized."""
+        config = OutputFileConfig(encoding=" utf-8 ")
+        assert config.encoding == "utf-8"
+
 
 class TestWriteOutput:
     """Tests for write_output function."""

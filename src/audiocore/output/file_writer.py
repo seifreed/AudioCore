@@ -16,11 +16,12 @@ Example:
 
 from __future__ import annotations
 
+import codecs
 import sys
 import tempfile
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from audiocore.errors.output import OutputDirectoryError, OutputFileExistsError
 from audiocore.models.transcription import TranscriptionOptions, TranscriptionResult
@@ -47,6 +48,19 @@ class OutputFileConfig(BaseModel):
         default=True, description="Create parent directories if they don't exist"
     )
     encoding: str = Field(default="utf-8", description="Text encoding for file writing")
+
+    @field_validator("encoding")
+    @classmethod
+    def validate_encoding(cls, value: str) -> str:
+        """Normalize and validate text encoding names."""
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("encoding must not be empty")
+        try:
+            codecs.lookup(normalized)
+        except LookupError as e:
+            raise ValueError(f"Unknown encoding: {value}") from e
+        return normalized
 
 
 def write_output(

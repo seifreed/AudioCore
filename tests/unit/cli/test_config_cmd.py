@@ -42,6 +42,17 @@ class TestMaskApiKey:
         masked = mask_api_key("")
         assert masked == "(not set)"
 
+    def test_mask_whitespace_key(self) -> None:
+        """Regression: whitespace-only API keys should display as not set."""
+        masked = mask_api_key("   ")
+        assert masked == "(not set)"
+
+    def test_mask_strips_key_before_display(self) -> None:
+        """Regression: surrounding whitespace should not change key masking."""
+        masked = mask_api_key("  sk-1234567890abcdef  ")
+        assert masked.startswith("sk-***")
+        assert "cdef" in masked
+
     def test_mask_long_non_openai_key(self) -> None:
         """Test masking long key without sk- prefix."""
         masked = mask_api_key("abcdefghij1234567890")
@@ -70,6 +81,11 @@ class TestMaskSecretStr:
     def test_mask_none_secret(self) -> None:
         """Regression: missing SecretStr values should display as not set."""
         assert mask_secret_str(None) == "(not set)"
+
+    def test_mask_blank_secret_str(self) -> None:
+        """Regression: blank SecretStr values should display as not set."""
+        secret = SecretStr("   ")
+        assert mask_secret_str(secret) == "(not set)"
 
 
 class TestShowConfig:

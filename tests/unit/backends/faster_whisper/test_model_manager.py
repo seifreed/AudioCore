@@ -138,6 +138,37 @@ class TestModelManagerSingleton:
         ModelManager._instance = None
         ModelManager._persisted_cache_dir = None
 
+    def test_cache_dir_accepts_string_path(self, tmp_path: Path) -> None:
+        """Regression: string cache_dir values must behave like Path objects."""
+        # Reset singleton
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+
+        manager = ModelManager(cache_dir=str(tmp_path))
+
+        assert manager.cache_dir == tmp_path
+        assert manager.get_model_path("base") is None
+
+        # Cleanup
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+
+    def test_cache_dir_string_and_path_compare_equally(self, tmp_path: Path) -> None:
+        """Regression: equivalent string/Path cache dirs should not be treated as different."""
+        # Reset singleton
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+
+        manager1 = ModelManager(cache_dir=str(tmp_path))
+        manager2 = ModelManager(cache_dir=tmp_path)
+
+        assert manager1 is manager2
+        assert manager2.cache_dir == tmp_path
+
+        # Cleanup
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+
     def test_clear_resets_state(self) -> None:
         """clear() should reset singleton and allow fresh instance."""
         # Reset singleton
@@ -235,7 +266,9 @@ class TestModelManagerDownloadModel:
         manager = ModelManager(cache_dir=tmp_path)
 
         # Mock faster-whisper's downloader so the test follows the real integration point.
-        with patch("faster_whisper.utils.download_model", return_value=str(tmp_path)) as mock_download:
+        with patch(
+            "faster_whisper.utils.download_model", return_value=str(tmp_path)
+        ) as mock_download:
             result = manager.download_model("base")
 
         assert result == model_path
@@ -264,6 +297,30 @@ class TestModelManagerDownloadModel:
         result = manager.download_model("base")
 
         # Should NOT call hf_hub_download
+        assert result == model_file
+
+        # Cleanup
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+
+    def test_download_normalizes_model_alias(self, tmp_path: Path) -> None:
+        """Regression: programmatic downloads should accept ModelSize.parse aliases."""
+        # Reset singleton
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+
+        manager = ModelManager(cache_dir=tmp_path)
+
+        # Create fake cached model for canonical large-v3-turbo
+        repo_id = MODEL_REPOS["large-v3-turbo"]
+        cache_folder_name = f"models--{repo_id.replace('/', '--')}"
+        cache_path = tmp_path / cache_folder_name / "snapshots" / "abc123"
+        cache_path.mkdir(parents=True, exist_ok=True)
+        model_file = cache_path / "model.bin"
+        model_file.touch()
+
+        result = manager.download_model(" LargeV3Turbo ")
+
         assert result == model_file
 
         # Cleanup
@@ -319,9 +376,7 @@ class TestModelManagerGetModelPath:
         result = manager.get_model_path("invalid")
         assert result is None
 
-    def test_get_model_path_large_v3_turbo_uses_downloader_repo(
-        self, tmp_path: Path
-    ) -> None:
+    def test_get_model_path_large_v3_turbo_uses_downloader_repo(self, tmp_path: Path) -> None:
         """Regression: large-v3-turbo cache lookup must match faster-whisper's repo."""
         # Reset singleton
         ModelManager._instance = None
@@ -337,6 +392,29 @@ class TestModelManagerGetModelPath:
         model_file.touch()
 
         result = manager.get_model_path("large-v3-turbo")
+
+        assert result == model_file
+
+        # Cleanup
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+
+    def test_get_model_path_normalizes_model_alias(self, tmp_path: Path) -> None:
+        """Regression: cache lookup should accept case, whitespace, and underscore aliases."""
+        # Reset singleton
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+
+        manager = ModelManager(cache_dir=tmp_path)
+
+        repo_id = MODEL_REPOS["large-v3"]
+        cache_folder_name = f"models--{repo_id.replace('/', '--')}"
+        cache_path = tmp_path / cache_folder_name / "snapshots" / "abc123"
+        cache_path.mkdir(parents=True, exist_ok=True)
+        model_file = cache_path / "model.bin"
+        model_file.touch()
+
+        result = manager.get_model_path("\tlarge_v3\n")
 
         assert result == model_file
 
@@ -432,6 +510,27 @@ class TestModelManagerDeleteModel:
         ModelManager._instance = None
         ModelManager._persisted_cache_dir = None
 
+    def test_delete_normalizes_model_alias(self, tmp_path: Path) -> None:
+        """Regression: delete_model should accept the same aliases as config/CLI parsing."""
+        # Reset singleton
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+
+        manager = ModelManager(cache_dir=tmp_path)
+
+        repo_id = MODEL_REPOS["large-v3-turbo"]
+        cache_folder_name = f"models--{repo_id.replace('/', '--')}"
+        cache_path = tmp_path / cache_folder_name
+        cache_path.mkdir(parents=True, exist_ok=True)
+
+        manager.delete_model("large_v3_turbo")
+
+        assert not cache_path.exists()
+
+        # Cleanup
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+
 
 class TestModelManagerIsModelDownloaded:
     """Test ModelManager.is_model_downloaded."""
@@ -480,6 +579,26 @@ class TestModelManagerIsModelDownloaded:
         result = manager.is_model_downloaded("invalid")
         assert result is False
 
+    def test_is_model_downloaded_normalizes_model_alias(self, tmp_path: Path) -> None:
+        """Regression: is_model_downloaded should share ModelSize parsing behavior."""
+        # Reset singleton
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+
+        manager = ModelManager(cache_dir=tmp_path)
+
+        repo_id = MODEL_REPOS["large-v3-turbo"]
+        cache_folder_name = f"models--{repo_id.replace('/', '--')}"
+        cache_path = tmp_path / cache_folder_name / "snapshots" / "abc123"
+        cache_path.mkdir(parents=True, exist_ok=True)
+        (cache_path / "model.bin").touch()
+
+        assert manager.is_model_downloaded("LargeV3Turbo") is True
+
+        # Cleanup
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+
 
 class TestGetModelInfo:
     """Test get_model_info convenience function."""
@@ -495,6 +614,12 @@ class TestGetModelInfo:
         """Should return None for invalid model."""
         info = get_model_info("invalid")
         assert info is None
+
+    def test_get_model_info_normalizes_model_alias(self) -> None:
+        """Regression: get_model_info should accept the same aliases as ModelSize.parse."""
+        info = get_model_info("large_v3_turbo")
+        assert info is not None
+        assert info.name == "large-v3-turbo"
 
 
 class TestModelManagerErrorHandling:

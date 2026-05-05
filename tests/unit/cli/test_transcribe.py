@@ -297,6 +297,19 @@ class TestTranscribeErrorHandling:
 
         assert result.exit_code != 0
 
+    def test_output_directory_error_returns_output_exit_code(
+        self, audio_file: Path, mock_pipeline: MagicMock, tmp_path: Path
+    ) -> None:
+        """Regression: output path validation errors should use exit code 5."""
+        output_dir = tmp_path / "existing-dir"
+        output_dir.mkdir()
+
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file), "--output", str(output_dir)])
+
+        assert result.exit_code == 5
+        assert "Output Error" in result.output
+
     def test_processing_error(self, audio_file: Path) -> None:
         """Test processing error handling."""
         from audiocore.errors import MediaError

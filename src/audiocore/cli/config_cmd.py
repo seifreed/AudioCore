@@ -32,6 +32,9 @@ def mask_api_key(key: str | None) -> str:
     """
     if not key:
         return "(not set)"
+    key = key.strip()
+    if not key:
+        return "(not set)"
 
     # For OpenAI keys that start with "sk-"
     if key.startswith("sk-") and len(key) > 6:

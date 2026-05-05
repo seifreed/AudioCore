@@ -58,6 +58,37 @@ MODEL_SIZES_MB: dict[str, int] = {
 }
 
 
+def _normalize_cache_dir(cache_dir: Path | str | None) -> Path | None:
+    """Normalize optional cache directories to Path objects."""
+    if cache_dir is None:
+        return None
+    return Path(cache_dir).expanduser()
+
+
+def _parse_model_name(model_name: str) -> str | None:
+    """Return canonical ModelSize value, or None for invalid names."""
+    try:
+        return ModelSize.parse(model_name).value
+    except (AttributeError, ValueError):
+        return None
+
+
+def _invalid_model_error(model_name: str) -> ConfigurationError:
+    """Build a consistent invalid-model ConfigurationError."""
+    valid_models = ", ".join(sorted(MODEL_REPOS.keys()))
+    return ConfigurationError(
+        f"Invalid model name '{model_name}'",
+        context={
+            "model_name": model_name,
+            "valid_models": list(MODEL_REPOS.keys()),
+        },
+        suggestions=[
+            f"Choose a valid model: {valid_models}",
+            "Available models: tiny (75MB), base (150MB), small (500MB), medium (1.5GB), large (3GB)",
+        ],
+    )
+
+
 @dataclass
 class ModelInfo:
     """Information about a faster-whisper model.
@@ -105,7 +136,7 @@ class ModelManager:
     _lock: threading.Lock = threading.Lock()
     _persisted_cache_dir: Path | None = None
 
-    def __new__(cls, cache_dir: Path | None = None) -> ModelManager:
+    def __new__(cls, cache_dir: Path | str | None = None) -> ModelManager:
         """Create or return singleton instance.
 
         Args:
@@ -115,20 +146,23 @@ class ModelManager:
         Returns:
             ModelManager singleton instance
         """
+        requested_cache_dir = _normalize_cache_dir(cache_dir)
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
                     instance = super().__new__(cls)
-                    resolved_cache_dir = cache_dir or cls._persisted_cache_dir or DEFAULT_CACHE_DIR
+                    resolved_cache_dir = (
+                        requested_cache_dir or cls._persisted_cache_dir or DEFAULT_CACHE_DIR
+                    )
                     instance._cache_dir = resolved_cache_dir
                     cls._persisted_cache_dir = resolved_cache_dir
                     cls._instance = instance
-        elif cache_dir is not None and cache_dir != cls._instance._cache_dir:
+        elif requested_cache_dir is not None and requested_cache_dir != cls._instance._cache_dir:
             logger.warning(
                 "ModelManager singleton already initialized with cache_dir=%s. "
                 "Ignoring cache_dir=%s. Call ModelManager.clear() first to reset.",
                 cls._instance._cache_dir,
-                cache_dir,
+                requested_cache_dir,
             )
         return cls._instance
 
@@ -168,40 +202,29 @@ class ModelManager:
             >>> print(path)
             /home/user/.cache/huggingface/hub/models--guillaumekln--faster-whisper-base/...
         """
-        # Validate model name
-        if model_name not in MODEL_REPOS:
-            valid_models = ", ".join(sorted(MODEL_REPOS.keys()))
-            raise ConfigurationError(
-                f"Invalid model name '{model_name}'",
-                context={
-                    "model_name": model_name,
-                    "valid_models": list(MODEL_REPOS.keys()),
-                },
-                suggestions=[
-                    f"Choose a valid model: {valid_models}",
-                    "Available models: tiny (75MB), base (150MB), small (500MB), medium (1.5GB), large (3GB)",
-                ],
-            )
+        canonical_model_name = _parse_model_name(model_name)
+        if canonical_model_name is None:
+            raise _invalid_model_error(model_name)
 
         # Check if already downloaded
-        local_path = self.get_model_path(model_name)
+        local_path = self.get_model_path(canonical_model_name)
         if local_path is not None:
-            logger.info(f"Model {model_name} already downloaded at {local_path}")
+            logger.info(f"Model {canonical_model_name} already downloaded at {local_path}")
             return local_path
 
-        repo_id = MODEL_REPOS[model_name]
-        logger.info(f"Downloading model {model_name} from {repo_id}")
+        repo_id = MODEL_REPOS[canonical_model_name]
+        logger.info(f"Downloading model {canonical_model_name} from {repo_id}")
 
         try:
             from faster_whisper.utils import download_model as download_faster_whisper_model
 
             model_dir = Path(
-                download_faster_whisper_model(model_name, cache_dir=str(self._cache_dir))
+                download_faster_whisper_model(canonical_model_name, cache_dir=str(self._cache_dir))
             )
             model_file = model_dir / "model.bin"
             model_path = model_file if model_file.exists() else model_dir
 
-            logger.info(f"Model {model_name} downloaded to {model_path}")
+            logger.info(f"Model {canonical_model_name} downloaded to {model_path}")
             return model_path
 
         except ImportError as e:
@@ -209,7 +232,7 @@ class ModelManager:
 
             raise BackendUnavailableError(
                 "faster-whisper model download dependencies are not installed",
-                context={"model_name": model_name},
+                context={"model_name": canonical_model_name},
                 suggestions=[
                     "Install faster-whisper: pip install faster-whisper",
                     "Install huggingface-hub: pip install huggingface-hub",
@@ -218,10 +241,10 @@ class ModelManager:
         except Exception as e:
             from audiocore.errors.backend import BackendUnavailableError
 
-            logger.error(f"Failed to download model {model_name}: {e}")
+            logger.error(f"Failed to download model {canonical_model_name}: {e}")
             raise BackendUnavailableError(
-                f"Failed to download model {model_name}",
-                context={"model_name": model_name, "repo_id": repo_id, "error": str(e)},
+                f"Failed to download model {canonical_model_name}",
+                context={"model_name": canonical_model_name, "repo_id": repo_id, "error": str(e)},
                 suggestions=[
                     "Check your internet connection",
                     "Verify HuggingFace Hub is accessible",
@@ -248,11 +271,11 @@ class ModelManager:
             ... else:
             ...     print("Model not downloaded")
         """
-        # Validate model name
-        if model_name not in MODEL_REPOS:
+        canonical_model_name = _parse_model_name(model_name)
+        if canonical_model_name is None:
             return None
 
-        repo_id = MODEL_REPOS[model_name]
+        repo_id = MODEL_REPOS[canonical_model_name]
 
         # HuggingFace cache structure: models--namespace--repo_name
         cache_folder_name = f"models--{repo_id.replace('/', '--')}"
@@ -338,32 +361,26 @@ class ModelManager:
             >>> manager.delete_model("base")
             >>> # Model removed from cache
         """
-        # Validate model name
-        if model_name not in MODEL_REPOS:
-            valid_models = ", ".join(sorted(MODEL_REPOS.keys()))
-            raise ConfigurationError(
-                f"Invalid model name '{model_name}'",
-                context={
-                    "model_name": model_name,
-                    "valid_models": list(MODEL_REPOS.keys()),
-                },
-                suggestions=[
-                    f"Choose a valid model: {valid_models}",
-                    "Use list_models() to see available models",
-                ],
-            )
+        canonical_model_name = _parse_model_name(model_name)
+        if canonical_model_name is None:
+            error = _invalid_model_error(model_name)
+            error.suggestions = [
+                error.suggestions[0],
+                "Use list_models() to see available models",
+            ]
+            raise error
 
         # Get cache path
-        repo_id = MODEL_REPOS[model_name]
+        repo_id = MODEL_REPOS[canonical_model_name]
         cache_folder_name = f"models--{repo_id.replace('/', '--')}"
         cache_path = self._cache_dir / cache_folder_name
 
         if not cache_path.exists():
             raise ConfigurationError(
-                f"Model {model_name} not found in cache",
-                context={"model_name": model_name, "cache_path": str(cache_path)},
+                f"Model {canonical_model_name} not found in cache",
+                context={"model_name": canonical_model_name, "cache_path": str(cache_path)},
                 suggestions=[
-                    f"Use download_model('{model_name}') to download the model first",
+                    f"Use download_model('{canonical_model_name}') to download the model first",
                     "Use list_models() to see downloaded models",
                 ],
             )
@@ -371,12 +388,12 @@ class ModelManager:
         # Delete cache directory
         try:
             shutil.rmtree(cache_path)
-            logger.info(f"Deleted model {model_name} from cache")
+            logger.info(f"Deleted model {canonical_model_name} from cache")
         except Exception as e:
-            logger.error(f"Failed to delete model {model_name}: {e}")
+            logger.error(f"Failed to delete model {canonical_model_name}: {e}")
             raise ConfigurationError(
-                f"Failed to delete model {model_name}",
-                context={"model_name": model_name, "cache_path": str(cache_path)},
+                f"Failed to delete model {canonical_model_name}",
+                context={"model_name": canonical_model_name, "cache_path": str(cache_path)},
                 suggestions=[
                     "Check file permissions",
                     f"Manually delete: rm -rf {cache_path}",
@@ -443,14 +460,15 @@ def get_model_info(model_name: str) -> ModelInfo | None:
         >>> print(f"Model size: {info.size_mb}MB")
         Model size: 150MB
     """
-    if model_name not in MODEL_REPOS:
+    canonical_model_name = _parse_model_name(model_name)
+    if canonical_model_name is None:
         return None
 
     manager = ModelManager()
     models = manager.list_models()
 
     for model in models:
-        if model.name == model_name:
+        if model.name == canonical_model_name:
             return model
 
     return None
