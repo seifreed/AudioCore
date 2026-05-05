@@ -81,3 +81,27 @@ class OpenAIConfig(BaseModel):
         if isinstance(v, SecretStr):
             return v
         raise ValueError(f"Expected str or SecretStr for api_key, got {type(v).__name__}")
+
+    @field_validator("timeout", mode="before")
+    @classmethod
+    def coerce_timeout(cls, v: Any) -> float:
+        """Accept string timeout values from nested environment variables."""
+        if isinstance(v, bool):
+            raise ValueError("timeout must be a number")
+        if isinstance(v, int | float):
+            return float(v)
+        if isinstance(v, str):
+            return float(v.strip())
+        return v
+
+    @field_validator("max_retries", mode="before")
+    @classmethod
+    def coerce_max_retries(cls, v: Any) -> int:
+        """Accept string retry counts from nested environment variables."""
+        if isinstance(v, bool):
+            raise ValueError("max_retries must be an integer")
+        if isinstance(v, int):
+            return v
+        if isinstance(v, str):
+            return int(v.strip())
+        return v

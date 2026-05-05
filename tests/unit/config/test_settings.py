@@ -87,6 +87,70 @@ class TestEnvironmentVariableLoading:
         assert config.openai_api_key is not None
         assert config.openai_api_key.get_secret_value() == "sk-test-key-123"
 
+    def test_documented_openai_env_aliases_load_nested_config(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: documented single-underscore OpenAI env vars must work."""
+        monkeypatch.setenv("AUDIOCORE_OPENAI_TIMEOUT", "123")
+        monkeypatch.setenv("AUDIOCORE_OPENAI_MAX_RETRIES", "4")
+
+        config = AppConfig()
+
+        assert config.openai.timeout == 123
+        assert config.openai.max_retries == 4
+
+    def test_documented_faster_whisper_env_aliases_load_nested_config(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: documented Faster-Whisper env vars must configure the backend."""
+        from audiocore.config.faster_whisper_config import ComputeType
+
+        monkeypatch.setenv("AUDIOCORE_FASTER_WHISPER_MODEL", "small")
+        monkeypatch.setenv("AUDIOCORE_FASTER_WHISPER_DEVICE", "cpu")
+        monkeypatch.setenv("AUDIOCORE_FASTER_WHISPER_COMPUTE_TYPE", "float32")
+
+        config = AppConfig()
+
+        assert config.faster_whisper.model_size == ModelSize.SMALL
+        assert config.faster_whisper.device == "cpu"
+        assert config.faster_whisper.compute_type == ComputeType.FLOAT32
+
+    def test_documented_vad_env_aliases_load_nested_config(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: documented single-underscore VAD env vars must work."""
+        monkeypatch.setenv("AUDIOCORE_VAD_MIN_SEGMENT_DURATION", "0.7")
+        monkeypatch.setenv("AUDIOCORE_VAD_MAX_SEGMENT_DURATION", "45.0")
+        monkeypatch.setenv("AUDIOCORE_VAD_SPEECH_THRESHOLD", "0.6")
+        monkeypatch.setenv("AUDIOCORE_STRICT_VAD", "true")
+
+        config = AppConfig()
+
+        assert config.vad.min_segment_duration == 0.7
+        assert config.vad.max_segment_duration == 45.0
+        assert config.vad.speech_threshold == 0.6
+        assert config.vad.strict_vad is True
+
+    def test_nested_env_values_load_strict_subconfig_scalars(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: nested env vars should parse strings for strict submodels."""
+        monkeypatch.setenv("AUDIOCORE_OPENAI__TIMEOUT", "300")
+        monkeypatch.setenv("AUDIOCORE_OPENAI__MAX_RETRIES", "3")
+        monkeypatch.setenv("AUDIOCORE_FASTER_WHISPER__BEAM_SIZE", "4")
+        monkeypatch.setenv("AUDIOCORE_FASTER_WHISPER__BEST_OF", "4")
+        monkeypatch.setenv("AUDIOCORE_FASTER_WHISPER__TEMPERATURE", "0.2")
+        monkeypatch.setenv("AUDIOCORE_FASTER_WHISPER__WORD_TIMESTAMPS", "false")
+
+        config = AppConfig()
+
+        assert config.openai.timeout == 300
+        assert config.openai.max_retries == 3
+        assert config.faster_whisper.beam_size == 4
+        assert config.faster_whisper.best_of == 4
+        assert config.faster_whisper.temperature == 0.2
+        assert config.faster_whisper.word_timestamps is False
+
 
 class TestEnumTypeCoercion:
     """Test enum type coercion from string environment variables."""

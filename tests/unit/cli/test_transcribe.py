@@ -140,6 +140,20 @@ class TestTranscribeCommand:
         options = call_args[1]["options"]
         assert options.backend_preference == SelectionPolicy.PREFER_LOCAL
 
+    def test_transcribe_with_strict_vad_flag(
+        self, audio_file: Path, mock_pipeline: MagicMock
+    ) -> None:
+        """Regression: documented --strict-vad flag should set transcription options."""
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file), "--strict-vad"])
+
+        assert result.exit_code == 0
+        call_args = mock_pipeline.transcribe.call_args
+        assert call_args is not None
+        options = call_args[1]["options"]
+        assert options.strict_vad is True
+        assert "strict_vad" in options.model_fields_set
+
     def test_transcribe_uses_config_defaults_when_flags_omitted(
         self, audio_file: Path, mock_pipeline: MagicMock
     ) -> None:
@@ -558,6 +572,45 @@ class TestBatchTranscription:
 
         assert result.exit_code == 0
         assert "3 file(s)" in result.output
+
+    def test_parallel_option_is_accepted_for_documented_batch_mode(self, tmp_path: Path) -> None:
+        """Regression: documented --parallel flag should be accepted by the CLI."""
+        from audiocore.parallel.files import FileResult
+
+        files = []
+        for i in range(2):
+            audio_file = tmp_path / f"test{i}.wav"
+            audio_file.write_bytes(b"fake audio data")
+            files.append(audio_file)
+
+        mock_results = [
+            FileResult(
+                path=f,
+                success=True,
+                result=TranscriptionResult(
+                    segments=[Segment(start_time=0.0, end_time=5.0, text="test")],
+                    media_info=MediaInfo(duration=5.0, format="wav", sample_rate=16000, channels=1),
+                    config_used=TranscriptionOptions(),
+                    processing_time_seconds=2.0,
+                    backend_used=BackendType.OPENAI,
+                    formatted_output="test",
+                ),
+                error=None,
+            )
+            for f in files
+        ]
+
+        async def mock_transcribe_concurrent(*args, **kwargs):
+            return mock_results
+
+        with patch(
+            "audiocore.cli.transcribe.transcribe_files_concurrent",
+            side_effect=mock_transcribe_concurrent,
+        ):
+            result = runner.invoke(app, [str(f) for f in files] + ["--parallel"])
+
+        assert result.exit_code == 0
+        assert "2 file(s)" in result.output
 
     def test_max_workers_option(self, tmp_path: Path) -> None:
         """Test --max-workers flag limits concurrency."""

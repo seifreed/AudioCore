@@ -31,8 +31,7 @@ class TestConfigPriorityChain:
     def test_toml_only_no_env_no_cli(self, tmp_path: Path) -> None:
         """TOML values should be used when no env or CLI overrides."""
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 [backend]
 backend = "faster_whisper"
 model_size = "small"
@@ -43,8 +42,7 @@ output_format = "json"
 
 [language]
 language = "es"
-"""
-        )
+""")
 
         config = load_config(config_path=config_file)
 
@@ -57,13 +55,11 @@ language = "es"
     def test_toml_plus_env_env_wins(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Environment variables should override TOML values."""
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 [backend]
 backend = "faster_whisper"
 model_size = "small"
-"""
-        )
+""")
 
         # Set env vars to override TOML
         monkeypatch.setenv("AUDIOCORE_BACKEND", "openai")
@@ -77,18 +73,46 @@ model_size = "small"
         monkeypatch.delenv("AUDIOCORE_BACKEND")
         monkeypatch.delenv("AUDIOCORE_MODEL")
 
+    def test_documented_nested_env_aliases_override_toml(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: documented single-underscore env vars must participate in priority."""
+        from audiocore.config.faster_whisper_config import ComputeType
+
+        config_file = tmp_path / "config.toml"
+        config_file.write_text("""
+[openai]
+timeout = 30
+max_retries = 1
+
+[faster_whisper]
+compute_type = "int8"
+
+[vad]
+strict_vad = true
+""")
+
+        monkeypatch.setenv("AUDIOCORE_OPENAI_TIMEOUT", "120")
+        monkeypatch.setenv("AUDIOCORE_FASTER_WHISPER_COMPUTE_TYPE", "float32")
+        monkeypatch.setenv("AUDIOCORE_STRICT_VAD", "false")
+
+        config = load_config(config_path=config_file)
+
+        assert config.openai.timeout == 120
+        assert config.openai.max_retries == 1
+        assert config.faster_whisper.compute_type == ComputeType.FLOAT32
+        assert config.vad.strict_vad is False
+
     def test_toml_plus_env_plus_cli_cli_wins(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """CLI overrides should have highest priority."""
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 [backend]
 backend = "faster_whisper"
 model_size = "small"
-"""
-        )
+""")
 
         # Set env vars
         monkeypatch.setenv("AUDIOCORE_BACKEND", "openai")
@@ -109,6 +133,93 @@ model_size = "small"
         monkeypatch.delenv("AUDIOCORE_BACKEND")
         monkeypatch.delenv("AUDIOCORE_MODEL")
 
+    def test_cli_nested_values_override_documented_env_aliases(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: env compatibility aliases must not outrank explicit CLI values."""
+        from audiocore.config.faster_whisper_config import ComputeType
+
+        config_file = tmp_path / "config.toml"
+        config_file.write_text("""
+[openai]
+timeout = 30
+
+[faster_whisper]
+compute_type = "int8"
+
+[vad]
+strict_vad = false
+""")
+
+        monkeypatch.setenv("AUDIOCORE_OPENAI_TIMEOUT", "120")
+        monkeypatch.setenv("AUDIOCORE_FASTER_WHISPER_COMPUTE_TYPE", "float32")
+        monkeypatch.setenv("AUDIOCORE_STRICT_VAD", "true")
+
+        config = load_config(
+            config_path=config_file,
+            cli_overrides={
+                "openai": {"timeout": 240},
+                "faster_whisper": {"compute_type": "float16"},
+                "vad": {"strict_vad": False},
+            },
+        )
+
+        assert config.openai.timeout == 240
+        assert config.faster_whisper.compute_type == ComputeType.FLOAT16
+        assert config.vad.strict_vad is False
+
+        monkeypatch.delenv("AUDIOCORE_OPENAI_TIMEOUT")
+        monkeypatch.delenv("AUDIOCORE_FASTER_WHISPER_COMPUTE_TYPE")
+        monkeypatch.delenv("AUDIOCORE_STRICT_VAD")
+
+    def test_env_values_equal_to_defaults_still_override_toml(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: explicit env defaults still have higher priority than TOML."""
+        config_file = tmp_path / "config.toml"
+        config_file.write_text("""
+[backend]
+backend = "openai"
+
+[openai]
+timeout = 30
+""")
+
+        monkeypatch.setenv("AUDIOCORE_BACKEND", "auto")
+        monkeypatch.setenv("AUDIOCORE_OPENAI__TIMEOUT", "300")
+
+        config = load_config(config_path=config_file)
+
+        assert config.backend == BackendType.AUTO
+        assert config.openai.timeout == 300
+
+        monkeypatch.delenv("AUDIOCORE_BACKEND")
+        monkeypatch.delenv("AUDIOCORE_OPENAI__TIMEOUT")
+
+    def test_nested_openai_api_key_priority_preserves_public_alias(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: canonical API key priority should keep openai_api_key in sync."""
+        config_file = tmp_path / "config.toml"
+        config_file.write_text("""
+[audiocore]
+openai_api_key = "sk-toml-key"
+""")
+
+        monkeypatch.setenv("AUDIOCORE_OPENAI_API_KEY", "sk-env-key")
+
+        config = load_config(
+            config_path=config_file,
+            cli_overrides={"openai": {"api_key": "sk-cli-key"}},
+        )
+
+        assert config.openai.api_key is not None
+        assert config.openai_api_key is not None
+        assert config.openai.api_key.get_secret_value() == "sk-cli-key"
+        assert config.openai_api_key.get_secret_value() == "sk-cli-key"
+
+        monkeypatch.delenv("AUDIOCORE_OPENAI_API_KEY")
+
     def test_missing_toml_file_uses_defaults(self, tmp_path: Path) -> None:
         """Missing TOML file should return defaults (not error)."""
         nonexistent = tmp_path / "nonexistent.toml"
@@ -122,8 +233,7 @@ model_size = "small"
     ) -> None:
         """Test all combinations of priority chain."""
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 [backend]
 backend = "faster_whisper"
 model_size = "small"
@@ -133,8 +243,7 @@ output_format = "json"
 
 [language]
 language = "fr"
-"""
-        )
+""")
 
         # Test 1: TOML only
         config = load_config(config_path=config_file)
@@ -200,12 +309,10 @@ class TestAPIKeyMasking:
         from unittest.mock import patch
 
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 [backend]
 backend = "openai"
-"""
-        )
+""")
 
         monkeypatch.setenv("AUDIOCORE_OPENAI_API_KEY", "sk-very-secret-key")
 
@@ -232,12 +339,10 @@ class TestConfigSourceTracking:
         from unittest.mock import patch
 
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 [backend]
 backend = "faster_whisper"
-"""
-        )
+""")
 
         with patch.object(logging.getLogger("audiocore.config.merger"), "debug") as mock_debug:
             load_config(config_path=config_file)
@@ -284,12 +389,10 @@ class TestEdgeCases:
     ) -> None:
         """Partial TOML with env override should merge correctly."""
         config_file = tmp_path / "partial.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 [backend]
 backend = "faster_whisper"
-"""
-        )
+""")
 
         # Override only model_size via env
         monkeypatch.setenv("AUDIOCORE_MODEL", "large")
@@ -306,8 +409,7 @@ backend = "faster_whisper"
     ) -> None:
         """Multiple fields from different sources should merge correctly."""
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 [backend]
 backend = "faster_whisper"
 model_size = "small"
@@ -317,8 +419,7 @@ output_format = "json"
 
 [language]
 language = "de"
-"""
-        )
+""")
 
         # Set some env overrides
         monkeypatch.setenv("AUDIOCORE_MODEL", "medium")
@@ -340,12 +441,10 @@ language = "de"
     def test_cli_model_size_to_model_mapping(self, tmp_path: Path) -> None:
         """CLI model_size should map to model field in AppConfig."""
         config_file = tmp_path / "config.toml"
-        config_file.write_text(
-            """
+        config_file.write_text("""
 [backend]
 model_size = "small"
-"""
-        )
+""")
 
         config = load_config(config_path=config_file, cli_overrides={"model_size": "large"})
 

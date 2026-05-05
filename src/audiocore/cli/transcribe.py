@@ -236,6 +236,13 @@ def transcribe(
             dir_okay=True,
         ),
     ] = None,
+    parallel: Annotated[
+        bool,
+        typer.Option(
+            "--parallel",
+            help="Enable batch mode for multiple input files. Multiple inputs already use batch mode.",
+        ),
+    ] = False,
     max_workers: Annotated[
         int,
         typer.Option(
@@ -246,6 +253,13 @@ def transcribe(
             max=32,
         ),
     ] = 4,
+    strict_vad: Annotated[
+        bool,
+        typer.Option(
+            "--strict-vad",
+            help="Fail if VAD processing fails instead of falling back to whole-file transcription.",
+        ),
+    ] = False,
 ) -> None:
     """Transcribe one or more audio/video files.
 
@@ -327,9 +341,11 @@ def transcribe(
         output_format=output_format_override,
         backend_preference=backend_preference_override,
     )
+    if strict_vad:
+        options = options.model_copy(update={"strict_vad": True})
 
     # Determine batch mode
-    is_batch_mode = len(input_files) > 1
+    is_batch_mode = len(input_files) > 1 or (parallel and len(input_files) > 1)
 
     if is_batch_mode:
         # Batch mode: process multiple files concurrently

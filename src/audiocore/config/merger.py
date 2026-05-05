@@ -7,10 +7,11 @@ Also provides load_config convenience function that loads from all sources
 and returns a merged AppConfig instance.
 """
 
+import os
 from pathlib import Path
 from typing import Any
 
-from pydantic import SecretStr, ValidationError
+from pydantic import BaseModel, SecretStr, ValidationError
 from pydantic_core import PydanticUndefined
 
 from audiocore.config.settings import AppConfig
@@ -18,6 +19,28 @@ from audiocore.config.toml_loader import load_toml_config
 from audiocore.errors import InvalidConfigError
 
 _SENSITIVE_KEY_PATTERNS = ("api_key", "secret", "password", "token")
+_ENV_COMPATIBILITY_ALIAS_FIELDS = {
+    "openai_timeout",
+    "openai_max_retries",
+    "faster_whisper_model",
+    "faster_whisper_device",
+    "faster_whisper_compute_type",
+    "vad_min_segment_duration",
+    "vad_max_segment_duration",
+    "vad_speech_threshold",
+    "strict_vad",
+}
+_ENV_COMPATIBILITY_ALIAS_TARGETS = {
+    "openai_timeout": ("openai", "timeout"),
+    "openai_max_retries": ("openai", "max_retries"),
+    "faster_whisper_model": ("faster_whisper", "model_size"),
+    "faster_whisper_device": ("faster_whisper", "device"),
+    "faster_whisper_compute_type": ("faster_whisper", "compute_type"),
+    "vad_min_segment_duration": ("vad", "min_segment_duration"),
+    "vad_max_segment_duration": ("vad", "max_segment_duration"),
+    "vad_speech_threshold": ("vad", "speech_threshold"),
+    "strict_vad": ("vad", "strict_vad"),
+}
 
 
 def _get_defaults() -> dict[str, Any]:
@@ -85,6 +108,54 @@ def mask_secrets(config_dict: dict[str, Any]) -> dict[str, Any]:
         else:
             result[key] = value
 
+    return result
+
+
+def _has_non_blank_secret(value: Any) -> bool:
+    """Return whether a plain or SecretStr config value contains useful text."""
+    if isinstance(value, SecretStr):
+        return bool(value.get_secret_value().strip())
+    if isinstance(value, str):
+        return bool(value.strip())
+    return value is not None
+
+
+def _canonicalize_openai_api_key(config: dict[str, Any]) -> dict[str, Any]:
+    """Move top-level OpenAI API key input into the canonical nested model.
+
+    AppConfig accepts openai_api_key as a compatibility input, but load_config
+    merges multiple priority layers. Canonicalizing each source separately avoids
+    a lower-priority top-level key overwriting a higher-priority nested key in
+    AppConfig's final reconciliation step.
+    """
+    result = dict(config)
+    api_key = result.pop("openai_api_key", None)
+    if not _has_non_blank_secret(api_key):
+        return result
+
+    openai_value = result.get("openai")
+    if isinstance(openai_value, dict):
+        openai_data = dict(openai_value)
+    elif isinstance(openai_value, BaseModel):
+        openai_data = openai_value.model_dump()
+    else:
+        openai_data = {}
+
+    openai_data["api_key"] = api_key
+    result["openai"] = openai_data
+    return result
+
+
+def _mirror_openai_api_key(config: dict[str, Any]) -> dict[str, Any]:
+    """Reflect the canonical nested OpenAI key back to the public alias field."""
+    result = dict(config)
+    openai_value = result.get("openai")
+    if not isinstance(openai_value, dict):
+        return result
+
+    api_key = openai_value.get("api_key")
+    if _has_non_blank_secret(api_key):
+        result["openai_api_key"] = api_key
     return result
 
 
@@ -273,12 +344,36 @@ def load_config(
             cause=e,
         ) from e
 
-    # Extract field values that would come from env (non-default values)
-    # Compare against defaults to identify env overrides.
+    # Extract field values that would come from env. Environment presence matters
+    # even when the supplied value equals a code default, because env must still
+    # override TOML in the documented priority chain.
+    env_keys = {key.upper() for key in os.environ}
+
+    def _env_present(env_name: str) -> bool:
+        return env_name.upper() in env_keys
+
+    def _top_level_env_present(field_name: str) -> bool:
+        return _env_present(f"AUDIOCORE_{field_name.upper()}")
+
+    def _nested_env_present(field_name: str, sub_field_name: str) -> bool:
+        return _env_present(f"AUDIOCORE_{field_name.upper()}__{sub_field_name.upper()}")
+
+    def _compatibility_alias_present(field_name: str, sub_field_name: str) -> bool:
+        target = (field_name, sub_field_name)
+        return any(
+            alias_target == target and _top_level_env_present(alias_field)
+            for alias_field, alias_target in _ENV_COMPATIBILITY_ALIAS_TARGETS.items()
+        )
+
     # For sub-models (like `openai`, `vad`), compare each sub-field individually
     # to avoid false positives from object identity comparison.
     env_values: dict[str, Any] = {}
     for field_name in AppConfig.model_fields:
+        if field_name in _ENV_COMPATIBILITY_ALIAS_FIELDS:
+            # AppConfig reconciles documented single-underscore env aliases into
+            # their nested models. Keeping the alias fields as separate env values
+            # would let them override higher-priority nested CLI values later.
+            continue
         default_value = defaults.get(field_name)
         current_value = getattr(env_config_instance, field_name)
 
@@ -289,9 +384,9 @@ def load_config(
                 default_value if isinstance(default_value, SecretStr) else SecretStr("")
             )
             current_secret_value = current_value.get_secret_value()
-            if (
-                current_secret_value.strip()
-                and current_secret_value != default_secret.get_secret_value()
+            if current_secret_value.strip() and (
+                _top_level_env_present(field_name)
+                or current_secret_value != default_secret.get_secret_value()
             ):
                 env_values[field_name] = current_value
         elif hasattr(current_value, "model_fields") and hasattr(default_value, "model_fields"):
@@ -300,22 +395,25 @@ def load_config(
             for sub_field_name in current_value.model_fields:
                 current_sub = getattr(current_value, sub_field_name)
                 default_sub = getattr(default_value, sub_field_name, None)
+                sub_env_present = _nested_env_present(
+                    field_name, sub_field_name
+                ) or _compatibility_alias_present(field_name, sub_field_name)
                 # For SecretStr sub-fields, compare secret values
                 if isinstance(current_sub, SecretStr):
                     default_secret_sub = (
                         default_sub if isinstance(default_sub, SecretStr) else SecretStr("")
                     )
                     current_secret_sub_value = current_sub.get_secret_value()
-                    if (
-                        current_secret_sub_value.strip()
-                        and current_secret_sub_value != default_secret_sub.get_secret_value()
+                    if current_secret_sub_value.strip() and (
+                        sub_env_present
+                        or current_secret_sub_value != default_secret_sub.get_secret_value()
                     ):
                         sub_env[sub_field_name] = current_sub
-                elif current_sub != default_sub:
+                elif sub_env_present or current_sub != default_sub:
                     sub_env[sub_field_name] = current_sub
             if sub_env:
                 env_values[field_name] = sub_env
-        elif current_value != default_value:
+        elif _top_level_env_present(field_name) or current_value != default_value:
             env_values[field_name] = current_value
 
     # 5. CLI overrides (highest priority)
@@ -327,8 +425,13 @@ def load_config(
             actual_key = field_aliases.get(key, key)
             cli_config[actual_key] = value
 
+    toml_config = _canonicalize_openai_api_key(toml_config)
+    env_values = _canonicalize_openai_api_key(env_values)
+    cli_config = _canonicalize_openai_api_key(cli_config)
+
     # 6. Merge all sources
     merged = merge_configs(defaults, toml_config, env_values, cli_config)
+    merged = _mirror_openai_api_key(merged)
 
     # 7. Log configuration sources at DEBUG level
     # Never log API keys in plain text

@@ -158,6 +158,11 @@ class TestFasterWhisperConfigComputeTypeValidation:
         config = FasterWhisperConfig(compute_type="float16")
         assert config.compute_type == ComputeType.FLOAT16
 
+    def test_valid_compute_type_float32(self) -> None:
+        """Regression: documented CTranslate2 float32 compute type should be accepted."""
+        config = FasterWhisperConfig(compute_type="float32")
+        assert config.compute_type == ComputeType.FLOAT32
+
     def test_valid_compute_type_int8_float16(self) -> None:
         """Should accept INT8_FLOAT16 compute type."""
         config = FasterWhisperConfig(compute_type="int8_float16")

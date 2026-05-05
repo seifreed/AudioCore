@@ -40,12 +40,14 @@ class ComputeType(StrEnum):
     Options:
         DEFAULT: Default float32 precision
         INT8: 8-bit quantization (faster, less memory)
+        FLOAT32: 32-bit floating point
         FLOAT16: 16-bit floating point (faster on GPU)
         INT8_FLOAT16: Mixed precision 8-bit + float16
     """
 
     DEFAULT = "default"
     INT8 = "int8"
+    FLOAT32 = "float32"
     FLOAT16 = "float16"
     INT8_FLOAT16 = "int8_float16"
 
@@ -287,6 +289,51 @@ class FasterWhisperConfig(BaseModel):
         if isinstance(v, str):
             return ModelSize.parse(v)
         raise ValueError(f"Invalid model size: {v}")
+
+    @field_validator("beam_size", "best_of", mode="before")
+    @classmethod
+    def coerce_int_values(cls, v: Any) -> int:
+        """Accept integer strings from nested environment variables."""
+        if isinstance(v, bool):
+            raise ValueError("Expected integer value")
+        if isinstance(v, int):
+            return v
+        if isinstance(v, str):
+            return int(v.strip())
+        return v
+
+    @field_validator(
+        "patience",
+        "temperature",
+        "compression_ratio_threshold",
+        "log_prob_threshold",
+        "no_speech_threshold",
+        mode="before",
+    )
+    @classmethod
+    def coerce_float_values(cls, v: Any) -> float:
+        """Accept numeric strings from nested environment variables."""
+        if isinstance(v, bool):
+            raise ValueError("Expected numeric value")
+        if isinstance(v, int | float):
+            return float(v)
+        if isinstance(v, str):
+            return float(v.strip())
+        return v
+
+    @field_validator("condition_on_previous_text", "word_timestamps", "vad_filter", mode="before")
+    @classmethod
+    def coerce_bool_values(cls, v: Any) -> bool:
+        """Accept boolean strings from nested environment variables."""
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            normalized = v.strip().lower()
+            if normalized in {"1", "true", "yes", "on"}:
+                return True
+            if normalized in {"0", "false", "no", "off"}:
+                return False
+        return v
 
     @model_validator(mode="after")
     def validate_beam_search(self) -> Self:

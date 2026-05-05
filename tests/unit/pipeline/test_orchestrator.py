@@ -1479,7 +1479,7 @@ class TestOutputFormatting:
 
         vad_config = VADConfig(strict_vad=True)
         config = AppConfig(vad=vad_config)
-        options = TranscriptionOptions(strict_vad=False)
+        options = TranscriptionOptions()
         pipeline = Pipeline(config=config)
 
         with patch("audiocore.pipeline.orchestrator.validate_format_or_raise"):
@@ -1491,3 +1491,27 @@ class TestOutputFormatting:
                     ):
                         with pytest.raises(VADError):
                             pipeline.transcribe(Path("audio.mp3"), options=options)
+
+    def test_options_strict_vad_false_overrides_config_strict_vad(
+        self, mock_media_info, mock_transcription_result, mock_backend
+    ):
+        """Regression: explicit request options should outrank config strict_vad."""
+        from audiocore.errors import VADError
+        from audiocore.vad.config import VADConfig
+
+        config = AppConfig(vad=VADConfig(strict_vad=True))
+        options = TranscriptionOptions(strict_vad=False)
+        pipeline = Pipeline(config=config)
+        pipeline._registry.get_backend = MagicMock(return_value=mock_backend)
+        pipeline._selector.select = MagicMock(return_value=BackendType.OPENAI)
+
+        with patch("audiocore.pipeline.orchestrator.validate_format_or_raise"):
+            with patch("audiocore.pipeline.orchestrator.probe", return_value=mock_media_info):
+                with patch("audiocore.pipeline.orchestrator.extract_audio"):
+                    with patch(
+                        "audiocore.pipeline.orchestrator.detect_speech",
+                        side_effect=VADError("VAD failed"),
+                    ):
+                        result = pipeline.transcribe(Path("audio.mp3"), options=options)
+
+        assert result == mock_transcription_result
