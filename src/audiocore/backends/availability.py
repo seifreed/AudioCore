@@ -119,8 +119,9 @@ class BackendAvailabilityChecker:
         """Get OpenAI API key from config or environment."""
         if self.config.openai and self.config.openai.api_key:
             key = self.config.openai.api_key.get_secret_value()
-            return key if key else None
+            return key if key.strip() else None
 
         import os
 
-        return os.environ.get("OPENAI_API_KEY") or os.environ.get("AUDIOCORE_OPENAI_API_KEY")
+        key = os.environ.get("OPENAI_API_KEY") or os.environ.get("AUDIOCORE_OPENAI_API_KEY")
+        return key if key and key.strip() else None

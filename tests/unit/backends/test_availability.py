@@ -108,6 +108,25 @@ class TestBackendAvailabilityChecker:
         assert "API key not configured" in status.reason
         assert "OPENAI_API_KEY" in status.suggestion
 
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "   "}, clear=True)
+    def test_check_openai_treats_blank_env_key_as_missing(self):
+        """Regression: whitespace-only env keys should not make OpenAI available."""
+        checker = BackendAvailabilityChecker()
+        status = checker.check_backend(BackendType.OPENAI)
+
+        assert status.available is False
+        assert "API key not configured" in status.reason
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_check_openai_treats_blank_config_key_as_missing(self):
+        """Regression: whitespace-only config keys should not make OpenAI available."""
+        config = AppConfig(openai=OpenAIConfig(api_key=SecretStr("   ")))
+        checker = BackendAvailabilityChecker(config=config)
+        status = checker.check_backend(BackendType.OPENAI)
+
+        assert status.available is False
+        assert "API key not configured" in status.reason
+
     def test_check_faster_whisper_installed(self):
         """Test faster-whisper availability when installed."""
         mock_fw = MagicMock()

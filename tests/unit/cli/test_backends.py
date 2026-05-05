@@ -133,6 +133,36 @@ class TestCheckBackends:
         assert "openai" in result.output.lower()
 
 
+class TestBackendConfigErrorHandling:
+    """Regression tests for backend CLI configuration errors."""
+
+    def test_list_backends_handles_config_error(self) -> None:
+        """list should report configuration failures instead of leaking exceptions."""
+        from audiocore.errors import InvalidConfigError
+
+        with patch(
+            "audiocore.cli.backends.load_config",
+            side_effect=InvalidConfigError("Invalid config"),
+        ):
+            result = runner.invoke(app, ["list"])
+
+        assert result.exit_code == 2
+        assert "configuration error" in result.output.lower()
+
+    def test_check_backends_handles_config_error(self) -> None:
+        """check should report configuration failures instead of leaking exceptions."""
+        from audiocore.errors import InvalidConfigError
+
+        with patch(
+            "audiocore.cli.backends.load_config",
+            side_effect=InvalidConfigError("Invalid config"),
+        ):
+            result = runner.invoke(app, ["check"])
+
+        assert result.exit_code == 2
+        assert "configuration error" in result.output.lower()
+
+
 class TestBackendStatus:
     """Test backend status dataclass."""
 

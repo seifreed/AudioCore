@@ -4,7 +4,6 @@ This module provides functions to extract metadata from audio/video files
 using ffprobe (part of ffmpeg).
 """
 
-import contextlib
 import json
 import math
 import subprocess
@@ -77,6 +76,15 @@ def _parse_duration(value: object) -> float | None:
     if not math.isfinite(duration):
         return None
     return duration if duration > 0 else None
+
+
+def _parse_positive_int(value: object) -> int | None:
+    """Parse a positive integer metadata value, returning None for invalid values."""
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
 
 
 def probe(
@@ -227,11 +235,9 @@ def probe(
     stream = audio_streams[0]
     codec = stream.get("codec_name")
     if "sample_rate" in stream:
-        with contextlib.suppress(ValueError, TypeError):
-            sample_rate = int(stream["sample_rate"])
+        sample_rate = _parse_positive_int(stream["sample_rate"])
     if "channels" in stream:
-        with contextlib.suppress(ValueError, TypeError):
-            channels = int(stream["channels"])
+        channels = _parse_positive_int(stream["channels"])
 
     return MediaInfo(
         duration=duration,

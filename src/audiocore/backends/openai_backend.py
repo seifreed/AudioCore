@@ -210,7 +210,7 @@ class OpenAIBackend(TranscriptionBackend):
                     "AUDIOCORE_OPENAI_API_KEY"
                 )
 
-            if not api_key:
+            if api_key is None or not api_key.strip():
                 raise BackendUnavailableError(
                     "OpenAI API key not configured",
                     context={"backend": "openai"},

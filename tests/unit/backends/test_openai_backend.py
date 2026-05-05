@@ -526,6 +526,23 @@ class TestBackendUnavailable:
             assert exc_info.value.error_code == "AUD-201"
             assert "not configured" in str(exc_info.value).lower()
 
+    @patch("audiocore.backends.openai_backend.OpenAI")
+    def test_transcribe_with_blank_api_key_raises_unavailable(
+        self, mock_openai: MagicMock, tmp_path: Path
+    ) -> None:
+        """Regression: whitespace-only API keys should not create OpenAI clients."""
+        backend = OpenAIBackend(api_key="   ")
+        options = TranscriptionOptions()
+
+        audio_file = tmp_path / "test.mp3"
+        audio_file.write_bytes(b"fake audio data")
+
+        with pytest.raises(BackendUnavailableError) as exc_info:
+            backend.transcribe(audio_file, options)
+
+        assert "not configured" in str(exc_info.value).lower()
+        mock_openai.assert_not_called()
+
 
 class TestFileHandling:
     """Test file handling behavior."""

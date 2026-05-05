@@ -71,9 +71,9 @@ def register_subcommands() -> None:
     from audiocore.cli.backends import app as backends_app
     from audiocore.cli.config_cmd import app as config_app
     from audiocore.cli.models import app as models_app
-    from audiocore.cli.transcribe import app as transcribe_app
+    from audiocore.cli.transcribe import transcribe as transcribe_command
 
-    app.add_typer(transcribe_app, name="transcribe")
+    app.command(name="transcribe")(transcribe_command)
     app.add_typer(backends_app, name="backends")
     app.add_typer(models_app, name="models")
     app.add_typer(config_app, name="config")

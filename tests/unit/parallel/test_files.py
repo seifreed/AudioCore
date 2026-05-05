@@ -428,6 +428,27 @@ class TestTranscribeFilesConcurrentErrors:
                     cancellation_token=token,
                 )
 
+    @pytest.mark.asyncio
+    async def test_asyncio_cancelled_error_propagates_even_with_continue_on_error(
+        self,
+        tmp_path: Path,
+        transcription_options: TranscriptionOptions,
+    ) -> None:
+        """Regression: asyncio task cancellation should not become a file failure."""
+        audio_file = tmp_path / "test.wav"
+        audio_file.write_bytes(b"fake audio")
+
+        with patch("audiocore.parallel.files.transcribe") as mock_transcribe:
+            mock_transcribe.side_effect = asyncio.CancelledError()
+
+            with pytest.raises(asyncio.CancelledError):
+                await transcribe_files_concurrent(
+                    files=[audio_file],
+                    options=transcription_options,
+                    max_workers=1,
+                    continue_on_error=True,
+                )
+
 
 class TestAsyncioIntegration:
     """Test asyncio integration for concurrent processing."""

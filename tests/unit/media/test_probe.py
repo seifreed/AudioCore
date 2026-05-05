@@ -451,6 +451,35 @@ class TestProbe:
         assert result.sample_rate is None  # Invalid value should be None
         assert result.channels is None  # Invalid value should be None
 
+    @patch("audiocore.media.probe.subprocess.run")
+    def test_probe_handles_non_positive_sample_rate_and_channels(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        """Regression: non-positive ffprobe values should not leak ValidationError."""
+        test_file = tmp_path / "test.mp3"
+        test_file.write_text("fake audio")
+
+        ffprobe_output = {
+            "format": {"duration": "10.0", "format_name": "mp3"},
+            "streams": [
+                {
+                    "codec_type": "audio",
+                    "codec_name": "mp3",
+                    "sample_rate": "0",
+                    "channels": "-1",
+                }
+            ],
+        }
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout=json.dumps(ffprobe_output), stderr=""
+        )
+
+        result = probe(test_file)
+
+        assert result.duration == 10.0
+        assert result.sample_rate is None
+        assert result.channels is None
+
 
 class TestProbeCommand:
     """Tests for ffprobe command construction."""

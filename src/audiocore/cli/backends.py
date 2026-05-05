@@ -17,9 +17,19 @@ from rich.table import Table
 
 from audiocore.backends.availability import BackendAvailabilityChecker
 from audiocore.config.merger import load_config
+from audiocore.errors import ConfigurationError
 
 app = typer.Typer(help="Manage and check backend availability")
 console = Console()
+
+
+def _load_config_or_exit():
+    """Load configuration for backend commands, exiting cleanly on config errors."""
+    try:
+        return load_config()
+    except ConfigurationError as e:
+        console.print(f"[red]Configuration Error:[/red] {e}")
+        raise typer.Exit(2) from None
 
 
 @app.command("list")
@@ -32,7 +42,7 @@ def list_backends() -> None:
     Example:
         >>> audiocore backends list
     """
-    config = load_config()
+    config = _load_config_or_exit()
     checker = BackendAvailabilityChecker(config)
 
     statuses = checker.check_all()
@@ -75,7 +85,7 @@ def check_backends() -> None:
         >>> audiocore backends check
         >>> echo $?  # 0 if available, 1 if not
     """
-    config = load_config()
+    config = _load_config_or_exit()
     checker = BackendAvailabilityChecker(config)
 
     statuses = checker.check_all()
