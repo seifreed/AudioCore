@@ -40,6 +40,14 @@ class TestOpenAIConfigDefaults:
         config = OpenAIConfig()
         assert config.max_retries == 2
 
+    def test_default_upload_chunk_limits(self) -> None:
+        """Default OpenAI chunking limits should stay below the API upload cap."""
+        config = OpenAIConfig()
+        assert config.max_upload_size_mb == 25
+        assert config.chunk_target_size_mb == 24
+        assert config.chunk_min_duration_seconds == 30
+        assert config.chunk_prompt_chars == 1000
+
 
 class TestOpenAIConfigSecretStr:
     """Test SecretStr handling for API key."""
@@ -115,6 +123,25 @@ class TestOpenAIConfigValidation:
         with pytest.raises(ValidationError):
             OpenAIConfig(max_retries=11)
 
+    def test_chunk_target_must_be_below_upload_limit(self) -> None:
+        """Chunk target needs a safety margin below the upload limit."""
+        with pytest.raises(ValidationError):
+            OpenAIConfig(max_upload_size_mb=25, chunk_target_size_mb=25)
+
+    def test_chunking_values_accept_env_strings(self) -> None:
+        """Nested env/TOML strings should coerce into numeric chunking fields."""
+        config = OpenAIConfig(
+            max_upload_size_mb="30",
+            chunk_target_size_mb="29",
+            chunk_min_duration_seconds="45",
+            chunk_prompt_chars="500",
+        )
+
+        assert config.max_upload_size_mb == 30
+        assert config.chunk_target_size_mb == 29
+        assert config.chunk_min_duration_seconds == 45
+        assert config.chunk_prompt_chars == 500
+
     def test_extra_fields_forbidden(self) -> None:
         """Additional fields should be rejected."""
         with pytest.raises(ValidationError):
@@ -167,6 +194,20 @@ class TestAppConfigOpenAIIntegration:
         assert config.openai.api_key.get_secret_value() == "sk-custom-key"
         assert config.openai.timeout == 600
         assert config.openai.max_retries == 5
+
+    def test_appconfig_openai_chunking_aliases(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Documented single-underscore env aliases should configure chunking."""
+        monkeypatch.setenv("AUDIOCORE_OPENAI_MAX_UPLOAD_SIZE_MB", "30")
+        monkeypatch.setenv("AUDIOCORE_OPENAI_CHUNK_TARGET_SIZE_MB", "29")
+        monkeypatch.setenv("AUDIOCORE_OPENAI_CHUNK_MIN_DURATION_SECONDS", "60")
+        monkeypatch.setenv("AUDIOCORE_OPENAI_CHUNK_PROMPT_CHARS", "750")
+
+        config = AppConfig()
+
+        assert config.openai.max_upload_size_mb == 30
+        assert config.openai.chunk_target_size_mb == 29
+        assert config.openai.chunk_min_duration_seconds == 60
+        assert config.openai.chunk_prompt_chars == 750
 
 
 class TestOpenAIBackendConfigIntegration:

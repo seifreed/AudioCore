@@ -63,6 +63,30 @@ class AppConfig(BaseSettings):
         repr=False,
         description="Compatibility alias for AUDIOCORE_OPENAI_MAX_RETRIES.",
     )
+    openai_max_upload_size_mb: float | None = Field(
+        default=None,
+        exclude=True,
+        repr=False,
+        description="Compatibility alias for AUDIOCORE_OPENAI_MAX_UPLOAD_SIZE_MB.",
+    )
+    openai_chunk_target_size_mb: float | None = Field(
+        default=None,
+        exclude=True,
+        repr=False,
+        description="Compatibility alias for AUDIOCORE_OPENAI_CHUNK_TARGET_SIZE_MB.",
+    )
+    openai_chunk_min_duration_seconds: float | None = Field(
+        default=None,
+        exclude=True,
+        repr=False,
+        description="Compatibility alias for AUDIOCORE_OPENAI_CHUNK_MIN_DURATION_SECONDS.",
+    )
+    openai_chunk_prompt_chars: int | None = Field(
+        default=None,
+        exclude=True,
+        repr=False,
+        description="Compatibility alias for AUDIOCORE_OPENAI_CHUNK_PROMPT_CHARS.",
+    )
     faster_whisper_model: ModelSize | None = Field(
         default=None,
         exclude=True,
@@ -268,6 +292,14 @@ class AppConfig(BaseSettings):
             openai_updates["timeout"] = self.openai_timeout
         if self.openai_max_retries is not None:
             openai_updates["max_retries"] = self.openai_max_retries
+        if self.openai_max_upload_size_mb is not None:
+            openai_updates["max_upload_size_mb"] = self.openai_max_upload_size_mb
+        if self.openai_chunk_target_size_mb is not None:
+            openai_updates["chunk_target_size_mb"] = self.openai_chunk_target_size_mb
+        if self.openai_chunk_min_duration_seconds is not None:
+            openai_updates["chunk_min_duration_seconds"] = self.openai_chunk_min_duration_seconds
+        if self.openai_chunk_prompt_chars is not None:
+            openai_updates["chunk_prompt_chars"] = self.openai_chunk_prompt_chars
         if openai_updates:
             # Rebuild the sub-config to keep Pydantic validation intact
             openai_data = self.openai.model_dump()

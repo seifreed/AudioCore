@@ -13,6 +13,7 @@ These tests verify:
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -28,6 +29,7 @@ from openai import (
 )
 
 from audiocore.backends.openai_backend import OpenAIBackend
+from audiocore.config.openai_config import OpenAIConfig
 from audiocore.errors import (
     APITimeoutError,
     AuthenticationError,
@@ -306,6 +308,146 @@ class TestTranscribeSuccess:
 
         assert "not a file" in str(exc_info.value)
         mock_openai.assert_not_called()
+
+
+class TestLargeFileChunking:
+    """Regression tests for automatic OpenAI upload chunking."""
+
+    @patch("audiocore.backends.openai_backend.OpenAI")
+    def test_large_file_is_chunked_and_recombined(
+        self, mock_openai: MagicMock, tmp_path: Path
+    ) -> None:
+        """Oversized files should be split and recombined with timestamp offsets."""
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+
+        source_file = tmp_path / "large.wav"
+        source_file.write_bytes(b"0" * (3 * 1024 * 1024))
+
+        chunk_dir = tmp_path / "chunks"
+        chunk_dir.mkdir()
+        chunk_1 = chunk_dir / "chunk_0000.wav"
+        chunk_2 = chunk_dir / "chunk_0001.wav"
+        chunk_1.write_bytes(b"chunk 1")
+        chunk_2.write_bytes(b"chunk 2")
+
+        first_segment = MagicMock(start=0.0, end=2.0, text="First chunk")
+        first_response = MagicMock(segments=[first_segment], duration=10.0)
+        second_segment = MagicMock(start=1.0, end=4.0, text="Second chunk")
+        second_response = MagicMock(segments=[second_segment], duration=20.0)
+        mock_client.audio.transcriptions.create.side_effect = [
+            first_response,
+            second_response,
+        ]
+
+        backend = OpenAIBackend(
+            config=OpenAIConfig(max_upload_size_mb=2.0, chunk_target_size_mb=1.0)
+        )
+        backend._split_audio_for_upload = MagicMock(return_value=[chunk_1, chunk_2])
+        backend._get_audio_duration = MagicMock(side_effect=[10.0, 20.0])
+
+        result = backend.transcribe(source_file, TranscriptionOptions(language="es"))
+
+        assert mock_client.audio.transcriptions.create.call_count == 2
+        assert [segment.text for segment in result.segments] == [
+            "First chunk",
+            "Second chunk",
+        ]
+        assert result.segments[0].start_time == 0.0
+        assert result.segments[0].end_time == 2.0
+        assert result.segments[1].start_time == 11.0
+        assert result.segments[1].end_time == 14.0
+        assert result.media_info.duration == 30.0
+
+        first_call = mock_client.audio.transcriptions.create.call_args_list[0][1]
+        second_call = mock_client.audio.transcriptions.create.call_args_list[1][1]
+        assert "prompt" not in first_call
+        assert second_call["prompt"] == "First chunk"
+        assert first_call["language"] == "es"
+        assert second_call["language"] == "es"
+        assert not chunk_dir.exists()
+
+    @patch("audiocore.backends.openai_backend.OpenAI")
+    def test_file_under_upload_limit_is_not_chunked(
+        self, mock_openai: MagicMock, tmp_path: Path
+    ) -> None:
+        """Small files should preserve the existing single-request path."""
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+
+        audio_file = tmp_path / "small.wav"
+        audio_file.write_bytes(b"small audio")
+
+        mock_response = MagicMock()
+        mock_response.segments = []
+        mock_response.duration = 1.0
+        mock_client.audio.transcriptions.create.return_value = mock_response
+
+        backend = OpenAIBackend(
+            config=OpenAIConfig(max_upload_size_mb=2.0, chunk_target_size_mb=1.0)
+        )
+        backend._split_audio_for_upload = MagicMock()
+
+        result = backend.transcribe(audio_file, TranscriptionOptions())
+
+        assert result.media_info.duration == 1.0
+        backend._split_audio_for_upload.assert_not_called()
+        mock_client.audio.transcriptions.create.assert_called_once()
+
+    @patch("audiocore.backends.openai_backend.OpenAI")
+    def test_chunk_prompt_chars_zero_disables_chunk_prompts(
+        self, mock_openai: MagicMock, tmp_path: Path
+    ) -> None:
+        """Regression: chunk_prompt_chars=0 must not send prior transcript text."""
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+
+        source_file = tmp_path / "large.wav"
+        source_file.write_bytes(b"0" * (3 * 1024 * 1024))
+
+        chunk_dir = tmp_path / "chunks"
+        chunk_dir.mkdir()
+        chunk_1 = chunk_dir / "chunk_0000.wav"
+        chunk_2 = chunk_dir / "chunk_0001.wav"
+        chunk_1.write_bytes(b"chunk 1")
+        chunk_2.write_bytes(b"chunk 2")
+
+        first_segment = MagicMock(start=0.0, end=2.0, text="First chunk")
+        second_segment = MagicMock(start=0.0, end=2.0, text="Second chunk")
+        mock_client.audio.transcriptions.create.side_effect = [
+            MagicMock(segments=[first_segment], duration=10.0),
+            MagicMock(segments=[second_segment], duration=10.0),
+        ]
+
+        backend = OpenAIBackend(
+            config=OpenAIConfig(
+                max_upload_size_mb=2.0,
+                chunk_target_size_mb=1.0,
+                chunk_prompt_chars=0,
+            )
+        )
+        backend._split_audio_for_upload = MagicMock(return_value=[chunk_1, chunk_2])
+        backend._get_audio_duration = MagicMock(side_effect=[10.0, 10.0])
+
+        backend.transcribe(source_file, TranscriptionOptions())
+
+        for call in mock_client.audio.transcriptions.create.call_args_list:
+            assert "prompt" not in call[1]
+
+    def test_ffprobe_timeout_maps_to_transcription_error(self, tmp_path: Path) -> None:
+        """Regression: ffprobe timeout should be an AudioCore transcription error."""
+        audio_file = tmp_path / "audio.wav"
+        audio_file.write_bytes(b"fake audio")
+        backend = OpenAIBackend(api_key="sk-test123")
+
+        with patch(
+            "audiocore.backends.openai_backend.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd=["ffprobe"], timeout=30),
+        ):
+            with pytest.raises(TranscriptionError) as exc_info:
+                backend._get_audio_duration(audio_file)
+
+        assert "duration" in str(exc_info.value).lower()
 
 
 class TestErrorHandling:

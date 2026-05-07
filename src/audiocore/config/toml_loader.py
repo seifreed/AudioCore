@@ -53,6 +53,10 @@ _FIELD_MAPPING = {
     "openai.base_url": "openai.base_url",
     "openai.timeout": "openai.timeout",
     "openai.max_retries": "openai.max_retries",
+    "openai.max_upload_size_mb": "openai.max_upload_size_mb",
+    "openai.chunk_target_size_mb": "openai.chunk_target_size_mb",
+    "openai.chunk_min_duration_seconds": "openai.chunk_min_duration_seconds",
+    "openai.chunk_prompt_chars": "openai.chunk_prompt_chars",
     # VAD nested config
     "vad.speech_threshold": "vad.speech_threshold",
     "vad.silence_threshold": "vad.silence_threshold",

@@ -10,9 +10,9 @@ Key Features:
 - Optional organization and base URL for proxies
 """
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Self
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 
 
 class OpenAIConfig(BaseModel):
@@ -29,6 +29,11 @@ class OpenAIConfig(BaseModel):
         base_url: Custom base URL for API requests (optional, for proxies).
         timeout: Request timeout in seconds (default 300 for large files).
         max_retries: Maximum number of retries on API errors.
+        max_upload_size_mb: Maximum upload size accepted by the transcription API.
+        chunk_target_size_mb: Target chunk size used before reaching max_upload_size_mb.
+        chunk_min_duration_seconds: Minimum chunk duration when retrying chunk sizing.
+        chunk_prompt_chars: Number of previous transcript characters used as context
+            for the next chunk.
 
     Example:
         >>> from audiocore.config.openai_config import OpenAIConfig
@@ -69,6 +74,30 @@ class OpenAIConfig(BaseModel):
         le=10,
         description="Maximum number of retries on API errors",
     )
+    max_upload_size_mb: float = Field(
+        default=25.0,
+        ge=1.0,
+        le=512.0,
+        description="Maximum audio upload size for OpenAI transcription requests",
+    )
+    chunk_target_size_mb: float = Field(
+        default=24.0,
+        ge=1.0,
+        le=512.0,
+        description="Target size for automatic large-audio chunks",
+    )
+    chunk_min_duration_seconds: float = Field(
+        default=30.0,
+        ge=1.0,
+        le=3600.0,
+        description="Minimum chunk duration when reducing chunk size after oversize output",
+    )
+    chunk_prompt_chars: int = Field(
+        default=1000,
+        ge=0,
+        le=4000,
+        description="Previous transcript characters sent as prompt context for chunk continuity",
+    )
 
     @field_validator("api_key", mode="before")
     @classmethod
@@ -82,12 +111,18 @@ class OpenAIConfig(BaseModel):
             return v
         raise ValueError(f"Expected str or SecretStr for api_key, got {type(v).__name__}")
 
-    @field_validator("timeout", mode="before")
+    @field_validator(
+        "timeout",
+        "max_upload_size_mb",
+        "chunk_target_size_mb",
+        "chunk_min_duration_seconds",
+        mode="before",
+    )
     @classmethod
-    def coerce_timeout(cls, v: Any) -> float:
-        """Accept string timeout values from nested environment variables."""
+    def coerce_float_fields(cls, v: Any) -> float:
+        """Accept string float values from nested environment variables."""
         if isinstance(v, bool):
-            raise ValueError("timeout must be a number")
+            raise ValueError("value must be a number")
         if isinstance(v, int | float):
             return float(v)
         if isinstance(v, str):
@@ -105,3 +140,25 @@ class OpenAIConfig(BaseModel):
         if isinstance(v, str):
             return int(v.strip())
         return v
+
+    @field_validator("chunk_prompt_chars", mode="before")
+    @classmethod
+    def coerce_chunk_prompt_chars(cls, v: Any) -> int:
+        """Accept string prompt-length values from nested environment variables."""
+        if isinstance(v, bool):
+            raise ValueError("chunk_prompt_chars must be an integer")
+        if isinstance(v, int):
+            return v
+        if isinstance(v, str):
+            return int(v.strip())
+        return v
+
+    @model_validator(mode="after")
+    def validate_chunk_size_order(self) -> Self:
+        """Ensure chunks target a smaller size than the API upload limit."""
+        if self.chunk_target_size_mb >= self.max_upload_size_mb:
+            raise ValueError(
+                "chunk_target_size_mb must be less than max_upload_size_mb "
+                "so chunking keeps a safety margin"
+            )
+        return self

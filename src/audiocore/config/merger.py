@@ -22,6 +22,10 @@ _SENSITIVE_KEY_PATTERNS = ("api_key", "secret", "password", "token")
 _ENV_COMPATIBILITY_ALIAS_FIELDS = {
     "openai_timeout",
     "openai_max_retries",
+    "openai_max_upload_size_mb",
+    "openai_chunk_target_size_mb",
+    "openai_chunk_min_duration_seconds",
+    "openai_chunk_prompt_chars",
     "faster_whisper_model",
     "faster_whisper_device",
     "faster_whisper_compute_type",
@@ -33,6 +37,10 @@ _ENV_COMPATIBILITY_ALIAS_FIELDS = {
 _ENV_COMPATIBILITY_ALIAS_TARGETS = {
     "openai_timeout": ("openai", "timeout"),
     "openai_max_retries": ("openai", "max_retries"),
+    "openai_max_upload_size_mb": ("openai", "max_upload_size_mb"),
+    "openai_chunk_target_size_mb": ("openai", "chunk_target_size_mb"),
+    "openai_chunk_min_duration_seconds": ("openai", "chunk_min_duration_seconds"),
+    "openai_chunk_prompt_chars": ("openai", "chunk_prompt_chars"),
     "faster_whisper_model": ("faster_whisper", "model_size"),
     "faster_whisper_device": ("faster_whisper", "device"),
     "faster_whisper_compute_type": ("faster_whisper", "compute_type"),

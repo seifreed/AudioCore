@@ -382,7 +382,15 @@ api_key = "sk-..."
 base_url = "https://api.openai.com/v1"  # Optional: for proxies
 timeout = 300
 max_retries = 2
+max_upload_size_mb = 25
+chunk_target_size_mb = 24
+chunk_min_duration_seconds = 30
+chunk_prompt_chars = 1000
 ```
+
+AudioCore automatically detects OpenAI uploads larger than `max_upload_size_mb`,
+splits them with ffmpeg into chunks below `chunk_target_size_mb`, transcribes
+each chunk, and recombines timestamps in the final result.
 
 **Advantages:**
 - High quality transcription
@@ -393,6 +401,7 @@ max_retries = 2
 - Requires API key
 - Costs per minute of audio
 - Requires internet connection
+- Large files require ffmpeg/ffprobe for automatic chunking
 
 ### Faster-Whisper (Local)
 
