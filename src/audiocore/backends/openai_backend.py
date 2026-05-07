@@ -574,7 +574,7 @@ class OpenAIBackend(TranscriptionBackend):
             if response_duration is not None:
                 media_duration = response_duration
             elif segments:
-                media_duration = segments[-1].end_time
+                media_duration = max(segment.end_time for segment in segments)
             else:
                 # Use a small minimum duration since MediaInfo requires duration > 0
                 media_duration = 0.01
@@ -854,7 +854,10 @@ class OpenAIBackend(TranscriptionBackend):
                 text=True,
                 timeout=30,
             )
-            return float(result.stdout.strip())
+            duration = _parse_positive_duration(result.stdout.strip())
+            if duration is None:
+                raise ValueError("ffprobe returned a non-positive or non-finite duration")
+            return duration
         except (
             FileNotFoundError,
             ValueError,

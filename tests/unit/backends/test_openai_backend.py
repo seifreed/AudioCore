@@ -449,6 +449,28 @@ class TestLargeFileChunking:
 
         assert "duration" in str(exc_info.value).lower()
 
+    @pytest.mark.parametrize("stdout", ["nan\n", "inf\n", "-inf\n", "0\n", "-1\n", "\n"])
+    def test_ffprobe_invalid_duration_maps_to_transcription_error(
+        self, tmp_path: Path, stdout: str
+    ) -> None:
+        """Regression: ffprobe must return a positive finite duration."""
+        audio_file = tmp_path / "audio.wav"
+        audio_file.write_bytes(b"fake audio")
+        backend = OpenAIBackend(api_key="sk-test123")
+
+        with patch("audiocore.backends.openai_backend.subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=["ffprobe"],
+                returncode=0,
+                stdout=stdout,
+                stderr="",
+            )
+
+            with pytest.raises(TranscriptionError) as exc_info:
+                backend._get_audio_duration(audio_file)
+
+        assert "duration" in str(exc_info.value).lower()
+
 
 class TestErrorHandling:
     """Test OpenAI exception to AudioCore exception mapping."""
@@ -869,6 +891,38 @@ class TestTranscriptionResultParsing:
 
         # Duration should come from last segment end time
         assert result.media_info.duration == 7.5
+
+    @patch("audiocore.backends.openai_backend.OpenAI")
+    def test_duration_without_response_uses_latest_segment_end(
+        self, mock_openai: MagicMock, tmp_path: Path
+    ) -> None:
+        """Regression: unsorted provider segments must not shorten media duration."""
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+
+        audio_file = tmp_path / "test.mp3"
+        audio_file.write_bytes(b"fake audio data")
+
+        later_seg = MagicMock()
+        later_seg.start = 8.0
+        later_seg.end = 12.0
+        later_seg.text = "Later"
+
+        earlier_seg = MagicMock()
+        earlier_seg.start = 0.0
+        earlier_seg.end = 3.0
+        earlier_seg.text = "Earlier"
+
+        mock_response = MagicMock()
+        mock_response.segments = [later_seg, earlier_seg]
+        delattr(mock_response, "duration")
+
+        mock_client.audio.transcriptions.create.return_value = mock_response
+
+        backend = OpenAIBackend(api_key="sk-test123")
+        result = backend.transcribe(audio_file, TranscriptionOptions())
+
+        assert result.media_info.duration == 12.0
 
     @patch("audiocore.backends.openai_backend.OpenAI")
     def test_empty_segments(self, mock_openai: MagicMock, tmp_path: Path) -> None:
