@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from audiocore.parallel.files import FileResult
     from audiocore.pipeline.cancellation import CancellationToken
     from audiocore.pipeline.progress import ProgressCallback
+    from audiocore.vad.config import VADConfig
 
 # Register backends on module load
 register_builtin_backends()
@@ -127,6 +128,25 @@ def _parse_strict_vad(value: bool | None) -> bool | None:
     raise TypeError("strict_vad must be a bool or None")
 
 
+def _parse_vad_config(value: object | None) -> VADConfig | None:
+    """Validate a public API VAD config override."""
+    if value is None:
+        return None
+    from audiocore.vad.config import VADConfig
+
+    if isinstance(value, VADConfig):
+        return value
+    raise TypeError("vad_config must be a VADConfig instance or None")
+
+
+def _apply_vad_config(config: AppConfig, vad_config: object | None) -> AppConfig:
+    """Return config with an optional public API VAD override applied."""
+    parsed_vad_config = _parse_vad_config(vad_config)
+    if parsed_vad_config is None:
+        return config
+    return config.model_copy(update={"vad": parsed_vad_config})
+
+
 def _resolve_options(
     config: AppConfig,
     options: TranscriptionOptions | None,
@@ -195,6 +215,7 @@ def transcribe(
     output_format: OutputFormat | str | None = None,
     backend_preference: SelectionPolicy | str | None = None,
     strict_vad: bool | None = None,
+    vad_config: VADConfig | None = None,
 ) -> TranscriptionResult:
     """Transcribe an audio/video file synchronously.
 
@@ -217,6 +238,7 @@ def transcribe(
         output_format: Optional output-format override (enum or string).
         backend_preference: Optional automatic backend selection preference.
         strict_vad: Optional VAD failure behavior override.
+        vad_config: Optional VAD configuration override.
 
     Returns:
         TranscriptionResult with segments, media info, and metadata.
@@ -258,6 +280,7 @@ def transcribe(
     # Load config if not provided
     if config is None:
         config = load_config()
+    config = _apply_vad_config(config, vad_config)
 
     options = _resolve_options(
         config,
@@ -294,6 +317,7 @@ async def async_transcribe(
     output_format: OutputFormat | str | None = None,
     backend_preference: SelectionPolicy | str | None = None,
     strict_vad: bool | None = None,
+    vad_config: VADConfig | None = None,
 ) -> TranscriptionResult | list[FileResult]:
     """Transcribe an audio/video file asynchronously.
 
@@ -318,6 +342,7 @@ async def async_transcribe(
         output_format: Optional output-format override (enum or string).
         backend_preference: Optional automatic backend selection preference.
         strict_vad: Optional VAD failure behavior override.
+        vad_config: Optional VAD configuration override.
 
     Returns:
         TranscriptionResult with segments, media info, and metadata.
@@ -367,6 +392,7 @@ async def async_transcribe(
 
             if config is None:
                 config = load_config()
+            config = _apply_vad_config(config, vad_config)
 
             effective_options = _resolve_options(
                 config,
@@ -419,6 +445,7 @@ async def async_transcribe(
             output_format=output_format,
             backend_preference=backend_preference,
             strict_vad=strict_vad,
+            vad_config=vad_config,
         )
         result = await loop.run_in_executor(_get_executor(max_workers=max_workers), sync_call)
         return result

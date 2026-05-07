@@ -875,6 +875,34 @@ class TestSecretStrConfigMatching:
         assert BackendRegistry._configs_match(app_config, faster_whisper) is True
         assert BackendRegistry._configs_match(faster_whisper, app_config) is True
 
+    def test_openai_app_config_and_sub_config_requests_do_not_share_cached_instance(self) -> None:
+        """Regression: AppConfig carries OpenAI-relevant ffmpeg/ffprobe paths.
+
+        A backend first created from OpenAIConfig must not be reused for a later
+        AppConfig request, because OpenAIBackend extracts ffmpeg_path and
+        ffprobe_path from AppConfig for large-file chunking.
+        """
+        from audiocore.backends.openai_backend import OpenAIBackend
+        from audiocore.config import AppConfig, OpenAIConfig
+
+        registry = BackendRegistry()
+        registry._reset()
+        registry.register(BackendType.OPENAI, OpenAIBackend)
+
+        openai_config = OpenAIConfig(api_key="sk-test")
+        app_config = AppConfig(
+            openai=openai_config,
+            ffmpeg_path="/custom/ffmpeg",
+            ffprobe_path="/custom/ffprobe",
+        )
+
+        direct_backend = registry.get_backend(BackendType.OPENAI, config=openai_config)
+        app_backend = registry.get_backend(BackendType.OPENAI, config=app_config)
+
+        assert app_backend is not direct_backend
+        assert app_backend._ffmpeg_path == "/custom/ffmpeg"
+        assert app_backend._ffprobe_path == "/custom/ffprobe"
+
 
 class TestGetBackendConfigRace:
     """Regression tests for TOCTOU race in get_backend()."""

@@ -278,6 +278,12 @@ class BackendRegistry:
         """Compare the config intent used to create a cached backend instance."""
         if cached_requested_config is None or requested_config is None:
             return cached_requested_config is None and requested_config is None
+        from audiocore.config import AppConfig
+
+        if isinstance(cached_requested_config, AppConfig) != isinstance(
+            requested_config, AppConfig
+        ):
+            return False
         return BackendRegistry._configs_match(cached_requested_config, requested_config)
 
     def list_backends(self) -> list[BackendType]:

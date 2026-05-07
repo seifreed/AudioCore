@@ -25,6 +25,7 @@ from audiocore.models import MediaInfo
 from audiocore.models.segment import Segment
 from audiocore.parallel import FileResult
 from audiocore.types import ModelSize
+from audiocore.vad.config import VADConfig
 
 
 class TestSyncTranscribe:
@@ -217,6 +218,35 @@ class TestSyncTranscribe:
         assert used_options.model_size == ModelSize.TINY
         assert "model_size" in used_options.model_fields_set
 
+    def test_transcribe_accepts_documented_vad_config(self):
+        """Regression: README-documented vad_config should override AppConfig.vad."""
+        mock_result = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=5.0, text="Test")],
+            media_info=MediaInfo(duration=5.0, format="wav"),
+            config_used=TranscriptionOptions(),
+            processing_time_seconds=1.0,
+            backend_used=BackendType.OPENAI,
+        )
+        config = AppConfig()
+        vad_config = VADConfig(speech_threshold=0.7, silence_threshold=0.2)
+
+        with patch("audiocore.api.transcribe.Pipeline") as mock_pipeline_class:
+            mock_pipeline = MagicMock()
+            mock_pipeline.transcribe.return_value = mock_result
+            mock_pipeline_class.return_value = mock_pipeline
+
+            transcribe("audio.mp3", config=config, vad_config=vad_config)
+
+        used_config = mock_pipeline_class.call_args.kwargs["config"]
+        assert used_config is not config
+        assert used_config.vad == vad_config
+        assert config.vad != vad_config
+
+    def test_transcribe_rejects_invalid_vad_config(self):
+        """vad_config must be a VADConfig instance, not an arbitrary object."""
+        with pytest.raises(TypeError, match="vad_config"):
+            transcribe("audio.mp3", config=AppConfig(), vad_config="invalid")
+
 
 class TestAsyncTranscribe:
     """Tests for asynchronous async_transcribe function."""
@@ -364,6 +394,32 @@ class TestAsyncTranscribe:
         assert used_kwargs["backend"] == BackendType.OPENAI
         assert used_kwargs["output_format"] == OutputFormat.JSON
 
+    def test_async_transcribe_forwards_documented_vad_config(self):
+        """async_transcribe should mirror transcribe's vad_config convenience option."""
+        mock_result = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=5.0, text="Async test")],
+            media_info=MediaInfo(duration=5.0, format="wav"),
+            config_used=TranscriptionOptions(),
+            processing_time_seconds=1.0,
+            backend_used=BackendType.OPENAI,
+        )
+        vad_config = VADConfig(speech_threshold=0.7, silence_threshold=0.2)
+
+        with patch("audiocore.api.transcribe.transcribe") as mock_sync_transcribe:
+            mock_sync_transcribe.return_value = mock_result
+
+            result = asyncio.run(
+                async_transcribe(
+                    "audio.mp3",
+                    config=AppConfig(),
+                    vad_config=vad_config,
+                    max_workers=1,
+                )
+            )
+
+        assert result == mock_result
+        assert mock_sync_transcribe.call_args.kwargs["vad_config"] is vad_config
+
     def test_async_transcribe_accepts_documented_file_list_batch(self):
         """Regression: README-documented async batch API should process file lists."""
         files = [Path("audio1.mp3"), Path("audio2.mp3")]
@@ -395,6 +451,37 @@ class TestAsyncTranscribe:
         assert used_kwargs["config"] is config
         assert used_kwargs["max_workers"] == 2
         assert used_kwargs["options"].backend == BackendType.FASTER_WHISPER
+
+    def test_async_batch_accepts_documented_vad_config(self):
+        """Batch async transcription should pass a vad_config-overridden AppConfig."""
+        files = [Path("audio1.mp3"), Path("audio2.mp3")]
+        config = AppConfig()
+        vad_config = VADConfig(speech_threshold=0.7, silence_threshold=0.2)
+        batch_results = [
+            FileResult(path=files[0], success=True, result=None, error=None),
+            FileResult(path=files[1], success=True, result=None, error=None),
+        ]
+
+        async def fake_transcribe_files_concurrent(*args, **kwargs):
+            return batch_results
+
+        with patch(
+            "audiocore.parallel.files.transcribe_files_concurrent",
+            side_effect=fake_transcribe_files_concurrent,
+        ) as mock_batch:
+            results = asyncio.run(
+                async_transcribe(
+                    files,
+                    config=config,
+                    vad_config=vad_config,
+                    max_workers=2,
+                )
+            )
+
+        assert results == batch_results
+        used_config = mock_batch.call_args.kwargs["config"]
+        assert used_config is not config
+        assert used_config.vad == vad_config
 
     def test_async_batch_progress_callback_uses_public_pipeline_signature(self):
         """Regression: async batch progress should honor the documented callback shape."""

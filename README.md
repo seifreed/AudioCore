@@ -580,7 +580,6 @@ from audiocore.pipeline.progress import PipelineStage
 
 def on_progress(stage: PipelineStage, progress: float, message: str):
     stages = {
-        PipelineStage.VALIDATING: "🔍",
         PipelineStage.PROBING: "📊",
         PipelineStage.EXTRACTING: "🎵",
         PipelineStage.VAD: "🗣️",
