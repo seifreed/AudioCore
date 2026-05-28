@@ -386,59 +386,30 @@ async def async_transcribe(
 
     try:
         if _is_batch_path(path):
-            from audiocore.config import load_config
-            from audiocore.parallel.files import transcribe_files_concurrent
-            from audiocore.pipeline.progress import PipelineStage
-
-            if config is None:
-                config = load_config()
-            config = _apply_vad_config(config, vad_config)
-
-            effective_options = _resolve_options(
-                config,
+            batch_path = cast("list[str | Path] | tuple[str | Path, ...]", path)
+            return await _async_transcribe_batch(
+                batch_path,
                 options,
+                config,
+                progress_callback,
+                cancellation_token,
+                max_workers,
                 backend=backend,
                 model_size=model_size,
                 language=language,
                 output_format=output_format,
                 backend_preference=backend_preference,
                 strict_vad=strict_vad,
+                vad_config=vad_config,
             )
 
-            batch_progress_callback = None
-            if progress_callback is not None:
-
-                def batch_progress_callback(
-                    completed: int,
-                    total: int,
-                    current_path: Path,
-                ) -> None:
-                    progress = completed / total if total else 1.0
-                    progress_callback(
-                        PipelineStage.TRANSCRIBING,
-                        progress,
-                        f"Processed {current_path}",
-                    )
-
-            batch_path = cast("list[str | Path] | tuple[str | Path, ...]", path)
-            return await transcribe_files_concurrent(
-                files=[Path(file_path) for file_path in batch_path],
-                options=effective_options,
-                max_workers=max_workers,
-                config=config,
-                progress_callback=batch_progress_callback,
-                cancellation_token=cancellation_token,
-            )
-
-        # Run synchronous transcribe in thread pool
-        loop = asyncio.get_running_loop()
-        sync_call = partial(
-            transcribe,
-            path=path,
-            options=options,
-            config=config,
-            progress_callback=progress_callback,
-            cancellation_token=cancellation_token,
+        return await _async_transcribe_single(
+            path,
+            options,
+            config,
+            progress_callback,
+            cancellation_token,
+            max_workers,
             backend=backend,
             model_size=model_size,
             language=language,
@@ -447,8 +418,6 @@ async def async_transcribe(
             strict_vad=strict_vad,
             vad_config=vad_config,
         )
-        result = await loop.run_in_executor(_get_executor(max_workers=max_workers), sync_call)
-        return result
     except asyncio.CancelledError:
         # Propagate cancellation to the running thread via CancellationToken
         # run_in_executor does NOT cancel the underlying thread, so we signal
@@ -464,6 +433,99 @@ async def async_transcribe(
             f"Unexpected error during transcription: {e}",
             context={"path": str(path), "original_type": type(e).__name__},
         ) from e
+
+
+async def _async_transcribe_single(
+    path: str | Path | list[str | Path] | tuple[str | Path, ...],
+    options: TranscriptionOptions | None,
+    config: AppConfig | None,
+    progress_callback: ProgressCallback | None,
+    cancellation_token: CancellationToken,
+    max_workers: int,
+    *,
+    backend: BackendType | str | None,
+    model_size: ModelSize | str | None,
+    language: str | None,
+    output_format: OutputFormat | str | None,
+    backend_preference: SelectionPolicy | str | None,
+    strict_vad: bool | None,
+    vad_config: VADConfig | None,
+) -> TranscriptionResult:
+    """Run the synchronous transcribe() in the shared executor thread pool."""
+    loop = asyncio.get_running_loop()
+    sync_call = partial(
+        transcribe,
+        path=path,
+        options=options,
+        config=config,
+        progress_callback=progress_callback,
+        cancellation_token=cancellation_token,
+        backend=backend,
+        model_size=model_size,
+        language=language,
+        output_format=output_format,
+        backend_preference=backend_preference,
+        strict_vad=strict_vad,
+        vad_config=vad_config,
+    )
+    return await loop.run_in_executor(_get_executor(max_workers=max_workers), sync_call)
+
+
+async def _async_transcribe_batch(
+    batch_path: list[str | Path] | tuple[str | Path, ...],
+    options: TranscriptionOptions | None,
+    config: AppConfig | None,
+    progress_callback: ProgressCallback | None,
+    cancellation_token: CancellationToken,
+    max_workers: int,
+    *,
+    backend: BackendType | str | None,
+    model_size: ModelSize | str | None,
+    language: str | None,
+    output_format: OutputFormat | str | None,
+    backend_preference: SelectionPolicy | str | None,
+    strict_vad: bool | None,
+    vad_config: VADConfig | None,
+) -> list[FileResult]:
+    """Resolve options and run concurrent batch transcription for a path list."""
+    from audiocore.config import load_config
+    from audiocore.parallel.files import transcribe_files_concurrent
+    from audiocore.pipeline.progress import PipelineStage
+
+    if config is None:
+        config = load_config()
+    config = _apply_vad_config(config, vad_config)
+
+    effective_options = _resolve_options(
+        config,
+        options,
+        backend=backend,
+        model_size=model_size,
+        language=language,
+        output_format=output_format,
+        backend_preference=backend_preference,
+        strict_vad=strict_vad,
+    )
+
+    batch_progress_callback = None
+    if progress_callback is not None:
+
+        def batch_progress_callback(completed: int, total: int, current_path: Path) -> None:
+            progress = completed / total if total else 1.0
+            progress_callback(
+                PipelineStage.TRANSCRIBING,
+                progress,
+                f"Processed {current_path}",
+            )
+
+    return await transcribe_files_concurrent(
+        files=[Path(file_path) for file_path in batch_path],
+        options=effective_options,
+        max_workers=max_workers,
+        config=config,
+        progress_callback=batch_progress_callback,
+        cancellation_token=cancellation_token,
+    )
 
 
 def shutdown_executor() -> None:
