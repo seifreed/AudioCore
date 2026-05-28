@@ -109,134 +109,102 @@ async def transcribe_files_concurrent(
         raise ValueError("max_workers must be >= 1")
 
     semaphore = asyncio.Semaphore(max_workers)
-    results: list[FileResult | None] = [None] * len(files)
     completed_count = 0
     total_count = len(files)
     counter_lock = asyncio.Lock()
 
-    async def transcribe_single_file(
-        index: int,
-        file_path: Path,
-    ) -> FileResult:
-        """Transcribe a single file with semaphore control.
-
-        Args:
-            index: Index in results list for order preservation.
-            file_path: Path to the file to transcribe.
-
-        Returns:
-            FileResult with success/failure status.
-        """
+    async def report_progress(file_path: Path) -> None:
+        """Advance the completed counter and notify the progress callback."""
         nonlocal completed_count
+        if not progress_callback:
+            return
+        try:
+            async with counter_lock:
+                completed_count += 1
+                current_count = completed_count
+            progress_callback(current_count, total_count, file_path)
+        except Exception:
+            logger.debug("Progress callback raised, ignoring", exc_info=True)
 
+    def run_transcribe(file_path: Path) -> TranscriptionResult:
+        """Run the synchronous transcribe with the optional config supplied."""
+        if config is None:
+            return transcribe(
+                path=file_path, options=options, cancellation_token=cancellation_token
+            )
+        return transcribe(
+            path=file_path,
+            options=options,
+            config=config,
+            cancellation_token=cancellation_token,
+        )
+
+    async def transcribe_single_file(file_path: Path) -> FileResult:
+        """Transcribe one file under the concurrency semaphore in the executor."""
         async with semaphore:
             try:
-                # Run synchronous transcribe in the shared thread pool executor
-                # to avoid creating too many threads when used alongside async_transcribe
-                def transcribe_call() -> TranscriptionResult:
-                    if config is None:
-                        return transcribe(
-                            path=file_path,
-                            options=options,
-                            cancellation_token=cancellation_token,
-                        )
-                    return transcribe(
-                        path=file_path,
-                        options=options,
-                        config=config,
-                        cancellation_token=cancellation_token,
-                    )
-
+                # Run synchronous transcribe in the shared thread pool executor to
+                # avoid spawning excess threads alongside async_transcribe.
                 result = await asyncio.get_running_loop().run_in_executor(
                     _get_executor(max_workers=max_workers),
-                    transcribe_call,
+                    run_transcribe,
+                    file_path,
                 )
-
-                # Update counter and call progress callback
-                if progress_callback:
-                    try:
-                        async with counter_lock:
-                            completed_count += 1
-                            current_count = completed_count
-                        progress_callback(current_count, total_count, file_path)
-                    except Exception:
-                        logger.debug("Progress callback raised, ignoring", exc_info=True)
-
-                return FileResult(
-                    path=file_path,
-                    success=True,
-                    result=result,
-                    error=None,
-                )
-
+                await report_progress(file_path)
+                return FileResult(path=file_path, success=True, result=result, error=None)
             except CancelledError:
                 raise
             except Exception as e:
-                # Extract error message
-                error_message = str(e)
-
                 if not continue_on_error:
-                    # Re-raise to stop all processing
                     raise
+                await report_progress(file_path)
+                return FileResult(path=file_path, success=False, result=None, error=str(e))
 
-                # Update progress even for failures (thread-safe counter update)
-                if progress_callback:
-                    try:
-                        async with counter_lock:
-                            completed_count += 1
-                            current_count = completed_count
-                        progress_callback(current_count, total_count, file_path)
-                    except Exception:
-                        logger.debug("Progress callback raised, ignoring", exc_info=True)
+    tasks = [asyncio.create_task(transcribe_single_file(file)) for file in files]
+    return await _collect_file_results(tasks, files, continue_on_error)
 
-                return FileResult(
-                    path=file_path,
-                    success=False,
-                    result=None,
-                    error=error_message,
-                )
 
-    # Create tasks for all files
-    tasks = [asyncio.create_task(transcribe_single_file(i, file)) for i, file in enumerate(files)]
+async def _collect_file_results(
+    tasks: list[asyncio.Task[FileResult]],
+    files: list[Path],
+    continue_on_error: bool,
+) -> list[FileResult]:
+    """Await per-file tasks and assemble ordered FileResults.
+
+    Control-flow exceptions (cancellation, KeyboardInterrupt, SystemExit) always
+    propagate; per-file ``Exception``s become failure results only when
+    ``continue_on_error`` is set. On fail-fast, still-running tasks are cancelled
+    before re-raising.
+    """
+    results: list[FileResult | None] = [None] * len(files)
 
     if continue_on_error:
-        # Run all tasks to completion, collecting exceptions as results
         task_results = await asyncio.gather(*tasks, return_exceptions=True)
-
         for i, task_result in enumerate(task_results):
             if isinstance(task_result, CancelledError):
                 raise task_result
             if isinstance(task_result, BaseException) and not isinstance(task_result, Exception):
-                # asyncio cancellations and other control-flow exceptions are not
-                # per-file failures and must not be masked by continue_on_error.
+                # Control-flow exceptions are not per-file failures and must not
+                # be masked by continue_on_error.
                 raise task_result
-            elif isinstance(task_result, Exception):
+            if isinstance(task_result, Exception):
                 results[i] = FileResult(
-                    path=files[i],
-                    success=False,
-                    result=None,
-                    error=str(task_result),
+                    path=files[i], success=False, result=None, error=str(task_result)
                 )
             else:
                 results[i] = task_result
     else:
-        # Stop on first error: let exceptions propagate from gather
         try:
-            task_results = await asyncio.gather(*tasks)
-            for i, task_result in enumerate(task_results):
+            for i, task_result in enumerate(await asyncio.gather(*tasks)):
                 results[i] = task_result
         except BaseException:
-            # Cancel any still-running tasks before re-raising.
-            # Catches BaseException (KeyboardInterrupt, SystemExit, CancelledError)
-            # not just Exception, so tasks are always cleaned up.
+            # Cancel still-running tasks before re-raising so nothing is orphaned.
             for task in tasks:
                 if not task.done():
                     task.cancel()
-            # Wait for cancellations to complete (suppress CancelledError)
             await asyncio.gather(*tasks, return_exceptions=True)
             raise
 
-    # Validate all results are populated before returning
     for i, result in enumerate(results):
         if result is None:
             results[i] = FileResult(
