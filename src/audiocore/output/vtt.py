@@ -32,21 +32,11 @@ Example:
 import re
 
 from audiocore.models.transcription import TranscriptionOptions, TranscriptionResult
+from audiocore.output.timestamp import format_timestamp
 
 
 def _format_vtt_timestamp(seconds: float) -> str:
-    """Format seconds as HH:MM:SS.mmm for VTT format.
-
-    VTT uses a period (.) as the milliseconds separator, unlike SRT which uses
-    a comma (,). This function converts floating-point seconds to the standard
-    VTT timestamp format.
-
-    Args:
-        seconds: Time in seconds.
-
-    Returns:
-        Formatted timestamp string with zero-padded hours, minutes, seconds
-        and milliseconds using period separator (e.g., "01:23:45.678").
+    """Format seconds as HH:MM:SS.mmm (VTT uses a period millisecond separator).
 
     Example:
         >>> _format_vtt_timestamp(3725.678)
@@ -54,15 +44,7 @@ def _format_vtt_timestamp(seconds: float) -> str:
         >>> _format_vtt_timestamp(0.0)
         '00:00:00.000'
     """
-    total_ms = max(0, round(seconds * 1000))
-    hours = total_ms // 3_600_000
-    total_ms %= 3_600_000
-    minutes = total_ms // 60_000
-    total_ms %= 60_000
-    secs = total_ms // 1_000
-    millis = total_ms % 1_000
-
-    return f"{hours:02d}:{minutes:02d}:{secs:02d}.{millis:03d}"
+    return format_timestamp(seconds)
 
 
 def format_vtt(result: TranscriptionResult, options: TranscriptionOptions) -> str:
