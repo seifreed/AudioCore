@@ -42,6 +42,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# MediaInfo requires a positive duration; use this floor when none is reported.
+_MIN_MEDIA_DURATION_SECONDS = 0.01
+
 
 class FasterWhisperBackend(TranscriptionBackend):
     """Faster-Whisper local transcription backend.
@@ -312,8 +315,43 @@ class FasterWhisperBackend(TranscriptionBackend):
             Model is loaded on first call (lazy loading).
         """
         audio_path = Path(audio_path)
+        self._validate_audio_path(audio_path)
 
-        # Validate file exists
+        params = self._build_transcribe_params(options)
+
+        # Model size: options.model_size > config.model_size; a different size
+        # forces a reload inside _load_model.
+        if "model_size" in options.model_fields_set:
+            effective_model_size = options.model_size
+        else:
+            effective_model_size = self.config.model_size
+        model = self._load_model(model_size=effective_model_size.value)
+
+        logger.debug(
+            "Starting faster-whisper transcription for %s with params: %s",
+            audio_path,
+            params,
+        )
+
+        start_time = time.time()
+        try:
+            segments, info = model.transcribe(str(audio_path), **params)
+            return self._build_result(segments, info, audio_path, options, time.time() - start_time)
+        except BackendUnavailableError:
+            raise
+        except Exception as e:
+            raise TranscriptionError(
+                f"Faster-Whisper transcription failed: {e}",
+                context={"backend": "faster_whisper", "file_path": str(audio_path)},
+                suggestions=[
+                    "Check audio file format (mp3, wav, m4a, etc.)",
+                    "Verify audio file is not corrupted",
+                    "Try with different audio file",
+                ],
+            ) from e
+
+    def _validate_audio_path(self, audio_path: Path) -> None:
+        """Validate the audio path exists and points to a file."""
         if not audio_path.exists():
             raise InvalidInputError(
                 f"Audio file not found: {audio_path}",
@@ -333,113 +371,66 @@ class FasterWhisperBackend(TranscriptionBackend):
                 ],
             )
 
-        # Build transcription parameters from config
-        # Language: options.language > config.language > None (auto-detect)
-        params: dict[str, Any] = {}
+    def _build_transcribe_params(self, options: TranscriptionOptions) -> dict[str, Any]:
+        """Assemble faster-whisper transcribe() parameters from options and config.
 
+        Language priority is options.language > config.language > None (auto-detect);
+        decoding, thresholds, and advanced flags come from config.
+        """
+        params: dict[str, Any] = {}
         if options.language:
             params["language"] = options.language
         elif self.config.language:
             params["language"] = self.config.language
 
-        # Model size: options.model_size > config.model_size
-        # The model must be re-loaded if a different model size is requested
-        if "model_size" in options.model_fields_set:
-            effective_model_size = options.model_size
-        else:
-            effective_model_size = self.config.model_size
-
-        # Load model lazily, passing effective model size for reload if needed
-        model = self._load_model(model_size=effective_model_size.value)
-
-        # Decoding parameters from config
         params["beam_size"] = self.config.beam_size
         params["best_of"] = self.config.best_of
         params["patience"] = self.config.patience
         params["temperature"] = self.config.temperature
-
-        # Thresholds from config
         params["compression_ratio_threshold"] = self.config.compression_ratio_threshold
         params["log_prob_threshold"] = self.config.log_prob_threshold
         params["no_speech_threshold"] = self.config.no_speech_threshold
-
-        # Advanced options from config
         params["condition_on_previous_text"] = self.config.condition_on_previous_text
         params["word_timestamps"] = self.config.word_timestamps
         params["vad_filter"] = self.config.vad_filter
-
-        # Optional initial_prompt
         if self.config.initial_prompt:
             params["initial_prompt"] = self.config.initial_prompt
+        return params
 
-        logger.debug(
-            "Starting faster-whisper transcription for %s with params: %s",
-            audio_path,
-            params,
+    def _build_result(
+        self,
+        segments: Any,
+        info: Any,
+        audio_path: Path,
+        options: TranscriptionOptions,
+        processing_time_seconds: float,
+    ) -> TranscriptionResult:
+        """Convert faster-whisper output into a TranscriptionResult."""
+        from audiocore.models import MediaInfo
+
+        segment_list: list[Segment] = [
+            Segment(start_time=seg.start, end_time=seg.end, text=seg.text.strip())
+            for seg in segments
+        ]
+
+        duration = info.duration if hasattr(info, "duration") and info.duration else 0.0
+        media_duration = duration if duration > 0 else _MIN_MEDIA_DURATION_SECONDS
+        media_info = MediaInfo(
+            duration=media_duration,
+            format=audio_path.suffix.lstrip("."),
         )
 
-        start_time = time.time()
-
-        try:
-            # Perform transcription
-            segments, info = model.transcribe(str(audio_path), **params)
-
-            # Convert segments to list
-            segment_list: list[Segment] = []
-            for seg in segments:
-                segment_list.append(
-                    Segment(
-                        start_time=seg.start,
-                        end_time=seg.end,
-                        text=seg.text.strip(),
-                    )
-                )
-
-            # Calculate processing time
-            end_time = time.time()
-            processing_time_seconds = end_time - start_time
-
-            # Get duration from info
-            duration = info.duration if hasattr(info, "duration") and info.duration else 0.0
-
-            # Use minimum duration if zero (MediaInfo requires duration > 0)
-            media_duration = duration if duration > 0 else 0.01
-
-            # Build media info
-            from audiocore.models import MediaInfo
-
-            media_info = MediaInfo(
-                duration=media_duration,
-                format=audio_path.suffix.lstrip("."),
-            )
-
-            result = TranscriptionResult(
-                segments=segment_list,
-                media_info=media_info,
-                config_used=options,
-                processing_time_seconds=processing_time_seconds,
-                backend_used=BackendType.FASTER_WHISPER,
-            )
-
-            logger.debug(
-                "Faster-whisper transcription complete for %s: %d segments, %.2fs processing time",
-                audio_path,
-                len(segment_list),
-                processing_time_seconds,
-            )
-
-            return result
-
-        except BackendUnavailableError:
-            raise
-
-        except Exception as e:
-            raise TranscriptionError(
-                f"Faster-Whisper transcription failed: {e}",
-                context={"backend": "faster_whisper", "file_path": str(audio_path)},
-                suggestions=[
-                    "Check audio file format (mp3, wav, m4a, etc.)",
-                    "Verify audio file is not corrupted",
-                    "Try with different audio file",
-                ],
-            ) from e
+        result = TranscriptionResult(
+            segments=segment_list,
+            media_info=media_info,
+            config_used=options,
+            processing_time_seconds=processing_time_seconds,
+            backend_used=BackendType.FASTER_WHISPER,
+        )
+        logger.debug(
+            "Faster-whisper transcription complete for %s: %d segments, %.2fs processing time",
+            audio_path,
+            len(segment_list),
+            processing_time_seconds,
+        )
+        return result
