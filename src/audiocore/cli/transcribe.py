@@ -42,7 +42,12 @@ from audiocore.errors import (
     OutputDirectoryError,
     OutputFileExistsError,
 )
-from audiocore.models import TranscriptionOptions, transcription_options_from_config
+from audiocore.models import (
+    TranscriptionOptions,
+    TranscriptionResult,
+    transcription_options_from_config,
+)
+from audiocore.output.file_writer import OutputFileConfig, format_and_write
 from audiocore.parallel import FileResult, transcribe_files_concurrent
 from audiocore.pipeline import Pipeline
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
@@ -402,6 +407,85 @@ def transcribe(
         raise typer.Exit(exit_code)
 
 
+def _exit_code_for_audiocore_error(console: Console, error: AudioCoreError) -> int:
+    """Print a categorized error message and return its documented CLI exit code."""
+    if isinstance(error, ConfigurationError):
+        console.print(f"[red]Configuration Error:[/red] {error}")
+        return 2
+    if isinstance(error, BackendError):
+        console.print(f"[red]Backend Error:[/red] {error}")
+        return 4
+    if isinstance(error, (OutputDirectoryError, OutputFileExistsError)):
+        console.print(f"[red]Output Error:[/red] {error}")
+        return 5
+    console.print(f"[red]Processing Error:[/red] {error}")
+    return 3
+
+
+def _print_transcription_result(console: Console, result: TranscriptionResult) -> None:
+    """Print formatted output, or fall back to timestamped segment lines."""
+    if result.formatted_output:
+        console.print(result.formatted_output)
+        return
+    for segment in result.segments:
+        console.print(f"[{segment.start_time:.3f} - {segment.end_time:.3f}] {segment.text}")
+
+
+def _transcribe_with_progress(
+    console: Console,
+    config: AppConfig,
+    input_file: Path,
+    options: TranscriptionOptions,
+) -> TranscriptionResult:
+    """Run the pipeline for one file behind a rich progress bar."""
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress_bar:
+        task = progress_bar.add_task("[cyan]Initializing[/cyan]", total=100)
+        pipeline = Pipeline(config=config)
+
+        def update_progress(stage: PipelineStage, p: float, msg: str) -> None:
+            progress_bar.update(
+                task,
+                completed=int(p * 100),
+                description=f"[cyan]{stage.value}[/cyan] - {msg}",
+            )
+
+        result = pipeline.transcribe(
+            path=input_file,
+            options=options,
+            progress_callback=update_progress,
+        )
+        progress_bar.update(task, completed=100)
+    return result
+
+
+def _emit_batch_result(
+    console: Console,
+    result: FileResult,
+    output_dir: Path | None,
+    output_format: OutputFormat,
+    options: TranscriptionOptions,
+    file_config: OutputFileConfig,
+) -> bool:
+    """Write or print one batch result; return True if the file failed."""
+    if not (result.success and result.result):
+        console.print(f"[red]✗[/red] {result.path.name}: {result.error}")
+        return True
+    if output_dir:
+        output_path = output_dir / result.path.with_suffix(f".{output_format.value}").name
+        format_and_write(result.result, options, output_path, file_config)
+        console.print(f"[green]✓[/green] {result.path.name} -> {output_path}")
+    else:
+        console.print(f"\n[green]--- {result.path.name} ---[/green]")
+        _print_transcription_result(console, result.result)
+    return False
+
+
 def _run_single_transcription(
     console: Console,
     input_file: Path,
@@ -433,66 +517,16 @@ def _run_single_transcription(
     else:
         final_output_path = None
 
-    # Track current stage for progress display
-    current_stage: list[str] = ["Initializing"]
-
-    def progress_callback(stage: PipelineStage, progress: float, message: str) -> None:
-        """Update progress display."""
-        current_stage[0] = stage.value
-
-    # Run transcription with progress display
     exit_code = 0
-
     try:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TimeElapsedColumn(),
-            console=console,
-        ) as progress_bar:
-            task = progress_bar.add_task(
-                f"[cyan]{current_stage[0]}[/cyan]",
-                total=100,
-            )
+        result = _transcribe_with_progress(console, config, input_file, options)
 
-            pipeline = Pipeline(config=config)
-
-            # Create progress callback that updates progress bar
-            def update_progress(stage: PipelineStage, p: float, msg: str) -> None:
-                progress_bar.update(
-                    task,
-                    completed=int(p * 100),
-                    description=f"[cyan]{stage.value}[/cyan] - {msg}",
-                )
-
-            # Run transcription
-            result = pipeline.transcribe(
-                path=input_file,
-                options=options,
-                progress_callback=update_progress,
-            )
-
-            progress_bar.update(task, completed=100)
-
-        # Output result
         if final_output_path:
-            # Write to file using format_and_write
-            from audiocore.output.file_writer import OutputFileConfig, format_and_write
-
             file_config = OutputFileConfig(overwrite=True, create_dirs=True)
             format_and_write(result, options, final_output_path, file_config)
             console.print(f"[green]✓[/green] Transcription saved to: {final_output_path}")
         else:
-            # Print to stdout
-            if result.formatted_output:
-                console.print(result.formatted_output)
-            else:
-                # Fallback to segments
-                for segment in result.segments:
-                    console.print(
-                        f"[{segment.start_time:.3f} - {segment.end_time:.3f}] {segment.text}"
-                    )
+            _print_transcription_result(console, result)
 
     except FileNotFoundError as e:
         console.print(f"[red]Error:[/red] File not found: {e}")
@@ -501,18 +535,7 @@ def _run_single_transcription(
         console.print(f"[red]Error:[/red] Permission denied: {e}")
         exit_code = 1
     except AudioCoreError as e:
-        if isinstance(e, ConfigurationError):
-            console.print(f"[red]Configuration Error:[/red] {e}")
-            exit_code = 2
-        elif isinstance(e, BackendError):
-            console.print(f"[red]Backend Error:[/red] {e}")
-            exit_code = 4
-        elif isinstance(e, (OutputDirectoryError, OutputFileExistsError)):
-            console.print(f"[red]Output Error:[/red] {e}")
-            exit_code = 5
-        else:
-            console.print(f"[red]Processing Error:[/red] {e}")
-            exit_code = 3
+        exit_code = _exit_code_for_audiocore_error(console, e)
 
     return exit_code
 
@@ -540,17 +563,11 @@ def _run_batch_transcription(
     Returns:
         Exit code (0 for all success, 1 for any failure)
     """
-    from audiocore.output.file_writer import OutputFileConfig, format_and_write
-
     total_files = len(input_files)
-    completed_count = 0
     failed_count = 0
-    results_list: list[FileResult] = []
 
     def progress_callback(completed: int, total: int, current_path: Path) -> None:
         """Update batch progress."""
-        nonlocal completed_count
-        completed_count = completed
 
     console.print(f"[cyan]Processing {total_files} file(s) with {max_workers} workers...[/cyan]")
 
@@ -566,36 +583,13 @@ def _run_batch_transcription(
         )
 
     try:
-        # Run async batch transcription
         results_list = asyncio.run(run_batch())
 
-        # Process results and write outputs
         file_config = OutputFileConfig(overwrite=True, create_dirs=True)
-
         for result in results_list:
-            if result.success and result.result:
-                # Determine output path
-                if output_dir:
-                    output_path = (
-                        output_dir / result.path.with_suffix(f".{output_format.value}").name
-                    )
-                    format_and_write(result.result, options, output_path, file_config)
-                    console.print(f"[green]✓[/green] {result.path.name} -> {output_path}")
-                else:
-                    # Print to console
-                    console.print(f"\n[green]--- {result.path.name} ---[/green]")
-                    if result.result.formatted_output:
-                        console.print(result.result.formatted_output)
-                    else:
-                        for segment in result.result.segments:
-                            console.print(
-                                f"[{segment.start_time:.3f} - {segment.end_time:.3f}] {segment.text}"
-                            )
-            else:
+            if _emit_batch_result(console, result, output_dir, output_format, options, file_config):
                 failed_count += 1
-                console.print(f"[red]✗[/red] {result.path.name}: {result.error}")
 
-        # Summary
         success_count = total_files - failed_count
         if failed_count > 0:
             console.print(
@@ -603,23 +597,11 @@ def _run_batch_transcription(
                 f"({failed_count} failed)[/yellow]"
             )
             return 1
-        else:
-            console.print(f"\n[green]✓ All {total_files} files transcribed successfully[/green]")
-            return 0
+        console.print(f"\n[green]✓ All {total_files} files transcribed successfully[/green]")
+        return 0
 
     except AudioCoreError as e:
-        if isinstance(e, ConfigurationError):
-            console.print(f"[red]Configuration Error:[/red] {e}")
-            return 2
-        elif isinstance(e, BackendError):
-            console.print(f"[red]Backend Error:[/red] {e}")
-            return 4
-        elif isinstance(e, (OutputDirectoryError, OutputFileExistsError)):
-            console.print(f"[red]Output Error:[/red] {e}")
-            return 5
-        else:
-            console.print(f"[red]Processing Error:[/red] {e}")
-            return 3
+        return _exit_code_for_audiocore_error(console, e)
 
 
 if __name__ == "__main__":
