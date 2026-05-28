@@ -164,6 +164,61 @@ def validate_input_files(files: list[Path]) -> list[Path]:
     return files
 
 
+def _build_transcription_options(
+    config: AppConfig,
+    *,
+    backend: str | BackendType | None,
+    model: str | ModelSize | None,
+    output_format: str | OutputFormat | None,
+    backend_preference: str | SelectionPolicy | None,
+    language: str | None,
+    strict_vad: bool,
+) -> TranscriptionOptions:
+    """Resolve CLI override values into TranscriptionOptions.
+
+    Omitted options stay implicit so backend-specific config (e.g. the
+    default model) is still respected. Values may already be parsed enums
+    when a typer callback ran, or raw strings otherwise.
+    """
+    backend_override = None
+    if backend is not None:
+        backend_override = (
+            backend if isinstance(backend, BackendType) else BackendType.parse(backend)
+        )
+
+    model_override = None
+    if model is not None:
+        model_override = model if isinstance(model, ModelSize) else ModelSize.parse(model)
+
+    output_format_override = None
+    if output_format is not None:
+        output_format_override = (
+            output_format
+            if isinstance(output_format, OutputFormat)
+            else OutputFormat.parse(output_format)
+        )
+
+    backend_preference_override = None
+    if backend_preference is not None:
+        backend_preference_override = (
+            backend_preference
+            if isinstance(backend_preference, SelectionPolicy)
+            else SelectionPolicy.parse(backend_preference)
+        )
+
+    options = transcription_options_from_config(
+        config,
+        language=language,
+        model_size=model_override,
+        backend=backend_override,
+        output_format=output_format_override,
+        backend_preference=backend_preference_override,
+    )
+    if strict_vad:
+        options = options.model_copy(update={"strict_vad": True})
+    return options
+
+
 @app.command()
 def transcribe(
     input_files: Annotated[
@@ -306,43 +361,15 @@ def transcribe(
         console.print(f"[red]Configuration Error:[/red] {e}")
         raise typer.Exit(2) from None
 
-    # Build transcription options. Omitted --model must remain an implicit
-    # default so backend-specific model config is still respected.
-    backend_override = None
-    if backend is not None:
-        backend_override = (
-            backend if isinstance(backend, BackendType) else BackendType.parse(backend)
-        )
-
-    model_override = None
-    if model is not None:
-        model_override = model if isinstance(model, ModelSize) else ModelSize.parse(model)
-
-    output_format_override = None
-    if output_format is not None:
-        output_format_override = (
-            output_format
-            if isinstance(output_format, OutputFormat)
-            else OutputFormat.parse(output_format)
-        )
-
-    backend_preference_override = None
-    if backend_preference is not None:
-        backend_preference_override = (
-            backend_preference
-            if isinstance(backend_preference, SelectionPolicy)
-            else SelectionPolicy.parse(backend_preference)
-        )
-    options = transcription_options_from_config(
+    options = _build_transcription_options(
         config,
+        backend=backend,
+        model=model,
+        output_format=output_format,
+        backend_preference=backend_preference,
         language=language,
-        model_size=model_override,
-        backend=backend_override,
-        output_format=output_format_override,
-        backend_preference=backend_preference_override,
+        strict_vad=strict_vad,
     )
-    if strict_vad:
-        options = options.model_copy(update={"strict_vad": True})
 
     # Determine batch mode
     is_batch_mode = len(input_files) > 1 or (parallel and len(input_files) > 1)
