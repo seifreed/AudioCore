@@ -44,7 +44,6 @@ from audiocore.errors import (
     AudioCoreError,
     AuthenticationError,
     BackendUnavailableError,
-    InvalidInputError,
     RateLimitError,
     TranscriptionError,
 )
@@ -345,26 +344,7 @@ class OpenAIBackend(TranscriptionBackend):
             - All error messages are redacted before being raised
         """
         audio_path = Path(audio_path)
-
-        # Validate file exists
-        if not audio_path.exists():
-            raise InvalidInputError(
-                f"Audio file not found: {audio_path}",
-                context={"file_path": str(audio_path), "backend": "openai"},
-                suggestions=[
-                    "Verify the file path is correct",
-                    "Check the file exists",
-                ],
-            )
-        if not audio_path.is_file():
-            raise InvalidInputError(
-                f"Audio path is not a file: {audio_path}",
-                context={"file_path": str(audio_path), "backend": "openai"},
-                suggestions=[
-                    "Provide an audio file path, not a directory",
-                    "Verify the file path is correct",
-                ],
-            )
+        self._validate_audio_file(audio_path)
 
         # Log transcription start (without API key)
         logger.debug(

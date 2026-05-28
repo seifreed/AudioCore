@@ -33,7 +33,7 @@ from audiocore.backends.faster_whisper import (
     ModelManager,
 )
 from audiocore.config.faster_whisper_config import FasterWhisperConfig
-from audiocore.errors import BackendUnavailableError, InvalidInputError, TranscriptionError
+from audiocore.errors import BackendUnavailableError, TranscriptionError
 from audiocore.models import (
     Segment,
     TranscriptionOptions,
@@ -322,7 +322,7 @@ class FasterWhisperBackend(TranscriptionBackend):
             Model is loaded on first call (lazy loading).
         """
         audio_path = Path(audio_path)
-        self._validate_audio_path(audio_path)
+        self._validate_audio_file(audio_path)
 
         params = self._build_transcribe_params(options)
 
@@ -356,27 +356,6 @@ class FasterWhisperBackend(TranscriptionBackend):
                     "Try with different audio file",
                 ],
             ) from e
-
-    def _validate_audio_path(self, audio_path: Path) -> None:
-        """Validate the audio path exists and points to a file."""
-        if not audio_path.exists():
-            raise InvalidInputError(
-                f"Audio file not found: {audio_path}",
-                context={"file_path": str(audio_path), "backend": "faster_whisper"},
-                suggestions=[
-                    "Verify the file path is correct",
-                    "Check the file exists",
-                ],
-            )
-        if not audio_path.is_file():
-            raise InvalidInputError(
-                f"Audio path is not a file: {audio_path}",
-                context={"file_path": str(audio_path), "backend": "faster_whisper"},
-                suggestions=[
-                    "Provide an audio file path, not a directory",
-                    "Verify the file path is correct",
-                ],
-            )
 
     def _build_transcribe_params(self, options: TranscriptionOptions) -> dict[str, Any]:
         """Assemble faster-whisper transcribe() parameters from options and config.

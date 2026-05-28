@@ -18,6 +18,8 @@ import abc
 import logging
 from typing import TYPE_CHECKING
 
+from audiocore.errors import InvalidInputError
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -155,6 +157,35 @@ class TranscriptionBackend(abc.ABC):
             ['whisper-1', 'whisper-large-v3']
         """
         ...
+
+    def _validate_audio_file(self, audio_path: Path) -> None:
+        """Validate that audio_path exists and is a regular file.
+
+        Shared by concrete backends; the backend tag in the error context is
+        taken from backend_type so each subclass reports its own name.
+
+        Raises:
+            InvalidInputError: If the path is missing or is not a file.
+        """
+        backend = self.backend_type.value
+        if not audio_path.exists():
+            raise InvalidInputError(
+                f"Audio file not found: {audio_path}",
+                context={"file_path": str(audio_path), "backend": backend},
+                suggestions=[
+                    "Verify the file path is correct",
+                    "Check the file exists",
+                ],
+            )
+        if not audio_path.is_file():
+            raise InvalidInputError(
+                f"Audio path is not a file: {audio_path}",
+                context={"file_path": str(audio_path), "backend": backend},
+                suggestions=[
+                    "Provide an audio file path, not a directory",
+                    "Verify the file path is correct",
+                ],
+            )
 
 
 def is_backend_available(backend: TranscriptionBackend) -> bool:
