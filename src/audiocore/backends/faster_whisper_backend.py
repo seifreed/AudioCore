@@ -34,16 +34,18 @@ from audiocore.backends.faster_whisper import (
 )
 from audiocore.config.faster_whisper_config import FasterWhisperConfig
 from audiocore.errors import BackendUnavailableError, InvalidInputError, TranscriptionError
-from audiocore.models import Segment, TranscriptionOptions, TranscriptionResult
+from audiocore.models import (
+    Segment,
+    TranscriptionOptions,
+    TranscriptionResult,
+    floor_media_duration,
+)
 from audiocore.types import BackendType
 
 if TYPE_CHECKING:
     from audiocore.config import AppConfig
 
 logger = logging.getLogger(__name__)
-
-# MediaInfo requires a positive duration; use this floor when none is reported.
-_MIN_MEDIA_DURATION_SECONDS = 0.01
 
 
 class FasterWhisperBackend(TranscriptionBackend):
@@ -419,7 +421,7 @@ class FasterWhisperBackend(TranscriptionBackend):
         ]
 
         duration = info.duration if hasattr(info, "duration") and info.duration else 0.0
-        media_duration = duration if duration > 0 else _MIN_MEDIA_DURATION_SECONDS
+        media_duration = floor_media_duration(duration)
         media_info = MediaInfo(
             duration=media_duration,
             format=audio_path.suffix.lstrip("."),

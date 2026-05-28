@@ -2,6 +2,15 @@
 
 from pydantic import BaseModel, Field
 
+# MediaInfo requires a positive duration; use this floor when a source reports
+# none (e.g. a duration-less or empty provider response).
+MIN_MEDIA_DURATION_SECONDS = 0.01
+
+
+def floor_media_duration(duration: float) -> float:
+    """Clamp a possibly non-positive duration up to MediaInfo's minimum."""
+    return duration if duration > 0 else MIN_MEDIA_DURATION_SECONDS
+
 
 class MediaInfo(BaseModel):
     """Audio/video metadata for transcription context.

@@ -52,6 +52,7 @@ from audiocore.models import (
     Segment,
     TranscriptionOptions,
     TranscriptionResult,
+    floor_media_duration,
 )
 from audiocore.types import BackendType
 
@@ -595,7 +596,7 @@ class OpenAIBackend(TranscriptionBackend):
         return TranscriptionResult(
             segments=combined_segments,
             media_info=MediaInfo(
-                duration=total_duration if total_duration > 0 else 0.01,
+                duration=floor_media_duration(total_duration),
                 format=audio_path.suffix.lstrip("."),
             ),
             config_used=options,

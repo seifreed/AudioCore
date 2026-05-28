@@ -15,6 +15,7 @@ from typing import cast
 
 from audiocore.errors import TranscriptionError
 from audiocore.models import (
+    MIN_MEDIA_DURATION_SECONDS,
     MediaInfo,
     Segment,
     TranscriptionOptions,
@@ -23,9 +24,6 @@ from audiocore.models import (
 from audiocore.types import BackendType
 
 logger = logging.getLogger(__name__)
-
-# MediaInfo requires a positive duration; use this floor when none is available.
-_MIN_MEDIA_DURATION_SECONDS = 0.01
 
 
 def get_response_value(obj: object, key: str) -> object | None:
@@ -129,7 +127,7 @@ def _resolve_media_duration(response: object, segments: list[Segment]) -> float:
         return response_duration
     if segments:
         return max(segment.end_time for segment in segments)
-    return _MIN_MEDIA_DURATION_SECONDS
+    return MIN_MEDIA_DURATION_SECONDS
 
 
 def _ensure_segments(
