@@ -41,6 +41,7 @@ from openai import (
 from audiocore.errors import (
     APIError,
     APITimeoutError,
+    AudioCoreError,
     AuthenticationError,
     BackendUnavailableError,
     InvalidInputError,
@@ -424,51 +425,39 @@ class OpenAIBackend(TranscriptionBackend):
             return client.audio.transcriptions.create(**api_params)  # type: ignore[arg-type]
 
         except BackendUnavailableError:
-            # Re-raise BackendUnavailableError without wrapping
+            # Already a typed AudioCore error from _get_client(); don't wrap.
             raise
+        except Exception as e:
+            raise self._translate_openai_error(e, audio_path) from e
 
-        except OpenAIAuthenticationError as e:
-            message = self._redact_api_key(str(e))
-            raise AuthenticationError(
-                f"OpenAI authentication failed: {message}",
+        finally:
+            # Always close the file handle, whether the API call succeeded or failed
+            if audio_file is not None:
+                with contextlib.suppress(Exception):
+                    audio_file.close()
+
+    def _translate_openai_error(self, error: Exception, audio_path: Path) -> AudioCoreError:
+        """Map an OpenAI SDK exception to the matching AudioCore error.
+
+        Checked most-specific first: the OpenAI error classes share a common
+        base (OpenAIAPIError), so order mirrors the prior except-clause order.
+        """
+        redacted = self._redact_api_key(str(error))
+        if isinstance(error, OpenAIAuthenticationError):
+            return AuthenticationError(
+                f"OpenAI authentication failed: {redacted}",
                 context={"backend": "openai"},
                 suggestions=[
                     "Verify API key at https://platform.openai.com/api-keys",
                     "Check API key is not expired or revoked",
                     "Ensure API key has Whisper permissions",
                 ],
-                cause=e,
-            ) from e
-
-        except OpenAIRateLimitError as e:
-            # Extract retry_after from response if available
-            retry_after = None
-            if hasattr(e, "response") and e.response is not None:
-                retry_after_header = e.response.headers.get("retry-after")
-                if retry_after_header:
-                    with contextlib.suppress(ValueError):
-                        retry_after = int(retry_after_header)
-
-            context: dict[str, object] = {"backend": "openai"}
-            if retry_after:
-                context["retry_after"] = retry_after
-
-            raise RateLimitError(
-                "OpenAI rate limit exceeded",
-                context=context,
-                suggestions=[
-                    (
-                        f"Wait {retry_after} seconds before retrying"
-                        if retry_after
-                        else "Wait before retrying"
-                    ),
-                    "Consider upgrading API tier",
-                    "Implement request throttling",
-                ],
-            ) from e
-
-        except OpenAITimeoutError as e:
-            raise APITimeoutError(
+                cause=error,
+            )
+        if isinstance(error, OpenAIRateLimitError):
+            return self._rate_limit_error(error)
+        if isinstance(error, OpenAITimeoutError):
+            return APITimeoutError(
                 "OpenAI API request timed out",
                 context={"backend": "openai", "file_path": str(audio_path)},
                 suggestions=[
@@ -476,52 +465,66 @@ class OpenAIBackend(TranscriptionBackend):
                     "Check network connection",
                     "Increase timeout configuration",
                 ],
-            ) from e
-
-        except APIConnectionError as e:
-            message = self._redact_api_key(str(e))
-            raise APIError(
-                f"OpenAI connection error: {message}",
+            )
+        if isinstance(error, APIConnectionError):
+            return APIError(
+                f"OpenAI connection error: {redacted}",
                 context={"backend": "openai", "file_path": str(audio_path)},
                 suggestions=[
                     "Check network connectivity",
                     "Verify firewall settings",
                     "Try again later",
                 ],
-                cause=e,
-            ) from e
-
-        except OpenAIAPIError as e:
-            message = self._redact_api_key(str(e))
-            raise APIError(
-                f"OpenAI API error: {message}",
+                cause=error,
+            )
+        if isinstance(error, OpenAIAPIError):
+            return APIError(
+                f"OpenAI API error: {redacted}",
                 context={"backend": "openai", "file_path": str(audio_path)},
                 suggestions=[
                     "Check API service status",
                     "Verify request parameters",
                     "Try again later",
                 ],
-                cause=e,
-            ) from e
+                cause=error,
+            )
+        return TranscriptionError(
+            f"OpenAI transcription failed: {redacted}",
+            context={"backend": "openai", "file_path": str(audio_path)},
+            suggestions=[
+                "Check audio file format",
+                "Verify audio file is valid",
+                "Try with different file",
+            ],
+            cause=error,
+        )
 
-        except Exception as e:
-            message = self._redact_api_key(str(e))
-            raise TranscriptionError(
-                f"OpenAI transcription failed: {message}",
-                context={"backend": "openai", "file_path": str(audio_path)},
-                suggestions=[
-                    "Check audio file format",
-                    "Verify audio file is valid",
-                    "Try with different file",
-                ],
-                cause=e,
-            ) from e
+    def _rate_limit_error(self, error: OpenAIRateLimitError) -> RateLimitError:
+        """Build a RateLimitError, surfacing retry-after when the response has it."""
+        retry_after = None
+        if hasattr(error, "response") and error.response is not None:
+            retry_after_header = error.response.headers.get("retry-after")
+            if retry_after_header:
+                with contextlib.suppress(ValueError):
+                    retry_after = int(retry_after_header)
 
-        finally:
-            # Always close the file handle, whether the API call succeeded or failed
-            if audio_file is not None:
-                with contextlib.suppress(Exception):
-                    audio_file.close()
+        context: dict[str, object] = {"backend": "openai"}
+        if retry_after:
+            context["retry_after"] = retry_after
+
+        return RateLimitError(
+            "OpenAI rate limit exceeded",
+            context=context,
+            suggestions=[
+                (
+                    f"Wait {retry_after} seconds before retrying"
+                    if retry_after
+                    else "Wait before retrying"
+                ),
+                "Consider upgrading API tier",
+                "Implement request throttling",
+            ],
+        )
 
     def _parse_transcription_response(
         self,
