@@ -16,7 +16,6 @@ from audiocore.config import AppConfig
 from audiocore.errors import (
     BackendUnavailableError,
     MediaError,
-    MediaFormatError,
     VADError,
 )
 from audiocore.media import (
@@ -41,8 +40,12 @@ from audiocore.vad import detect_speech
 
 if TYPE_CHECKING:
     from audiocore.backends.base import TranscriptionBackend
+    from audiocore.types import BackendType
 
 logger = logging.getLogger(__name__)
+
+# Safe progress emitter passed from Pipeline.transcribe() into each stage helper.
+_EmitProgress = Callable[[PipelineStage, float, str], None]
 
 
 class Pipeline:
@@ -172,124 +175,28 @@ class Pipeline:
                 effective_cancellation_token.check()
 
         try:
-            # Step 1: Validate format
+            # Step 1: Validate format (MediaFormatError propagates; no temp files yet)
             emit_progress(PipelineStage.PROBING, 0.0, "Validating input format")
-            try:
-                validate_format_or_raise(path)
-            except MediaFormatError:
-                # No cleanup needed - no temp files created yet
-                raise
+            validate_format_or_raise(path)
             check_cancellation()
 
             # Step 2: Probe media for metadata
-            emit_progress(PipelineStage.PROBING, 0.0, "Starting media probe")
-            try:
-                media_info = probe(path, ffprobe_path=self.config.ffprobe_path)
-            except MediaError as e:
-                raise PipelineStageError(
-                    "Failed to probe media file",
-                    stage=PipelineStage.PROBING,
-                    original_error=e,
-                ) from e
-            emit_progress(PipelineStage.PROBING, 1.0, "Media probe complete")
+            media_info = self._probe_stage(path, emit_progress)
             check_cancellation()
 
-            # Step 3-7: Process with temp file cleanup
+            # Steps 3-6: process with guaranteed temp-file cleanup
             with temp_audio_file(suffix=".wav") as audio_path:
-                # Step 3: Extract audio to temp file
-                emit_progress(PipelineStage.EXTRACTING, 0.0, "Starting audio extraction")
-
-                def extraction_progress(progress: float) -> None:
-                    """Forward extraction progress to main callback."""
-                    emit_progress(
-                        PipelineStage.EXTRACTING,
-                        progress,
-                        f"Extracting audio: {progress:.0%}",
-                    )
-
-                try:
-                    extract_audio(
-                        path,
-                        audio_path,
-                        ffmpeg_path=self.config.ffmpeg_path,
-                        ffprobe_path=self.config.ffprobe_path,
-                        progress_callback=extraction_progress,
-                    )
-                except MediaError as e:
-                    logger.debug("Cleaning up temp file after extraction failure: %s", audio_path)
-                    raise PipelineStageError(
-                        "Failed to extract audio from media file",
-                        stage=PipelineStage.EXTRACTING,
-                        context={
-                            "input_path": str(path),
-                            "output_path": str(audio_path),
-                        },
-                        original_error=e,
-                    ) from e
-                emit_progress(PipelineStage.EXTRACTING, 1.0, "Audio extraction complete")
+                self._extract_stage(path, audio_path, emit_progress)
                 check_cancellation()
 
-                # Step 4: Run VAD to detect speech segments
-                emit_progress(PipelineStage.VAD, 0.0, "Starting voice activity detection")
-                vad_config = self.config.vad
-                try:
-                    segments = detect_speech(
-                        audio_path=audio_path,
-                        config=vad_config,
-                        total_duration=media_info.duration,
-                    )
-                except VADError as e:
-                    # VAD failed - explicit request options outrank config.
-                    strict_vad_enabled = (
-                        options.strict_vad
-                        if "strict_vad" in options.model_fields_set
-                        else vad_config.strict_vad
-                    )
-                    if strict_vad_enabled:
-                        # Re-raise in strict mode - user wants to know about VAD failures
-                        raise
-                    # Otherwise, fall back to whole-file transcription
-                    logger.warning("VAD failed, falling back to whole-file transcription: %s", e)
-                    segments = []  # Empty segments will trigger whole-file transcription
-                emit_progress(PipelineStage.VAD, 1.0, "Voice activity detection complete")
+                segments = self._vad_stage(audio_path, media_info, options, emit_progress)
                 check_cancellation()
 
-                # Step 5: Select backend
-                emit_progress(PipelineStage.SELECTING, 0.0, "Selecting transcription backend")
-                try:
-                    selected_backend_type = self._selector.select(
-                        backend=options.backend,
-                        policy=options.backend_preference,
-                    )
-                except BackendUnavailableError as e:
-                    raise PipelineStageError(
-                        "Failed to select transcription backend",
-                        stage=PipelineStage.SELECTING,
-                        context={
-                            "backend": options.backend.value,
-                            "policy": options.backend_preference.value,
-                        },
-                        original_error=e,
-                    ) from e
-                emit_progress(
-                    PipelineStage.SELECTING,
-                    1.0,
-                    f"Backend selected: {selected_backend_type.value}",
-                )
+                selected_backend_type = self._select_backend_stage(options, emit_progress)
                 check_cancellation()
 
-                # Step 6: Get backend instance and transcribe
                 emit_progress(PipelineStage.TRANSCRIBING, 0.0, "Starting transcription")
-                try:
-                    backend = self._registry.get_backend(selected_backend_type, config=self.config)
-                except BackendUnavailableError as e:
-                    raise PipelineStageError(
-                        "Failed to get transcription backend",
-                        stage=PipelineStage.TRANSCRIBING,
-                        original_error=e,
-                    ) from e
-
-                # Transcribe with error recovery
+                backend = self._get_backend(selected_backend_type)
                 result = self._transcribe_with_backend(
                     backend=backend,
                     audio_path=audio_path,
@@ -306,16 +213,8 @@ class Pipeline:
             # Update result with backend type (processing_time is already set by backend)
             result.backend_used = selected_backend_type
 
-            # Step 7: Format output
-            emit_progress(PipelineStage.FORMATTING, 0.0, "Formatting output")
-            try:
-                formatted_output = self._format_result(result, options)
-                result.formatted_output = formatted_output
-            except Exception as e:
-                # Formatting error is non-fatal - result still valid
-                logger.warning("Failed to format output: %s", e)
-                result.formatted_output = None
-            emit_progress(PipelineStage.FORMATTING, 1.0, "Output formatting complete")
+            # Step 7: Format output (non-fatal on failure)
+            self._format_output_stage(result, options, emit_progress)
 
             # Step 8: Complete
             emit_progress(PipelineStage.COMPLETE, 1.0, "Pipeline complete")
@@ -332,6 +231,139 @@ class Pipeline:
                     e.original_error if isinstance(e.original_error, CancelledError) else e
                 ) from e
             raise
+
+    def _probe_stage(self, path: Path, emit_progress: _EmitProgress) -> MediaInfo:
+        """Probe media metadata, wrapping failures in PipelineStageError."""
+        emit_progress(PipelineStage.PROBING, 0.0, "Starting media probe")
+        try:
+            media_info = probe(path, ffprobe_path=self.config.ffprobe_path)
+        except MediaError as e:
+            raise PipelineStageError(
+                "Failed to probe media file",
+                stage=PipelineStage.PROBING,
+                original_error=e,
+            ) from e
+        emit_progress(PipelineStage.PROBING, 1.0, "Media probe complete")
+        return media_info
+
+    def _extract_stage(self, path: Path, audio_path: Path, emit_progress: _EmitProgress) -> None:
+        """Extract audio to the temp WAV, wrapping failures in PipelineStageError."""
+        emit_progress(PipelineStage.EXTRACTING, 0.0, "Starting audio extraction")
+
+        def extraction_progress(progress: float) -> None:
+            """Forward extraction progress to main callback."""
+            emit_progress(
+                PipelineStage.EXTRACTING,
+                progress,
+                f"Extracting audio: {progress:.0%}",
+            )
+
+        try:
+            extract_audio(
+                path,
+                audio_path,
+                ffmpeg_path=self.config.ffmpeg_path,
+                ffprobe_path=self.config.ffprobe_path,
+                progress_callback=extraction_progress,
+            )
+        except MediaError as e:
+            logger.debug("Cleaning up temp file after extraction failure: %s", audio_path)
+            raise PipelineStageError(
+                "Failed to extract audio from media file",
+                stage=PipelineStage.EXTRACTING,
+                context={
+                    "input_path": str(path),
+                    "output_path": str(audio_path),
+                },
+                original_error=e,
+            ) from e
+        emit_progress(PipelineStage.EXTRACTING, 1.0, "Audio extraction complete")
+
+    def _vad_stage(
+        self,
+        audio_path: Path,
+        media_info: MediaInfo,
+        options: TranscriptionOptions,
+        emit_progress: _EmitProgress,
+    ) -> list[Segment]:
+        """Detect speech segments, falling back to whole-file unless strict VAD is set."""
+        emit_progress(PipelineStage.VAD, 0.0, "Starting voice activity detection")
+        vad_config = self.config.vad
+        try:
+            segments = detect_speech(
+                audio_path=audio_path,
+                config=vad_config,
+                total_duration=media_info.duration,
+            )
+        except VADError as e:
+            # VAD failed - explicit request options outrank config.
+            strict_vad_enabled = (
+                options.strict_vad
+                if "strict_vad" in options.model_fields_set
+                else vad_config.strict_vad
+            )
+            if strict_vad_enabled:
+                # Re-raise in strict mode - user wants to know about VAD failures
+                raise
+            # Otherwise, fall back to whole-file transcription
+            logger.warning("VAD failed, falling back to whole-file transcription: %s", e)
+            segments = []  # Empty segments will trigger whole-file transcription
+        emit_progress(PipelineStage.VAD, 1.0, "Voice activity detection complete")
+        return segments
+
+    def _select_backend_stage(
+        self, options: TranscriptionOptions, emit_progress: _EmitProgress
+    ) -> BackendType:
+        """Select the transcription backend, wrapping failures in PipelineStageError."""
+        emit_progress(PipelineStage.SELECTING, 0.0, "Selecting transcription backend")
+        try:
+            selected_backend_type = self._selector.select(
+                backend=options.backend,
+                policy=options.backend_preference,
+            )
+        except BackendUnavailableError as e:
+            raise PipelineStageError(
+                "Failed to select transcription backend",
+                stage=PipelineStage.SELECTING,
+                context={
+                    "backend": options.backend.value,
+                    "policy": options.backend_preference.value,
+                },
+                original_error=e,
+            ) from e
+        emit_progress(
+            PipelineStage.SELECTING,
+            1.0,
+            f"Backend selected: {selected_backend_type.value}",
+        )
+        return selected_backend_type
+
+    def _get_backend(self, backend_type: BackendType) -> TranscriptionBackend:
+        """Resolve a backend instance, wrapping failures in PipelineStageError."""
+        try:
+            return self._registry.get_backend(backend_type, config=self.config)
+        except BackendUnavailableError as e:
+            raise PipelineStageError(
+                "Failed to get transcription backend",
+                stage=PipelineStage.TRANSCRIBING,
+                original_error=e,
+            ) from e
+
+    def _format_output_stage(
+        self,
+        result: TranscriptionResult,
+        options: TranscriptionOptions,
+        emit_progress: _EmitProgress,
+    ) -> None:
+        """Format output onto the result; formatting failure is non-fatal."""
+        emit_progress(PipelineStage.FORMATTING, 0.0, "Formatting output")
+        try:
+            result.formatted_output = self._format_result(result, options)
+        except Exception as e:
+            # Formatting error is non-fatal - result still valid
+            logger.warning("Failed to format output: %s", e)
+            result.formatted_output = None
+        emit_progress(PipelineStage.FORMATTING, 1.0, "Output formatting complete")
 
     def _format_result(
         self,
