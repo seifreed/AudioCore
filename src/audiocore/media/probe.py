@@ -13,6 +13,9 @@ from typing import Any
 from audiocore.errors import InvalidInputError, MediaError
 from audiocore.models import MediaInfo
 
+# Max characters of ffprobe stdout/stderr retained in error context.
+_OUTPUT_PREVIEW_LIMIT = 500
+
 
 def _validate_audio_stream(streams: list[dict[str, Any]], file_path: Path) -> None:
     """Validate that at least one audio stream exists in the media file.
@@ -127,6 +130,13 @@ def probe(
             suggestions=["Use a finite timeout greater than 0 seconds"],
         )
 
+    stdout = _run_ffprobe(file_path, ffprobe_path, timeout)
+    data = _parse_ffprobe_output(stdout, file_path)
+    return _build_media_info(data, file_path)
+
+
+def _run_ffprobe(file_path: Path, ffprobe_path: str, timeout: float) -> str:
+    """Run ffprobe and return its stdout, mapping failures to MediaError."""
     command = [
         ffprobe_path,
         "-v",
@@ -173,7 +183,7 @@ def probe(
             f"ffprobe failed with return code {result.returncode}",
             context={
                 "return_code": result.returncode,
-                "stderr": result.stderr[:500] if result.stderr else None,
+                "stderr": result.stderr[:_OUTPUT_PREVIEW_LIMIT] if result.stderr else None,
                 "file_path": str(file_path),
             },
             suggestions=[
@@ -183,15 +193,20 @@ def probe(
             ],
         )
 
+    return result.stdout
+
+
+def _parse_ffprobe_output(stdout: str, file_path: Path) -> dict[str, Any]:
+    """Parse ffprobe JSON output, mapping decode errors to MediaError."""
     try:
-        data: dict[str, Any] = json.loads(result.stdout)
+        data: dict[str, Any] = json.loads(stdout)
     except json.JSONDecodeError as e:
         raise MediaError(
             "Failed to parse ffprobe JSON output",
             context={
                 "file_path": str(file_path),
                 "error": str(e),
-                "stdout_preview": result.stdout[:500] if result.stdout else None,
+                "stdout_preview": stdout[:_OUTPUT_PREVIEW_LIMIT] if stdout else None,
             },
             suggestions=[
                 "Verify ffprobe installation",
@@ -200,44 +215,49 @@ def probe(
             ],
             cause=e,
         ) from e
+    return data
 
+
+def _resolve_duration(
+    format_info: dict[str, Any], streams: list[dict[str, Any]], file_path: Path
+) -> float:
+    """Resolve duration from format metadata, falling back to the max stream duration."""
+    duration = _parse_duration(format_info.get("duration"))
+    if duration is not None:
+        return duration
+
+    durations = [
+        parsed_duration
+        for stream in streams
+        if (parsed_duration := _parse_duration(stream.get("duration"))) is not None
+    ]
+    if durations:
+        return max(durations)
+
+    raise MediaError(
+        "Could not determine media duration",
+        context={"file_path": str(file_path)},
+        suggestions=[
+            "Verify file is a valid media file",
+            "Check file is not corrupted",
+        ],
+    )
+
+
+def _build_media_info(data: dict[str, Any], file_path: Path) -> MediaInfo:
+    """Build MediaInfo from parsed ffprobe data, requiring an audio stream."""
     format_info: dict[str, Any] = data.get("format", {})
     streams: list[dict[str, Any]] = data.get("streams", [])
 
-    duration = _parse_duration(format_info.get("duration"))
-    if duration is None:
-        durations = [
-            parsed_duration
-            for stream in streams
-            if (parsed_duration := _parse_duration(stream.get("duration"))) is not None
-        ]
-        if durations:
-            duration = max(durations)
-        else:
-            raise MediaError(
-                "Could not determine media duration",
-                context={"file_path": str(file_path)},
-                suggestions=[
-                    "Verify file is a valid media file",
-                    "Check file is not corrupted",
-                ],
-            )
-
+    duration = _resolve_duration(format_info, streams, file_path)
     format_name: str = format_info.get("format_name", "unknown")
 
     _validate_audio_stream(streams, file_path)
 
-    codec: str | None = None
-    sample_rate: int | None = None
-    channels: int | None = None
-
-    audio_streams = [s for s in streams if s.get("codec_type") == "audio"]
-    stream = audio_streams[0]
-    codec = stream.get("codec_name")
-    if "sample_rate" in stream:
-        sample_rate = _parse_positive_int(stream["sample_rate"])
-    if "channels" in stream:
-        channels = _parse_positive_int(stream["channels"])
+    stream = next(s for s in streams if s.get("codec_type") == "audio")
+    codec: str | None = stream.get("codec_name")
+    sample_rate = _parse_positive_int(stream["sample_rate"]) if "sample_rate" in stream else None
+    channels = _parse_positive_int(stream["channels"]) if "channels" in stream else None
 
     return MediaInfo(
         duration=duration,
