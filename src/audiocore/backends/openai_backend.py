@@ -17,13 +17,9 @@ from __future__ import annotations
 
 import contextlib
 import logging
-import math
-import subprocess
-import tempfile
 import time
-from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from openai import (
     APIConnectionError,
@@ -59,6 +55,7 @@ from audiocore.models import (
 )
 from audiocore.types import BackendType
 
+from . import openai_chunking, openai_response
 from .base import TranscriptionBackend
 
 if TYPE_CHECKING:
@@ -71,26 +68,6 @@ DEFAULT_OPENAI_MAX_UPLOAD_SIZE_MB = 25.0
 DEFAULT_OPENAI_CHUNK_TARGET_SIZE_MB = 24.0
 DEFAULT_OPENAI_CHUNK_MIN_DURATION_SECONDS = 30.0
 DEFAULT_OPENAI_CHUNK_PROMPT_CHARS = 1000
-CHUNK_SIZE_RETRY_MARGIN = 0.9
-MAX_CHUNK_SIZE_ATTEMPTS = 5
-
-
-def _get_response_value(obj: object, key: str) -> object | None:
-    """Read an OpenAI response field from SDK objects or dict-compatible data."""
-    if isinstance(obj, Mapping):
-        return obj.get(key)
-    return getattr(obj, key, None)
-
-
-def _parse_positive_duration(value: object) -> float | None:
-    """Parse positive finite durations from provider responses."""
-    try:
-        duration = float(value)
-    except (TypeError, ValueError):
-        return None
-    if not math.isfinite(duration) or duration <= 0:
-        return None
-    return duration
 
 
 class OpenAIBackend(TranscriptionBackend):
@@ -551,81 +528,13 @@ class OpenAIBackend(TranscriptionBackend):
         processing_time_seconds: float,
     ) -> TranscriptionResult:
         """Parse an OpenAI response into AudioCore's result model."""
-        try:
-            # Extract segments from verbose_json response
-            segments: list[Segment] = []
-            response_segments = _get_response_value(response, "segments")
-            if response_segments:
-                for seg in cast("list[object]", response_segments):
-                    start = _get_response_value(seg, "start")
-                    end = _get_response_value(seg, "end")
-                    text = _get_response_value(seg, "text")
-                    segments.append(
-                        Segment(
-                            start_time=float(start),  # type: ignore[arg-type]
-                            end_time=float(end),  # type: ignore[arg-type]
-                            text=text if isinstance(text, str) else str(text or ""),
-                        )
-                    )
-
-            # Get duration from response or calculate from last segment
-            media_duration: float
-            response_duration = _parse_positive_duration(_get_response_value(response, "duration"))
-            if response_duration is not None:
-                media_duration = response_duration
-            elif segments:
-                media_duration = max(segment.end_time for segment in segments)
-            else:
-                # Use a small minimum duration since MediaInfo requires duration > 0
-                media_duration = 0.01
-
-            # Some compatible providers may return top-level text without segment
-            # details even when verbose_json was requested. Preserve that text
-            # instead of returning an empty transcription.
-            response_text = _get_response_value(response, "text")
-            if not segments and isinstance(response_text, str) and response_text.strip():
-                segments.append(
-                    Segment(
-                        start_time=0.0,
-                        end_time=media_duration,
-                        text=response_text.strip(),
-                    )
-                )
-
-            # Build media info
-            media_info = MediaInfo(
-                duration=media_duration,
-                format=audio_path.suffix.lstrip("."),
-            )
-
-            # Build transcription result
-            result = TranscriptionResult(
-                segments=segments,
-                media_info=media_info,
-                config_used=options,
-                processing_time_seconds=processing_time_seconds,
-                backend_used=BackendType.OPENAI,
-            )
-
-            logger.debug(
-                "OpenAI transcription complete for %s: %d segments, %.2fs processing",
-                audio_path,
-                len(segments),
-                processing_time_seconds,
-            )
-
-            return result
-
-        except Exception as e:
-            raise TranscriptionError(
-                f"Failed to parse OpenAI response: {self._redact_api_key(str(e))}",
-                context={"backend": "openai", "file_path": str(audio_path)},
-                suggestions=[
-                    "Check API response format",
-                    "Try with different audio file",
-                ],
-                cause=e,
-            ) from e
+        return openai_response.parse_transcription_response(
+            response,
+            audio_path,
+            options,
+            processing_time_seconds,
+            redact=self._redact_api_key,
+        )
 
     def _transcribe_large_file(
         self, audio_path: Path, options: TranscriptionOptions
@@ -681,7 +590,7 @@ class OpenAIBackend(TranscriptionBackend):
                 duration_offset += chunk_duration
         finally:
             if chunks:
-                self._cleanup_chunk_dir(chunks[0].parent)
+                openai_chunking.cleanup_chunk_dir(chunks[0].parent)
 
         return TranscriptionResult(
             segments=combined_segments,
@@ -702,188 +611,15 @@ class OpenAIBackend(TranscriptionBackend):
 
     def _split_audio_for_upload(self, audio_path: Path) -> list[Path]:
         """Create temporary chunks that fit below the configured upload limit."""
-        duration = self._get_audio_duration(audio_path)
-        if duration <= 0:
-            raise TranscriptionError(
-                "Cannot split audio with unknown duration",
-                context={"backend": "openai", "file_path": str(audio_path)},
-                suggestions=[
-                    "Verify ffprobe can read the audio file",
-                    "Try a different audio format",
-                ],
-            )
-
-        chunk_duration = self._estimate_chunk_duration(audio_path, duration)
-        temp_dir = Path(tempfile.mkdtemp(prefix="audiocore_openai_chunks_"))
-
-        for _attempt in range(MAX_CHUNK_SIZE_ATTEMPTS):
-            self._run_ffmpeg_segment(audio_path, temp_dir, chunk_duration)
-            chunks = sorted(temp_dir.glob("chunk_*.*"))
-            if not chunks:
-                self._cleanup_chunk_dir(temp_dir)
-                raise TranscriptionError(
-                    "ffmpeg did not create any audio chunks",
-                    context={"backend": "openai", "file_path": str(audio_path)},
-                    suggestions=[
-                        "Verify ffmpeg can read the audio file",
-                        "Try a different audio format",
-                    ],
-                )
-
-            largest_chunk_size = max(chunk.stat().st_size for chunk in chunks)
-            if largest_chunk_size <= self._max_upload_bytes:
-                return chunks
-
-            self._cleanup_chunk_files(temp_dir)
-            reduction_ratio = self._chunk_target_bytes / largest_chunk_size
-            next_duration = chunk_duration * reduction_ratio * CHUNK_SIZE_RETRY_MARGIN
-            if next_duration < self._chunk_min_duration_seconds:
-                self._cleanup_chunk_dir(temp_dir)
-                raise TranscriptionError(
-                    "Unable to split audio into chunks below OpenAI upload limit",
-                    context={
-                        "backend": "openai",
-                        "file_path": str(audio_path),
-                        "largest_chunk_size": largest_chunk_size,
-                        "max_upload_size": self._max_upload_bytes,
-                    },
-                    suggestions=[
-                        "Use a more compressed audio format",
-                        "Increase openai.max_upload_size_mb if your provider supports it",
-                    ],
-                )
-            chunk_duration = next_duration
-
-        self._cleanup_chunk_dir(temp_dir)
-        raise TranscriptionError(
-            "Unable to produce OpenAI-sized chunks after retries",
-            context={"backend": "openai", "file_path": str(audio_path)},
-            suggestions=[
-                "Use a more compressed audio format",
-                "Try reducing openai.chunk_target_size_mb",
-            ],
+        return openai_chunking.split_audio_for_upload(
+            audio_path,
+            ffmpeg_path=self._ffmpeg_path,
+            ffprobe_path=self._ffprobe_path,
+            max_upload_bytes=self._max_upload_bytes,
+            chunk_target_bytes=self._chunk_target_bytes,
+            chunk_min_duration_seconds=self._chunk_min_duration_seconds,
         )
-
-    def _estimate_chunk_duration(self, audio_path: Path, duration: float) -> float:
-        """Estimate chunk duration from observed file bitrate and target size."""
-        file_size = audio_path.stat().st_size
-        seconds_for_target_size = duration * (self._chunk_target_bytes / file_size)
-        return max(self._chunk_min_duration_seconds, seconds_for_target_size)
-
-    def _run_ffmpeg_segment(
-        self,
-        audio_path: Path,
-        output_dir: Path,
-        chunk_duration: float,
-    ) -> None:
-        """Split audio with ffmpeg into same-container chunks."""
-        self._cleanup_chunk_files(output_dir)
-        suffix = audio_path.suffix or ".wav"
-        output_pattern = output_dir / f"chunk_%04d{suffix}"
-        command = [
-            self._ffmpeg_path,
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-i",
-            str(audio_path),
-            "-f",
-            "segment",
-            "-segment_time",
-            f"{chunk_duration:.6f}",
-            "-reset_timestamps",
-            "1",
-            "-c",
-            "copy",
-            str(output_pattern),
-        ]
-
-        try:
-            subprocess.run(
-                command,
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=3600,
-            )
-        except FileNotFoundError as e:
-            self._cleanup_chunk_dir(output_dir)
-            raise TranscriptionError(
-                f"ffmpeg executable not found: {self._ffmpeg_path}",
-                context={"backend": "openai", "ffmpeg_path": self._ffmpeg_path},
-                suggestions=[
-                    "Install ffmpeg",
-                    "Set AppConfig.ffmpeg_path to the ffmpeg executable",
-                ],
-                cause=e,
-            ) from e
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-            self._cleanup_chunk_dir(output_dir)
-            stderr = getattr(e, "stderr", None)
-            raise TranscriptionError(
-                "Failed to split oversized audio for OpenAI transcription",
-                context={
-                    "backend": "openai",
-                    "file_path": str(audio_path),
-                    "stderr": str(stderr)[:1000] if stderr else None,
-                },
-                suggestions=[
-                    "Verify the audio file is valid",
-                    "Verify ffmpeg supports this format",
-                ],
-                cause=e,
-            ) from e
 
     def _get_audio_duration(self, audio_path: Path) -> float:
         """Read audio duration in seconds with ffprobe."""
-        command = [
-            self._ffprobe_path,
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "default=noprint_wrappers=1:nokey=1",
-            str(audio_path),
-        ]
-        try:
-            result = subprocess.run(
-                command,
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            duration = _parse_positive_duration(result.stdout.strip())
-            if duration is None:
-                raise ValueError("ffprobe returned a non-positive or non-finite duration")
-            return duration
-        except (
-            FileNotFoundError,
-            ValueError,
-            subprocess.CalledProcessError,
-            subprocess.TimeoutExpired,
-        ) as e:
-            raise TranscriptionError(
-                "Failed to read audio duration before OpenAI chunking",
-                context={
-                    "backend": "openai",
-                    "file_path": str(audio_path),
-                    "ffprobe_path": self._ffprobe_path,
-                },
-                suggestions=[
-                    "Verify ffprobe is installed",
-                    "Set AppConfig.ffprobe_path to the ffprobe executable",
-                    "Verify the audio file is valid",
-                ],
-                cause=e,
-            ) from e
-
-    def _cleanup_chunk_files(self, output_dir: Path) -> None:
-        for chunk_path in output_dir.glob("chunk_*.*"):
-            chunk_path.unlink(missing_ok=True)
-
-    def _cleanup_chunk_dir(self, output_dir: Path) -> None:
-        self._cleanup_chunk_files(output_dir)
-        with contextlib.suppress(OSError):
-            output_dir.rmdir()
+        return openai_chunking.get_audio_duration(audio_path, ffprobe_path=self._ffprobe_path)

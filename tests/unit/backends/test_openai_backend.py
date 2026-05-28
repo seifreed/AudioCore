@@ -441,7 +441,7 @@ class TestLargeFileChunking:
         backend = OpenAIBackend(api_key="sk-test123")
 
         with patch(
-            "audiocore.backends.openai_backend.subprocess.run",
+            "audiocore.backends.openai_chunking.subprocess.run",
             side_effect=subprocess.TimeoutExpired(cmd=["ffprobe"], timeout=30),
         ):
             with pytest.raises(TranscriptionError) as exc_info:
@@ -458,7 +458,7 @@ class TestLargeFileChunking:
         audio_file.write_bytes(b"fake audio")
         backend = OpenAIBackend(api_key="sk-test123")
 
-        with patch("audiocore.backends.openai_backend.subprocess.run") as mock_run:
+        with patch("audiocore.backends.openai_chunking.subprocess.run") as mock_run:
             mock_run.return_value = subprocess.CompletedProcess(
                 args=["ffprobe"],
                 returncode=0,
