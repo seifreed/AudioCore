@@ -20,6 +20,8 @@ from audiocore.errors import InvalidInputError, VADError
 from audiocore.vad.config import VADConfig
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
@@ -29,6 +31,63 @@ _INT16_FULL_SCALE = 32768.0
 _INT32_FULL_SCALE = 2147483648.0
 _UINT8_MIDPOINT = 128.0
 _UINT16_MIDPOINT = 32768.0
+
+
+class _SpeechSegmenter:
+    """Builds speech segments from a stream of per-chunk speech probabilities.
+
+    Applies hysteresis (enter at speech_threshold, exit at silence_threshold)
+    and only closes a segment once silence has lasted min_silence_duration_ms.
+    Raw detections are emitted as-is; minimum-duration handling is left to
+    downstream segment processing.
+    """
+
+    def __init__(self, config: VADConfig) -> None:
+        self._speech_threshold = config.speech_threshold
+        self._silence_threshold = config.silence_threshold
+        self._min_silence_s = config.min_silence_duration_ms / 1000.0
+        self._segments: list[tuple[float, float, float]] = []
+        self._in_speech = False
+        self._speech_start: float | None = None
+        self._confidences: list[float] = []
+        self._silence_start: float | None = None
+
+    def feed(self, current_time: float, speech_prob: float) -> None:
+        """Advance the state machine with one chunk's speech probability."""
+        threshold = self._silence_threshold if self._in_speech else self._speech_threshold
+        is_speech = speech_prob >= threshold
+
+        if is_speech and not self._in_speech:
+            self._in_speech = True
+            self._speech_start = current_time
+            self._confidences = [speech_prob]
+            self._silence_start = None
+        elif is_speech and self._in_speech:
+            self._confidences.append(speech_prob)
+            self._silence_start = None
+        elif not is_speech and self._in_speech:
+            # Potential exit: require a minimum run of silence before closing.
+            if self._silence_start is None:
+                self._silence_start = current_time
+            if current_time - self._silence_start >= self._min_silence_s:
+                self._close_segment(self._silence_start)
+
+    def finalize(self, end_time: float) -> list[tuple[float, float, float]]:
+        """Close any segment still open at end_time and return all segments."""
+        if self._in_speech and self._speech_start is not None and end_time - self._speech_start > 0:
+            self._segments.append((self._speech_start, end_time, float(np.mean(self._confidences))))
+        return self._segments
+
+    def _close_segment(self, end_time: float) -> None:
+        """Append the current speech run ending at end_time, then reset state."""
+        if end_time - (self._speech_start or 0.0) > 0:
+            self._segments.append(
+                (self._speech_start or 0.0, end_time, float(np.mean(self._confidences)))
+            )
+        self._in_speech = False
+        self._speech_start = None
+        self._confidences = []
+        self._silence_start = None
 
 
 class SileroVAD:
@@ -374,92 +433,34 @@ class SileroVAD:
         # Get thread-local model instance with isolated state
         with self._inference_lock:
             model = self._prepare_model()
-
-            # Use window_size_samples from config (default 512, optimal for Silero)
+            # window_size_samples from config (default 512, optimal for Silero)
             chunk_size = config.window_size_samples
-            segments: list[tuple[float, float, float]] = []
+            segmenter = _SpeechSegmenter(config)
+            for current_time, speech_prob in self._iter_speech_probs(
+                model, audio_data, sample_rate, chunk_size
+            ):
+                segmenter.feed(current_time, speech_prob)
+            return segmenter.finalize(len(audio_data) / sample_rate)
 
-            # Track speech state
-            in_speech = False
-            speech_start_time: float | None = None
-            chunk_confidences: list[float] = []
-            silence_start_time: float | None = None
+    def _iter_speech_probs(
+        self,
+        model: nn.Module,
+        audio_data: NDArray[np.floating[Any]],
+        sample_rate: int,
+        chunk_size: int,
+    ) -> Iterator[tuple[float, float]]:
+        """Yield (chunk_start_time, speech_probability) for each audio chunk.
 
-            # Convert min_silence_duration from ms to seconds
-            min_silence_duration_s = config.min_silence_duration_ms / 1000.0
-
-            for i in range(0, len(audio_data), chunk_size):
-                chunk_end = min(i + chunk_size, len(audio_data))
-                chunk = audio_data[i:chunk_end]
-                # Pad partial last chunk with zeros for consistent model input
-                if len(chunk) < chunk_size:
-                    chunk = np.pad(chunk, (0, chunk_size - len(chunk)), mode="constant")
-
-                # Convert to torch tensor
-                chunk_tensor = torch.from_numpy(chunk)
-
-                # Get speech probability from Silero
-                with torch.no_grad():
-                    speech_prob = model(chunk_tensor, sample_rate).item()
-
-                # Determine if we're in speech based on threshold
-                current_time = i / sample_rate
-
-                # Use speech_threshold for entering speech,
-                # silence_threshold for exiting speech (hysteresis)
-                if in_speech:
-                    # Already in speech: exit only when prob drops below silence_threshold
-                    is_speech = speech_prob >= config.silence_threshold
-                else:
-                    # Not in speech: enter when prob reaches speech_threshold
-                    is_speech = speech_prob >= config.speech_threshold
-
-                # Track state transitions
-                if is_speech and not in_speech:
-                    # Entering speech
-                    in_speech = True
-                    speech_start_time = current_time
-                    chunk_confidences = [speech_prob]
-                    silence_start_time = None
-                elif is_speech and in_speech:
-                    # Continuing speech
-                    chunk_confidences.append(speech_prob)
-                    silence_start_time = None
-                elif not is_speech and in_speech:
-                    # Potential speech exit - check minimum silence duration
-                    if silence_start_time is None:
-                        silence_start_time = current_time
-
-                    silence_duration = current_time - silence_start_time
-                    if silence_duration >= min_silence_duration_s:
-                        # Confirmed exit: silence is long enough
-                        speech_duration = silence_start_time - (speech_start_time or 0.0)
-
-                        # Keep raw speech detections. Minimum duration handling
-                        # belongs to process_segments(), where short utterances
-                        # can be merged with neighbors or preserved if orphaned.
-                        if speech_duration > 0:
-                            mean_confidence = float(np.mean(chunk_confidences))
-                            segments.append(
-                                (speech_start_time or 0.0, silence_start_time, mean_confidence)
-                            )
-
-                        # Reset speech tracking
-                        in_speech = False
-                        speech_start_time = None
-                        chunk_confidences = []
-                        silence_start_time = None
-
-            # Handle case where audio ends during speech
-            if in_speech and speech_start_time is not None:
-                end_time = len(audio_data) / sample_rate
-                speech_duration = end_time - speech_start_time
-
-                if speech_duration > 0:
-                    mean_confidence = float(np.mean(chunk_confidences))
-                    segments.append((speech_start_time, end_time, mean_confidence))
-
-            return segments
+        The final partial chunk is zero-padded for consistent model input.
+        """
+        for i in range(0, len(audio_data), chunk_size):
+            chunk = audio_data[i : min(i + chunk_size, len(audio_data))]
+            if len(chunk) < chunk_size:
+                chunk = np.pad(chunk, (0, chunk_size - len(chunk)), mode="constant")
+            chunk_tensor = torch.from_numpy(chunk)
+            with torch.no_grad():
+                speech_prob = model(chunk_tensor, sample_rate).item()
+            yield i / sample_rate, speech_prob
 
     def detect_file(
         self,
