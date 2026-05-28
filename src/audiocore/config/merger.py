@@ -7,7 +7,9 @@ Also provides load_config convenience function that loads from all sources
 and returns a merged AppConfig instance.
 """
 
+import logging
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +19,8 @@ from pydantic_core import PydanticUndefined
 from audiocore.config.settings import AppConfig
 from audiocore.config.toml_loader import load_toml_config
 from audiocore.errors import InvalidConfigError
+
+logger = logging.getLogger(__name__)
 
 _SENSITIVE_KEY_PATTERNS = ("api_key", "secret", "password", "token")
 _ENV_COMPATIBILITY_ALIAS_FIELDS = {
@@ -224,50 +228,40 @@ def merge_configs(
 
     merged: dict[str, Any] = {}
 
-    # Apply in reverse priority order (defaults first, then each higher priority)
-    # Lower priority values are overwritten by higher priority values
+    # Apply in ascending priority: defaults first, then each higher layer
+    # overlays it (lower-priority values are overwritten by higher-priority).
 
-    # 1. Start with defaults (lowest priority)
-    # Convert Pydantic model defaults to dicts so nested merging works correctly.
-    # Without this, a partial TOML override like {openai: {api_key: "sk-..."}} would
-    # replace the entire OpenAIConfig default instead of merging into it.
+    # 1. Start with defaults (lowest priority). Convert Pydantic model defaults
+    # to dicts so nested merging works — without this, a partial override like
+    # {openai: {api_key: "sk-..."}} would replace the whole OpenAIConfig default.
     for key, value in norm_defaults.items():
         if hasattr(value, "model_dump") and hasattr(value, "model_fields"):
             merged[key] = value.model_dump()
         else:
             merged[key] = value
 
-    # 2. TOML config overrides defaults (skip None values)
-    # Deep-merge for sub-model dicts so partial TOML overrides
-    # (e.g. {openai: {api_key: "sk-..."}}) don't lose other defaults.
-    for key, value in norm_toml.items():
-        if value is not None:
-            if isinstance(value, dict) and isinstance(merged.get(key), dict):
-                merged[key] = _deep_merge(merged[key], value)
-            else:
-                merged[key] = value
-
-    # 3. Environment variables override TOML (skip None values)
-    # For sub-model dicts, merge at the sub-field level so that
-    # TOML sub-fields not overridden by env are preserved.
-    for key, value in norm_env.items():
-        if value is not None:
-            if isinstance(value, dict) and isinstance(merged.get(key), dict):
-                merged[key] = _deep_merge(merged[key], value)
-            else:
-                merged[key] = value
-
-    # 4. CLI arguments override everything (skip None values)
-    # Deep-merge for sub-model dicts so partial CLI overrides
-    # (e.g. {openai: {api_key: "sk-..."}}) don't lose other sub-fields.
-    for key, value in norm_cli.items():
-        if value is not None:
-            if isinstance(value, dict) and isinstance(merged.get(key), dict):
-                merged[key] = _deep_merge(merged[key], value)
-            else:
-                merged[key] = value
+    # 2-4. TOML, then env, then CLI — each overlays the accumulated result.
+    _apply_priority_layer(merged, norm_toml)
+    _apply_priority_layer(merged, norm_env)
+    _apply_priority_layer(merged, norm_cli)
 
     return merged
+
+
+def _apply_priority_layer(merged: dict[str, Any], source: dict[str, Any]) -> None:
+    """Overlay a higher-priority source onto merged in place.
+
+    None values are skipped so an unset higher layer never clears a lower one.
+    Sub-model dicts are deep-merged so partial overrides (e.g.
+    {openai: {api_key: "sk-..."}}) preserve sibling sub-fields.
+    """
+    for key, value in source.items():
+        if value is None:
+            continue
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
 
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
@@ -283,6 +277,152 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
         else:
             result[key] = value
     return result
+
+
+def _extract_sub_model_env(
+    field_name: str,
+    current_value: Any,
+    default_value: Any,
+    *,
+    nested_present: Callable[[str, str], bool],
+    alias_present: Callable[[str, str], bool],
+) -> dict[str, Any]:
+    """Collect env-set sub-fields of a config sub-model (e.g. openai, vad).
+
+    A sub-field is included when the environment names it (directly or via a
+    documented compatibility alias) or when its value differs from the default.
+    """
+    sub_env: dict[str, Any] = {}
+    for sub_field_name in current_value.model_fields:
+        current_sub = getattr(current_value, sub_field_name)
+        default_sub = getattr(default_value, sub_field_name, None)
+        sub_env_present = nested_present(field_name, sub_field_name) or alias_present(
+            field_name, sub_field_name
+        )
+        if isinstance(current_sub, SecretStr):
+            default_secret_sub = (
+                default_sub if isinstance(default_sub, SecretStr) else SecretStr("")
+            )
+            current_secret_sub_value = current_sub.get_secret_value()
+            if current_secret_sub_value.strip() and (
+                sub_env_present or current_secret_sub_value != default_secret_sub.get_secret_value()
+            ):
+                sub_env[sub_field_name] = current_sub
+        elif sub_env_present or current_sub != default_sub:
+            sub_env[sub_field_name] = current_sub
+    return sub_env
+
+
+def _extract_env_overrides(
+    defaults: dict[str, Any],
+    env_config_instance: AppConfig,
+) -> dict[str, Any]:
+    """Extract values the environment sets, honoring presence over equality.
+
+    Environment presence matters even when the supplied value equals a code
+    default, because env must still override TOML in the documented priority
+    chain. Sub-models are compared field-by-field to avoid false positives from
+    object-identity comparison. Documented single-underscore alias fields are
+    skipped here so they cannot override higher-priority nested CLI values later.
+    """
+    env_keys = {key.upper() for key in os.environ}
+
+    def _env_present(env_name: str) -> bool:
+        return env_name.upper() in env_keys
+
+    def _top_level_env_present(field_name: str) -> bool:
+        return _env_present(f"AUDIOCORE_{field_name.upper()}")
+
+    def _nested_env_present(field_name: str, sub_field_name: str) -> bool:
+        return _env_present(f"AUDIOCORE_{field_name.upper()}__{sub_field_name.upper()}")
+
+    def _compatibility_alias_present(field_name: str, sub_field_name: str) -> bool:
+        target = (field_name, sub_field_name)
+        return any(
+            alias_target == target and _top_level_env_present(alias_field)
+            for alias_field, alias_target in _ENV_COMPATIBILITY_ALIAS_TARGETS.items()
+        )
+
+    env_values: dict[str, Any] = {}
+    for field_name in AppConfig.model_fields:
+        if field_name in _ENV_COMPATIBILITY_ALIAS_FIELDS:
+            continue
+        default_value = defaults.get(field_name)
+        current_value = getattr(env_config_instance, field_name)
+
+        if isinstance(current_value, SecretStr):
+            default_secret = (
+                default_value if isinstance(default_value, SecretStr) else SecretStr("")
+            )
+            current_secret_value = current_value.get_secret_value()
+            if current_secret_value.strip() and (
+                _top_level_env_present(field_name)
+                or current_secret_value != default_secret.get_secret_value()
+            ):
+                env_values[field_name] = current_value
+        elif hasattr(current_value, "model_fields") and hasattr(default_value, "model_fields"):
+            sub_env = _extract_sub_model_env(
+                field_name,
+                current_value,
+                default_value,
+                nested_present=_nested_env_present,
+                alias_present=_compatibility_alias_present,
+            )
+            if sub_env:
+                env_values[field_name] = sub_env
+        elif _top_level_env_present(field_name) or current_value != default_value:
+            env_values[field_name] = current_value
+
+    return env_values
+
+
+def _normalize_cli_overrides(cli_overrides: dict[str, Any] | None) -> dict[str, Any]:
+    """Map CLI override aliases (model_size -> model) into AppConfig field names."""
+    field_aliases = {"model_size": "model"}
+    cli_config: dict[str, Any] = {}
+    if cli_overrides:
+        for key, value in cli_overrides.items():
+            actual_key = field_aliases.get(key, key)
+            cli_config[actual_key] = value
+    return cli_config
+
+
+def _log_config_sources(
+    defaults: dict[str, Any],
+    toml_config: dict[str, Any],
+    env_values: dict[str, Any],
+    cli_config: dict[str, Any],
+) -> None:
+    """Log masked configuration layers and the resolved source of each field."""
+    logger.debug("Configuration loaded:")
+    logger.debug(
+        "  Defaults: %s",
+        {k: v for k, v in mask_secrets(defaults).items() if v is not None},
+    )
+    logger.debug(
+        "  TOML: %s",
+        {k: v for k, v in mask_secrets(toml_config).items() if v is not None},
+    )
+    logger.debug(
+        "  Env: %s",
+        {k: v for k, v in mask_secrets(env_values).items() if v is not None},
+    )
+    logger.debug(
+        "  CLI: %s",
+        {k: v for k, v in mask_secrets(cli_config).items() if v is not None},
+    )
+
+    source_tracking: dict[str, str] = {}
+    for field_name in AppConfig.model_fields:
+        if field_name in cli_config and cli_config[field_name] is not None:
+            source_tracking[field_name] = "CLI"
+        elif field_name in env_values and env_values[field_name] is not None:
+            source_tracking[field_name] = "ENV"
+        elif field_name in toml_config and toml_config[field_name] is not None:
+            source_tracking[field_name] = "TOML"
+        else:
+            source_tracking[field_name] = "DEFAULT"
+    logger.debug("  Sources: %s", source_tracking)
 
 
 def load_config(
@@ -325,10 +465,6 @@ def load_config(
         >>> config.backend
         <BackendType.OPENAI: 'openai'>
     """
-    import logging
-
-    logger = logging.getLogger(__name__)
-
     # 1. Get defaults from AppConfig fields
     defaults = _get_defaults()
 
@@ -340,9 +476,8 @@ def load_config(
     # 3. Load TOML config (returns {} if missing)
     toml_config = load_toml_config(resolved_path)
 
-    # 4. Get env values from AppConfig (without CLI overrides)
-    # Create a temporary instance to get env-derived values
-    # AppConfig uses pydantic-settings which reads from environment
+    # 4. Get env-derived values from a temporary AppConfig (pydantic-settings
+    #    reads the environment); this instance carries no CLI overrides.
     try:
         env_config_instance = AppConfig()
     except ValidationError as e:
@@ -351,132 +486,23 @@ def load_config(
             context={"error": str(e)},
             cause=e,
         ) from e
-
-    # Extract field values that would come from env. Environment presence matters
-    # even when the supplied value equals a code default, because env must still
-    # override TOML in the documented priority chain.
-    env_keys = {key.upper() for key in os.environ}
-
-    def _env_present(env_name: str) -> bool:
-        return env_name.upper() in env_keys
-
-    def _top_level_env_present(field_name: str) -> bool:
-        return _env_present(f"AUDIOCORE_{field_name.upper()}")
-
-    def _nested_env_present(field_name: str, sub_field_name: str) -> bool:
-        return _env_present(f"AUDIOCORE_{field_name.upper()}__{sub_field_name.upper()}")
-
-    def _compatibility_alias_present(field_name: str, sub_field_name: str) -> bool:
-        target = (field_name, sub_field_name)
-        return any(
-            alias_target == target and _top_level_env_present(alias_field)
-            for alias_field, alias_target in _ENV_COMPATIBILITY_ALIAS_TARGETS.items()
-        )
-
-    # For sub-models (like `openai`, `vad`), compare each sub-field individually
-    # to avoid false positives from object identity comparison.
-    env_values: dict[str, Any] = {}
-    for field_name in AppConfig.model_fields:
-        if field_name in _ENV_COMPATIBILITY_ALIAS_FIELDS:
-            # AppConfig reconciles documented single-underscore env aliases into
-            # their nested models. Keeping the alias fields as separate env values
-            # would let them override higher-priority nested CLI values later.
-            continue
-        default_value = defaults.get(field_name)
-        current_value = getattr(env_config_instance, field_name)
-
-        # Determine if this value differs from default
-        # For SecretStr, compare the secret values
-        if isinstance(current_value, SecretStr):
-            default_secret = (
-                default_value if isinstance(default_value, SecretStr) else SecretStr("")
-            )
-            current_secret_value = current_value.get_secret_value()
-            if current_secret_value.strip() and (
-                _top_level_env_present(field_name)
-                or current_secret_value != default_secret.get_secret_value()
-            ):
-                env_values[field_name] = current_value
-        elif hasattr(current_value, "model_fields") and hasattr(default_value, "model_fields"):
-            # Both are Pydantic models — compare sub-fields individually
-            sub_env: dict[str, Any] = {}
-            for sub_field_name in current_value.model_fields:
-                current_sub = getattr(current_value, sub_field_name)
-                default_sub = getattr(default_value, sub_field_name, None)
-                sub_env_present = _nested_env_present(
-                    field_name, sub_field_name
-                ) or _compatibility_alias_present(field_name, sub_field_name)
-                # For SecretStr sub-fields, compare secret values
-                if isinstance(current_sub, SecretStr):
-                    default_secret_sub = (
-                        default_sub if isinstance(default_sub, SecretStr) else SecretStr("")
-                    )
-                    current_secret_sub_value = current_sub.get_secret_value()
-                    if current_secret_sub_value.strip() and (
-                        sub_env_present
-                        or current_secret_sub_value != default_secret_sub.get_secret_value()
-                    ):
-                        sub_env[sub_field_name] = current_sub
-                elif sub_env_present or current_sub != default_sub:
-                    sub_env[sub_field_name] = current_sub
-            if sub_env:
-                env_values[field_name] = sub_env
-        elif _top_level_env_present(field_name) or current_value != default_value:
-            env_values[field_name] = current_value
+    env_values = _extract_env_overrides(defaults, env_config_instance)
 
     # 5. CLI overrides (highest priority)
-    # Also map model_size to model for CLI
-    field_aliases = {"model_size": "model"}
-    cli_config: dict[str, Any] = {}
-    if cli_overrides:
-        for key, value in cli_overrides.items():
-            actual_key = field_aliases.get(key, key)
-            cli_config[actual_key] = value
+    cli_config = _normalize_cli_overrides(cli_overrides)
 
     toml_config = _canonicalize_openai_api_key(toml_config)
     env_values = _canonicalize_openai_api_key(env_values)
     cli_config = _canonicalize_openai_api_key(cli_config)
 
-    # 6. Merge all sources
+    # 6. Merge all sources, then reflect the canonical key back to its alias
     merged = merge_configs(defaults, toml_config, env_values, cli_config)
     merged = _mirror_openai_api_key(merged)
 
-    # 7. Log configuration sources at DEBUG level
-    # Never log API keys in plain text
-    logger.debug("Configuration loaded:")
-    logger.debug(
-        "  Defaults: %s",
-        {k: v for k, v in mask_secrets(defaults).items() if v is not None},
-    )
-    logger.debug(
-        "  TOML: %s",
-        {k: v for k, v in mask_secrets(toml_config).items() if v is not None},
-    )
-    logger.debug(
-        "  Env: %s",
-        {k: v for k, v in mask_secrets(env_values).items() if v is not None},
-    )
-    logger.debug(
-        "  CLI: %s",
-        {k: v for k, v in mask_secrets(cli_config).items() if v is not None},
-    )
+    # 7. Log configuration sources at DEBUG level (never log API keys in plain text)
+    _log_config_sources(defaults, toml_config, env_values, cli_config)
 
-    # Track source of each value for debugging
-    source_tracking: dict[str, str] = {}
-    for field_name in AppConfig.model_fields:
-        if field_name in cli_config and cli_config[field_name] is not None:
-            source_tracking[field_name] = "CLI"
-        elif field_name in env_values and env_values[field_name] is not None:
-            source_tracking[field_name] = "ENV"
-        elif field_name in toml_config and toml_config[field_name] is not None:
-            source_tracking[field_name] = "TOML"
-        else:
-            source_tracking[field_name] = "DEFAULT"
-
-    logger.debug("  Sources: %s", source_tracking)
-
-    # 8. Create AppConfig from merged values
-    # Use model_validate to construct from dict, respecting validators
+    # 8. Create AppConfig from merged values, respecting validators
     try:
         return AppConfig.model_validate(merged)
     except ValidationError as e:
