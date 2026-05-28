@@ -10,6 +10,9 @@ from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+# Window sizes (in samples) that Silero VAD's model accepts at 16kHz.
+_VALID_WINDOW_SIZE_SAMPLES = (512, 768, 1024)
+
 
 class VADConfig(BaseModel):
     """Configuration for Voice Activity Detection.
@@ -102,7 +105,7 @@ class VADConfig(BaseModel):
                 f"min_segment_duration ({self.min_segment_duration}) must be less than "
                 f"max_segment_duration ({self.max_segment_duration})"
             )
-        if self.window_size_samples not in (512, 768, 1024):
+        if self.window_size_samples not in _VALID_WINDOW_SIZE_SAMPLES:
             raise ValueError(
                 f"window_size_samples must be 512, 768, or 1024, got {self.window_size_samples}"
             )

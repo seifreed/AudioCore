@@ -69,6 +69,8 @@ DEFAULT_OPENAI_MAX_UPLOAD_SIZE_MB = 25.0
 DEFAULT_OPENAI_CHUNK_TARGET_SIZE_MB = 24.0
 DEFAULT_OPENAI_CHUNK_MIN_DURATION_SECONDS = 30.0
 DEFAULT_OPENAI_CHUNK_PROMPT_CHARS = 1000
+# OpenAI documents its upload limit in decimal megabytes (MB = 10^6 bytes).
+_BYTES_PER_MB = 1_000_000
 
 
 class OpenAIBackend(TranscriptionBackend):
@@ -291,7 +293,7 @@ class OpenAIBackend(TranscriptionBackend):
             if self._config is not None
             else DEFAULT_OPENAI_MAX_UPLOAD_SIZE_MB
         )
-        return int(size_mb * 1_000_000)
+        return int(size_mb * _BYTES_PER_MB)
 
     @property
     def _chunk_target_bytes(self) -> int:
@@ -300,7 +302,7 @@ class OpenAIBackend(TranscriptionBackend):
             if self._config is not None
             else DEFAULT_OPENAI_CHUNK_TARGET_SIZE_MB
         )
-        return int(size_mb * 1_000_000)
+        return int(size_mb * _BYTES_PER_MB)
 
     @property
     def _chunk_min_duration_seconds(self) -> float:
