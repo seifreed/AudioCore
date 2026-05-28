@@ -24,6 +24,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Full-scale divisors for normalizing integer PCM samples to float [-1, 1].
+_INT16_FULL_SCALE = 32768.0
+_INT32_FULL_SCALE = 2147483648.0
+_UINT8_MIDPOINT = 128.0
+_UINT16_MIDPOINT = 32768.0
+
 
 class SileroVAD:
     """Silero VAD model wrapper with lazy loading and thread-safe caching.
@@ -289,29 +295,7 @@ class SileroVAD:
         if data.size == 0:
             return data.astype(np.float32).flatten(), sample_rate
 
-        # Convert to float32 normalized to [-1, 1]
-        if data.dtype == np.int16:
-            data = data.astype(np.float32) / 32768.0
-        elif data.dtype == np.int32:
-            data = data.astype(np.float32) / 2147483648.0
-        elif data.dtype == np.uint8:
-            data = (data.astype(np.float32) - 128) / 128.0
-        elif data.dtype == np.uint16:
-            data = (data.astype(np.float32) - 32768) / 32768.0
-        elif data.dtype == np.float32 or data.dtype == np.float64:
-            data = data.astype(np.float32)
-            # Validate float32 data is in [-1, 1] range
-            max_val = np.max(np.abs(data))
-            if max_val > 1.0:
-                logger.warning(f"Audio data exceeds [-1, 1] range (max={max_val:.2f}), normalizing")
-                data = data / max_val
-        else:
-            data = data.astype(np.float32)
-            # Normalize unknown types to [-1, 1] range
-            max_val = np.max(np.abs(data))
-            if max_val > 1.0:
-                logger.warning(f"Audio data exceeds [-1, 1] range (max={max_val:.2f}), normalizing")
-                data = data / max_val
+        data = self._normalize_to_float32(data)
 
         # Convert stereo to mono by averaging channels
         if len(data.shape) > 1 and data.shape[1] > 1:
@@ -321,6 +305,30 @@ class SileroVAD:
         data = data.flatten()
 
         return data, sample_rate
+
+    @staticmethod
+    def _normalize_to_float32(data: NDArray[Any]) -> NDArray[np.float32]:
+        """Convert raw WAV samples to float32 normalized to [-1, 1].
+
+        Integer PCM types are scaled by their full-scale divisor; float and
+        unknown types are cast and clamped only if they exceed unit range.
+        """
+        if data.dtype == np.int16:
+            return data.astype(np.float32) / _INT16_FULL_SCALE
+        if data.dtype == np.int32:
+            return data.astype(np.float32) / _INT32_FULL_SCALE
+        if data.dtype == np.uint8:
+            return (data.astype(np.float32) - _UINT8_MIDPOINT) / _UINT8_MIDPOINT
+        if data.dtype == np.uint16:
+            return (data.astype(np.float32) - _UINT16_MIDPOINT) / _UINT16_MIDPOINT
+
+        # float32/float64 or unknown: cast, then clamp only if out of [-1, 1]
+        floats = data.astype(np.float32)
+        max_val = float(np.max(np.abs(floats)))
+        if max_val > 1.0:
+            logger.warning(f"Audio data exceeds [-1, 1] range (max={max_val:.2f}), normalizing")
+            floats = floats / max_val
+        return floats
 
     def detect_audio(
         self,
