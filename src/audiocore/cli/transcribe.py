@@ -57,6 +57,13 @@ if TYPE_CHECKING:
 
 app = typer.Typer(help="Transcribe audio/video files")
 
+# CLI exit codes (see the transcribe command docstring for the full contract).
+_EXIT_INPUT_ERROR = 1
+_EXIT_CONFIG_ERROR = 2
+_EXIT_PROCESSING_ERROR = 3
+_EXIT_BACKEND_ERROR = 4
+_EXIT_OUTPUT_ERROR = 5
+
 
 def parse_backend_type(value: str | None) -> BackendType | None:
     """Parse backend type from string.
@@ -411,15 +418,15 @@ def _exit_code_for_audiocore_error(console: Console, error: AudioCoreError) -> i
     """Print a categorized error message and return its documented CLI exit code."""
     if isinstance(error, ConfigurationError):
         console.print(f"[red]Configuration Error:[/red] {error}")
-        return 2
+        return _EXIT_CONFIG_ERROR
     if isinstance(error, BackendError):
         console.print(f"[red]Backend Error:[/red] {error}")
-        return 4
+        return _EXIT_BACKEND_ERROR
     if isinstance(error, (OutputDirectoryError, OutputFileExistsError)):
         console.print(f"[red]Output Error:[/red] {error}")
-        return 5
+        return _EXIT_OUTPUT_ERROR
     console.print(f"[red]Processing Error:[/red] {error}")
-    return 3
+    return _EXIT_PROCESSING_ERROR
 
 
 def _print_transcription_result(console: Console, result: TranscriptionResult) -> None:
@@ -530,10 +537,10 @@ def _run_single_transcription(
 
     except FileNotFoundError as e:
         console.print(f"[red]Error:[/red] File not found: {e}")
-        exit_code = 1
+        exit_code = _EXIT_INPUT_ERROR
     except PermissionError as e:
         console.print(f"[red]Error:[/red] Permission denied: {e}")
-        exit_code = 1
+        exit_code = _EXIT_INPUT_ERROR
     except AudioCoreError as e:
         exit_code = _exit_code_for_audiocore_error(console, e)
 
