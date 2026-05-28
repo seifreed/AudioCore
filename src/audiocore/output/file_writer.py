@@ -101,9 +101,20 @@ def write_output(
         sys.stdout.write(content)
         return None
 
-    # Convert to Path object
     file_path = Path(path) if isinstance(path, str) else path
+    _validate_output_path(file_path, config)
+    _atomic_write(file_path, content, config)
+    return file_path
 
+
+def _validate_output_path(file_path: Path, config: OutputFileConfig) -> None:
+    """Validate the destination path and overwrite/create-dirs policy.
+
+    Raises:
+        OutputDirectoryError: If the path is a directory or the parent is
+            invalid/missing when create_dirs is disabled.
+        OutputFileExistsError: If the file exists and overwrite is disabled.
+    """
     if file_path.exists() and file_path.is_dir():
         raise OutputDirectoryError(
             f"Output path is not a file: {file_path}",
@@ -124,7 +135,6 @@ def write_output(
             ],
         )
 
-    # Validate parent directory exists when create_dirs is False
     if not config.create_dirs and file_path.parent and not file_path.parent.exists():
         raise OutputDirectoryError(
             f"Parent directory does not exist: {file_path.parent}",
@@ -135,7 +145,6 @@ def write_output(
             ],
         )
 
-    # Check for overwrite protection
     if file_path.exists() and not config.overwrite:
         raise OutputFileExistsError(
             f"Output file already exists: {file_path}",
@@ -146,12 +155,17 @@ def write_output(
             ],
         )
 
-    # Create parent directories if needed
+
+def _atomic_write(file_path: Path, content: str, config: OutputFileConfig) -> None:
+    """Write content via a temp file in the same directory, then atomic-replace.
+
+    Creates parent directories first when create_dirs is set. A failed write
+    leaves no partial output: the temp file is removed before re-raising.
+    """
     if config.create_dirs and file_path.parent:
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Write to temp file first, then move (atomic on most systems)
-    # Use same directory to ensure same filesystem for atomic move
+    # Write to a temp file on the same filesystem so the move is atomic.
     parent_dir = file_path.parent if file_path.parent.exists() else Path.cwd()
     temp_path: Path | None = None
     try:
@@ -166,15 +180,11 @@ def write_output(
             temp_file.flush()
             temp_path = Path(temp_file.name)
 
-        # Atomic move (rename on Unix/Windows)
         temp_path.replace(file_path)
     except Exception:
-        # Clean up temp file if write failed
         if temp_path is not None and temp_path.exists():
             temp_path.unlink()
         raise
-
-    return file_path
 
 
 # Mapping of OutputFormat to formatter function
