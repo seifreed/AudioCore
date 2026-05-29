@@ -86,6 +86,52 @@ class TestTranscribeCommand:
 
         assert result.exit_code == 0
 
+    def test_json_to_stdout_is_parseable(
+        self, audio_file: Path, mock_pipeline: MagicMock
+    ) -> None:
+        """Regression: JSON printed to stdout must be byte-exact and parseable.
+
+        The progress bar previously rendered to stdout and rich markup/width
+        wrapping mangled structured output, breaking `... --format json | jq`.
+        """
+        import json
+
+        payload = '{"segments": [{"text": "Hello [bracketed] world", "start_time": 0.0}]}'
+        mock_pipeline.transcribe.return_value = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=5.0, text="Hello [bracketed] world")],
+            media_info=MediaInfo(duration=5.0, format="wav", sample_rate=16000, channels=1),
+            config_used=TranscriptionOptions(output_format=OutputFormat.JSON),
+            processing_time_seconds=2.0,
+            backend_used=BackendType.OPENAI,
+            formatted_output=payload,
+        )
+
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file), "--format", "json"])
+
+        assert result.exit_code == 0
+        parsed = json.loads(result.output)
+        assert parsed["segments"][0]["text"] == "Hello [bracketed] world"
+
+    def test_stdout_preserves_literal_brackets(
+        self, audio_file: Path, mock_pipeline: MagicMock
+    ) -> None:
+        """Regression: bracketed text (e.g. timestamps) is not eaten as rich markup."""
+        mock_pipeline.transcribe.return_value = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=5.0, text="hi")],
+            media_info=MediaInfo(duration=5.0, format="wav", sample_rate=16000, channels=1),
+            config_used=TranscriptionOptions(),
+            processing_time_seconds=1.0,
+            backend_used=BackendType.OPENAI,
+            formatted_output="[00:00:00.000] hi",
+        )
+
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file)])
+
+        assert result.exit_code == 0
+        assert "[00:00:00.000] hi" in result.output
+
     def test_transcribe_with_backend(self, audio_file: Path, mock_pipeline: MagicMock) -> None:
         """Test transcription with specific backend."""
         with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):

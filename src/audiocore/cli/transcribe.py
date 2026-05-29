@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
@@ -454,12 +455,19 @@ def _exit_code_for_audiocore_error(console: Console, error: AudioCoreError) -> i
 
 
 def _print_transcription_result(console: Console, result: TranscriptionResult) -> None:
-    """Print formatted output, or fall back to timestamped segment lines."""
+    """Print the transcription to stdout verbatim, pipe-safe.
+
+    The result is written with the builtin ``print`` rather than
+    ``console.print`` so structured output (JSON/SRT/VTT) is emitted byte-for-byte
+    without rich markup interpretation (e.g. ``[00:00:00.000]`` being parsed as a
+    style tag) or terminal-width line wrapping. Progress and status messages go
+    to stderr (see ``_transcribe_with_progress``), keeping stdout clean for pipes.
+    """
     if result.formatted_output:
-        console.print(result.formatted_output)
+        print(result.formatted_output)
         return
     for segment in result.segments:
-        console.print(f"[{segment.start_time:.3f} - {segment.end_time:.3f}] {segment.text}")
+        print(f"[{segment.start_time:.3f} - {segment.end_time:.3f}] {segment.text}")
 
 
 def _transcribe_with_progress(
@@ -468,13 +476,20 @@ def _transcribe_with_progress(
     input_file: Path,
     options: TranscriptionOptions,
 ) -> TranscriptionResult:
-    """Run the pipeline for one file behind a rich progress bar."""
+    """Run the pipeline for one file behind a rich progress bar.
+
+    The progress bar renders to stderr so it never contaminates the
+    transcription result that ``_print_transcription_result`` writes to stdout,
+    and it is disabled entirely when stderr is not an interactive terminal
+    (piped, redirected, or captured) where an animated bar would only add noise.
+    """
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
         TimeElapsedColumn(),
-        console=console,
+        console=Console(stderr=True),
+        disable=not sys.stderr.isatty(),
     ) as progress_bar:
         task = progress_bar.add_task("[cyan]Initializing[/cyan]", total=100)
         pipeline = Pipeline(config=config)
