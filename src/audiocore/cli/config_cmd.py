@@ -11,6 +11,7 @@ Example:
     >>> audiocore config path
 """
 
+import os
 from pathlib import Path
 
 import typer
@@ -71,6 +72,34 @@ def mask_secret_str(secret: object) -> str:
     return str(secret)
 
 
+def resolve_openai_key_display(config_key: object) -> str:
+    """Resolve the OpenAI key status for display the way the backend resolves it.
+
+    The OpenAI backend honors the standard ``OPENAI_API_KEY`` env var (and
+    ``AUDIOCORE_OPENAI_API_KEY``) at runtime, not just the config/``audiocore.toml``
+    value. Mirroring that here keeps ``config show`` consistent with
+    ``backends list`` and actual transcription behavior, and names the source so
+    the precedence is clear. The key itself is always masked.
+
+    Args:
+        config_key: ``config.openai.api_key`` (a SecretStr or None).
+
+    Returns:
+        A masked, source-annotated status string.
+    """
+    from pydantic import SecretStr
+
+    if isinstance(config_key, SecretStr) and config_key.get_secret_value().strip():
+        return mask_secret_str(config_key)
+
+    for env_var in ("OPENAI_API_KEY", "AUDIOCORE_OPENAI_API_KEY"):
+        env_value = os.environ.get(env_var)
+        if env_value and env_value.strip():
+            return f"{mask_api_key(env_value)} (from {env_var})"
+
+    return "(not set)"
+
+
 @app.command("show")
 def show_config() -> None:
     """Display current configuration with API keys redacted.
@@ -107,7 +136,7 @@ def show_config() -> None:
 
     # OpenAI config
     if config.openai:
-        api_key = mask_secret_str(config.openai.api_key)
+        api_key = resolve_openai_key_display(config.openai.api_key)
         table.add_row("OpenAI API Key", api_key)
         if config.openai.organization:
             table.add_row("OpenAI Organization", config.openai.organization)

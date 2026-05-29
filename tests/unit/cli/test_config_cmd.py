@@ -11,7 +11,12 @@ from unittest.mock import MagicMock, patch
 from pydantic import SecretStr
 from typer.testing import CliRunner
 
-from audiocore.cli.config_cmd import app, mask_api_key, mask_secret_str
+from audiocore.cli.config_cmd import (
+    app,
+    mask_api_key,
+    mask_secret_str,
+    resolve_openai_key_display,
+)
 from audiocore.config import AppConfig
 from audiocore.types import BackendType
 
@@ -86,6 +91,44 @@ class TestMaskSecretStr:
         """Regression: blank SecretStr values should display as not set."""
         secret = SecretStr("   ")
         assert mask_secret_str(secret) == "(not set)"
+
+
+class TestResolveOpenAIKeyDisplay:
+    """config show must reflect the same key resolution the backend uses."""
+
+    def test_config_key_takes_precedence(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A config-provided key is shown masked, without an env source label."""
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-envenvenvenvenv")
+        result = resolve_openai_key_display(SecretStr("sk-configconfigconfig"))
+        assert result.startswith("sk-***")
+        assert "from" not in result
+
+    def test_falls_back_to_openai_api_key_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Regression: OPENAI_API_KEY env is reflected (was shown as not set).
+
+        Previously config show only read the config/AUDIOCORE_OPENAI_API_KEY
+        value, contradicting `backends list` for users who set OPENAI_API_KEY.
+        """
+        monkeypatch.delenv("AUDIOCORE_OPENAI_API_KEY", raising=False)
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-1234567890abcdef")
+        result = resolve_openai_key_display(SecretStr(""))
+        assert "(from OPENAI_API_KEY)" in result
+        assert "sk-***" in result
+        assert "1234567890abcdef" not in result  # key stays masked
+
+    def test_falls_back_to_audiocore_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """AUDIOCORE_OPENAI_API_KEY env is reflected when set."""
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.setenv("AUDIOCORE_OPENAI_API_KEY", "sk-abcdefghijklmnop")
+        result = resolve_openai_key_display(SecretStr(""))
+        assert "(from AUDIOCORE_OPENAI_API_KEY)" in result
+
+    def test_not_set_when_nothing_configured(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """With no config value and no env vars, displays (not set)."""
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("AUDIOCORE_OPENAI_API_KEY", raising=False)
+        assert resolve_openai_key_display(SecretStr("")) == "(not set)"
+        assert resolve_openai_key_display(None) == "(not set)"
 
 
 class TestShowConfig:
