@@ -247,6 +247,42 @@ class TestSyncTranscribe:
         with pytest.raises(TypeError, match="vad_config"):
             transcribe("audio.mp3", config=AppConfig(), vad_config="invalid")
 
+    def test_transcribe_forwards_vad_model_and_diarizer(self):
+        """Regression: README-documented vad_model and diarizer reach the Pipeline.
+
+        The public transcribe() previously did not accept these kwargs even
+        though Pipeline and the README support them.
+        """
+        mock_result = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=5.0, text="Test")],
+            media_info=MediaInfo(duration=5.0, format="wav"),
+            config_used=TranscriptionOptions(),
+            processing_time_seconds=1.0,
+            backend_used=BackendType.OPENAI,
+        )
+
+        class _FakeVAD:
+            def detect_file(self, audio_path, config=None):
+                return [(0.0, 5.0, 1.0)]
+
+        class _FakeDiarizer:
+            def diarize(self, audio_path):
+                return []
+
+        vad_model = _FakeVAD()
+        diarizer = _FakeDiarizer()
+
+        with patch("audiocore.api.transcribe.Pipeline") as mock_pipeline_class:
+            mock_pipeline = MagicMock()
+            mock_pipeline.transcribe.return_value = mock_result
+            mock_pipeline_class.return_value = mock_pipeline
+
+            transcribe("audio.mp3", config=AppConfig(), vad_model=vad_model, diarizer=diarizer)
+
+        kwargs = mock_pipeline_class.call_args.kwargs
+        assert kwargs["vad_model"] is vad_model
+        assert kwargs["diarizer"] is diarizer
+
 
 class TestAsyncTranscribe:
     """Tests for asynchronous async_transcribe function."""

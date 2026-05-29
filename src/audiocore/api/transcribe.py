@@ -30,9 +30,11 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from audiocore.config import AppConfig
+    from audiocore.diarization import Diarizer
     from audiocore.parallel.files import FileResult
     from audiocore.pipeline.cancellation import CancellationToken
     from audiocore.pipeline.progress import ProgressCallback
+    from audiocore.vad import VADModel
     from audiocore.vad.config import VADConfig
 
 # Register backends on module load
@@ -219,6 +221,8 @@ def transcribe(
     backend_preference: SelectionPolicy | str | None = None,
     strict_vad: bool | None = None,
     vad_config: VADConfig | None = None,
+    vad_model: VADModel | None = None,
+    diarizer: Diarizer | None = None,
 ) -> TranscriptionResult:
     """Transcribe an audio/video file synchronously.
 
@@ -242,6 +246,10 @@ def transcribe(
         backend_preference: Optional automatic backend selection preference.
         strict_vad: Optional VAD failure behavior override.
         vad_config: Optional VAD configuration override.
+        vad_model: Optional custom VAD detector (``VADModel`` protocol) used for
+            the speech-detection stage instead of the bundled Silero VAD.
+        diarizer: Optional speaker diarizer (``Diarizer`` protocol); when set,
+            transcribed segments are labeled with speaker turns.
 
     Returns:
         TranscriptionResult with segments, media info, and metadata.
@@ -297,7 +305,7 @@ def transcribe(
     )
 
     # Create pipeline and transcribe
-    pipeline = Pipeline(config=config)
+    pipeline = Pipeline(config=config, vad_model=vad_model, diarizer=diarizer)
     return pipeline.transcribe(
         path=path,
         options=options,
