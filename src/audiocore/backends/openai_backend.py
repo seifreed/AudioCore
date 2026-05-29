@@ -52,6 +52,7 @@ from audiocore.models import (
     Segment,
     TranscriptionOptions,
     TranscriptionResult,
+    Word,
     floor_media_duration,
 )
 from audiocore.types import BackendType
@@ -71,6 +72,21 @@ DEFAULT_OPENAI_CHUNK_MIN_DURATION_SECONDS = 30.0
 DEFAULT_OPENAI_CHUNK_PROMPT_CHARS = 1000
 # OpenAI documents its upload limit in decimal megabytes (MB = 10^6 bytes).
 _BYTES_PER_MB = 1_000_000
+
+
+def _offset_words(words: list[Word] | None, offset: float) -> list[Word] | None:
+    """Shift per-chunk word timings into the combined timeline by ``offset``."""
+    if not words:
+        return None
+    return [
+        Word(
+            word=word.word,
+            start_time=word.start_time + offset,
+            end_time=word.end_time + offset,
+            confidence=word.confidence,
+        )
+        for word in words
+    ]
 
 
 class OpenAIBackend(TranscriptionBackend):
@@ -400,6 +416,10 @@ class OpenAIBackend(TranscriptionBackend):
                 api_params["language"] = options.language
             if prompt:
                 api_params["prompt"] = prompt
+            if options.word_timestamps:
+                # Request both granularities: asking for "word" alone drops the
+                # segment-level breakdown the result model is built around.
+                api_params["timestamp_granularities"] = ["segment", "word"]
 
             # Make the API call
             return client.audio.transcriptions.create(**api_params)  # type: ignore[arg-type]
@@ -553,6 +573,7 @@ class OpenAIBackend(TranscriptionBackend):
                             end_time=segment.end_time + duration_offset,
                             text=segment.text,
                             confidence=segment.confidence,
+                            words=_offset_words(segment.words, duration_offset),
                         )
                     )
 

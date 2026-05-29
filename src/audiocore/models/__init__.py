@@ -14,7 +14,7 @@ from audiocore.models.media import (
     MediaInfo,
     floor_media_duration,
 )
-from audiocore.models.segment import Segment
+from audiocore.models.segment import Segment, Word
 from audiocore.models.transcription import (
     FailedSegment,
     TranscriptionOptions,
@@ -26,6 +26,7 @@ __all__ = [
     "MIN_MEDIA_DURATION_SECONDS",
     "FailedSegment",
     "Segment",
+    "Word",
     "MediaInfo",
     "TranscriptionOptions",
     "TranscriptionResult",

@@ -20,6 +20,7 @@ from audiocore.models import (
     Segment,
     TranscriptionOptions,
     TranscriptionResult,
+    Word,
 )
 from audiocore.types import BackendType
 
@@ -102,22 +103,64 @@ def parse_transcription_response(
 
 
 def _extract_segments(response: object) -> list[Segment]:
-    """Extract timestamped segments from a verbose_json response."""
+    """Extract timestamped segments from a verbose_json response.
+
+    When the request asked for word-level granularity, OpenAI returns a
+    top-level ``words`` array (not nested per segment); each word is assigned
+    to the segment whose time span contains its midpoint.
+    """
+    words = _extract_words(response)
     segments: list[Segment] = []
     response_segments = get_response_value(response, "segments")
     if response_segments:
         for seg in cast("list[object]", response_segments):
-            start = get_response_value(seg, "start")
-            end = get_response_value(seg, "end")
+            start = float(get_response_value(seg, "start"))  # type: ignore[arg-type]
+            end = float(get_response_value(seg, "end"))  # type: ignore[arg-type]
             text = get_response_value(seg, "text")
             segments.append(
                 Segment(
-                    start_time=float(start),  # type: ignore[arg-type]
-                    end_time=float(end),  # type: ignore[arg-type]
+                    start_time=start,
+                    end_time=end,
                     text=text if isinstance(text, str) else str(text or ""),
+                    words=_words_in_span(words, start, end),
                 )
             )
     return segments
+
+
+def _extract_words(response: object) -> list[Word]:
+    """Extract the flat top-level word list from a verbose_json response."""
+    raw_words = get_response_value(response, "words")
+    if not raw_words:
+        return []
+    words: list[Word] = []
+    for raw in cast("list[object]", raw_words):
+        text = get_response_value(raw, "word")
+        start = parse_positive_duration(get_response_value(raw, "start"))
+        end = parse_positive_duration(get_response_value(raw, "end"))
+        word_start = start if start is not None else 0.0
+        word_end = end if end is not None and end >= word_start else word_start
+        words.append(
+            Word(
+                word=text if isinstance(text, str) else str(text or ""),
+                start_time=word_start,
+                end_time=word_end,
+            )
+        )
+    return words
+
+
+def _words_in_span(words: list[Word], start: float, end: float) -> list[Word] | None:
+    """Return words whose midpoint falls within [start, end], or None if empty.
+
+    None (rather than an empty list) signals "no word timestamps for this
+    segment", matching the contract where ``Segment.words`` is None when word
+    timestamps were not requested.
+    """
+    if not words:
+        return None
+    matched = [w for w in words if start <= (w.start_time + w.end_time) / 2 <= end]
+    return matched or None
 
 
 def _resolve_media_duration(response: object, segments: list[Segment]) -> float:

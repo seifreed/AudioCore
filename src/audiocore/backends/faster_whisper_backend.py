@@ -38,6 +38,7 @@ from audiocore.models import (
     Segment,
     TranscriptionOptions,
     TranscriptionResult,
+    Word,
     floor_media_duration,
 )
 from audiocore.types import BackendType
@@ -377,11 +378,44 @@ class FasterWhisperBackend(TranscriptionBackend):
         params["log_prob_threshold"] = self.config.log_prob_threshold
         params["no_speech_threshold"] = self.config.no_speech_threshold
         params["condition_on_previous_text"] = self.config.condition_on_previous_text
-        params["word_timestamps"] = self.config.word_timestamps
+        # A caller's explicit options.word_timestamps overrides the backend config.
+        params["word_timestamps"] = (
+            options.word_timestamps
+            if "word_timestamps" in options.model_fields_set
+            else self.config.word_timestamps
+        )
         params["vad_filter"] = self.config.vad_filter
         if self.config.initial_prompt:
             params["initial_prompt"] = self.config.initial_prompt
         return params
+
+    @staticmethod
+    def _extract_words(segment: Any) -> list[Word] | None:
+        """Normalize a faster-whisper segment's word timestamps into Word models.
+
+        Returns None when word timestamps were not requested (``segment.words``
+        is None). faster-whisper exposes each word as ``word``/``start``/``end``/
+        ``probability``; tiny negative floats are clamped to keep the model's
+        non-negativity contract, and a word's end is floored to its start.
+        """
+        raw_words = getattr(segment, "words", None)
+        if not raw_words:
+            return None
+        words: list[Word] = []
+        for raw in raw_words:
+            start = max(0.0, float(raw.start))
+            end = max(start, float(raw.end))
+            probability = getattr(raw, "probability", None)
+            confidence = min(1.0, max(0.0, float(probability))) if probability is not None else None
+            words.append(
+                Word(
+                    word=raw.word,
+                    start_time=start,
+                    end_time=end,
+                    confidence=confidence,
+                )
+            )
+        return words or None
 
     def _build_result(
         self,
@@ -395,7 +429,12 @@ class FasterWhisperBackend(TranscriptionBackend):
         from audiocore.models import MediaInfo
 
         segment_list: list[Segment] = [
-            Segment(start_time=seg.start, end_time=seg.end, text=seg.text.strip())
+            Segment(
+                start_time=seg.start,
+                end_time=seg.end,
+                text=seg.text.strip(),
+                words=self._extract_words(seg),
+            )
             for seg in segments
         ]
 

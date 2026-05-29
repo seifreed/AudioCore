@@ -185,6 +185,7 @@ def _build_transcription_options(
     backend_preference: str | SelectionPolicy | None,
     language: str | None,
     strict_vad: bool,
+    word_timestamps: bool = False,
 ) -> TranscriptionOptions:
     """Resolve CLI override values into TranscriptionOptions.
 
@@ -226,8 +227,13 @@ def _build_transcription_options(
         output_format=output_format_override,
         backend_preference=backend_preference_override,
     )
+    updates: dict[str, object] = {}
     if strict_vad:
-        options = options.model_copy(update={"strict_vad": True})
+        updates["strict_vad"] = True
+    if word_timestamps:
+        updates["word_timestamps"] = True
+    if updates:
+        options = options.model_copy(update=updates)
     return options
 
 
@@ -320,6 +326,13 @@ def transcribe(
             help="Fail if VAD processing fails instead of falling back to whole-file transcription.",
         ),
     ] = False,
+    word_timestamps: Annotated[
+        bool,
+        typer.Option(
+            "--word-timestamps",
+            help="Emit word-level timestamps (included in JSON output).",
+        ),
+    ] = False,
 ) -> None:
     """Transcribe one or more audio/video files.
 
@@ -374,6 +387,7 @@ def transcribe(
         backend_preference=backend_preference,
         language=language,
         strict_vad=strict_vad,
+        word_timestamps=word_timestamps,
     )
 
     # Determine batch mode

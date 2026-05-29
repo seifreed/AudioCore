@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from audiocore.models import Segment
+from audiocore.models import Segment, Word
 
 
 class TestSegmentCreation:
@@ -82,7 +82,6 @@ class TestSegmentValidation:
         with pytest.raises(ValidationError):
             Segment(start_time=0.0, end_time="5", text="test")  # type: ignore
 
-
     def test_reject_infinite_start_time(self) -> None:
         """Regression: float('inf') must be rejected for start_time."""
         with pytest.raises(ValidationError, match="must be finite"):
@@ -157,3 +156,63 @@ class TestSegmentEquality:
         s1 = Segment(start_time=0.0, end_time=5.0, text="test1")
         s2 = Segment(start_time=0.0, end_time=5.0, text="test2")
         assert s1 != s2
+
+
+class TestWordCreation:
+    """Tests for the Word model (word-level timestamps)."""
+
+    def test_create_word_minimal(self) -> None:
+        """Create a word with required fields only; confidence defaults to None."""
+        word = Word(word="Hello", start_time=0.0, end_time=0.5)
+        assert word.word == "Hello"
+        assert word.start_time == 0.0
+        assert word.end_time == 0.5
+        assert word.confidence is None
+
+    def test_create_word_with_confidence(self) -> None:
+        """Create a word with a confidence score."""
+        word = Word(word="world", start_time=0.5, end_time=1.0, confidence=0.87)
+        assert word.confidence == 0.87
+
+    def test_reject_word_end_before_start(self) -> None:
+        """Reject a word whose end_time precedes its start_time."""
+        with pytest.raises(ValidationError, match="end_time"):
+            Word(word="bad", start_time=2.0, end_time=1.0)
+
+    def test_reject_word_infinite_start(self) -> None:
+        """Reject a non-finite word start_time."""
+        with pytest.raises(ValidationError, match="must be finite"):
+            Word(word="bad", start_time=float("inf"), end_time=1.0)
+
+    def test_reject_word_confidence_above_one(self) -> None:
+        """Reject a word confidence above 1.0."""
+        with pytest.raises(ValidationError):
+            Word(word="bad", start_time=0.0, end_time=1.0, confidence=1.5)
+
+
+class TestSegmentWithWords:
+    """Tests for attaching word-level timestamps to a segment."""
+
+    def test_segment_words_default_none(self) -> None:
+        """A segment created without words has words=None, not an empty list."""
+        segment = Segment(start_time=0.0, end_time=1.0, text="hi")
+        assert segment.words is None
+
+    def test_segment_carries_words(self) -> None:
+        """A segment preserves the word list it was created with."""
+        words = [
+            Word(word="Hello", start_time=0.0, end_time=0.5),
+            Word(word="world", start_time=0.5, end_time=1.0),
+        ]
+        segment = Segment(start_time=0.0, end_time=1.0, text="Hello world", words=words)
+        assert segment.words is not None
+        assert [w.word for w in segment.words] == ["Hello", "world"]
+
+    def test_segment_words_round_trip_json(self) -> None:
+        """Words survive a model_dump/model_validate round trip."""
+        words = [Word(word="Hello", start_time=0.0, end_time=0.5, confidence=0.9)]
+        segment = Segment(start_time=0.0, end_time=0.5, text="Hello", words=words)
+        restored = Segment.model_validate(segment.model_dump())
+        assert restored.words is not None
+        assert restored.words[0].word == "Hello"
+        assert restored.words[0].confidence == 0.9

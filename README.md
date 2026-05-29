@@ -823,8 +823,33 @@ Please ensure all tests pass and code coverage remains above 95%.
 - [ ] WebAssembly support
 - [ ] Streaming API
 - [ ] Custom VAD models
-- [ ] Word-level timestamps
+- [x] Word-level timestamps
 - [ ] Translation API
+
+#### Word-level timestamps
+
+Pass `word_timestamps=True` (or `--word-timestamps` on the CLI) to attach
+per-word timing to every segment. Works with both backends — faster-whisper
+emits native word timestamps with confidence; the OpenAI backend requests
+`timestamp_granularities`. Words are included in JSON output.
+
+```python
+from audiocore import transcribe
+from audiocore.models import TranscriptionOptions
+from audiocore.types import OutputFormat
+
+result = transcribe(
+    "audio.mp3",
+    options=TranscriptionOptions(word_timestamps=True, output_format=OutputFormat.JSON),
+)
+for segment in result.segments:
+    for word in segment.words or []:
+        print(f"[{word.start_time:.2f}-{word.end_time:.2f}] {word.word}")
+```
+
+```bash
+audiocore transcribe audio.mp3 --word-timestamps --format json
+```
 
 ---
 

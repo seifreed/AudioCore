@@ -61,6 +61,8 @@ class TranscriptionOptions(BaseModel):
         backend_preference: Selection policy for automatic backend selection.
         strict_vad: If True, raise VADError when VAD fails. If False (default),
             fall back to whole-file transcription when VAD fails.
+        word_timestamps: If True, request word-level timestamps from the backend
+            and attach them to each segment's ``words`` field. Defaults to False.
 
     Example:
         >>> opts = TranscriptionOptions()
@@ -95,6 +97,10 @@ class TranscriptionOptions(BaseModel):
     strict_vad: bool = Field(
         default=False,
         description="If True, raise VADError when VAD fails. If False, fall back to whole-file transcription.",
+    )
+    word_timestamps: bool = Field(
+        default=False,
+        description="If True, request word-level timestamps from the backend and attach them to segments.",
     )
 
 
