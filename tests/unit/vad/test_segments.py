@@ -345,46 +345,44 @@ class TestPadSegments:
 class TestValidateSegments:
     """Tests for validate_segments function."""
 
-    def test_validate_passes_correct_segments(self, default_config: VADConfig) -> None:
+    def test_validate_passes_correct_segments(self) -> None:
         """Valid segments should pass validation."""
         segments = [
             (0.0, 1.0, 0.80),
             (1.5, 3.0, 0.75),
         ]
         # Should not raise
-        validate_segments(segments, total_duration=10.0, config=default_config)
+        validate_segments(segments, total_duration=10.0)
 
-    def test_validate_raises_for_end_before_start(self, default_config: VADConfig) -> None:
+    def test_validate_raises_for_end_before_start(self) -> None:
         """Segment with end < start should raise."""
         segments = [(1.0, 0.5, 0.80)]
         with pytest.raises(ValueError, match="end.*<.*start"):
-            validate_segments(segments, total_duration=10.0, config=default_config)
+            validate_segments(segments, total_duration=10.0)
 
-    def test_validate_raises_for_overlapping_segments(self, default_config: VADConfig) -> None:
+    def test_validate_raises_for_overlapping_segments(self) -> None:
         """Overlapping segments should raise."""
         segments = [
             (0.0, 2.0, 0.80),
             (1.5, 3.0, 0.75),  # Overlaps with first
         ]
         with pytest.raises(ValueError, match="Overlapping"):
-            validate_segments(segments, total_duration=10.0, config=default_config)
+            validate_segments(segments, total_duration=10.0)
 
-    def test_validate_allows_reasonable_gaps(self, default_config: VADConfig) -> None:
+    def test_validate_allows_reasonable_gaps(self) -> None:
         """Gaps between segments should be allowed."""
         segments = [
             (0.0, 1.0, 0.80),
             (5.0, 6.0, 0.75),  # 4s gap
         ]
         # Should not raise (gap is allowed)
-        validate_segments(segments, total_duration=10.0, config=default_config)
+        validate_segments(segments, total_duration=10.0)
 
-    def test_validate_empty_segments_passes(self, default_config: VADConfig) -> None:
+    def test_validate_empty_segments_passes(self) -> None:
         """Empty list should pass validation."""
-        validate_segments([], total_duration=10.0, config=default_config)
+        validate_segments([], total_duration=10.0)
 
-    def test_validate_raises_for_segment_exceeding_duration(
-        self, default_config: VADConfig
-    ) -> None:
+    def test_validate_raises_for_segment_exceeding_duration(self) -> None:
         """Regression: segment end_time exceeding total_duration must raise.
 
         Previously, validate_segments accepted total_duration but never
@@ -392,7 +390,7 @@ class TestValidateSegments:
         """
         segments = [(0.0, 15.0, 0.80)]
         with pytest.raises(ValueError, match="exceeds total duration"):
-            validate_segments(segments, total_duration=10.0, config=default_config)
+            validate_segments(segments, total_duration=10.0)
 
 
 # =============================================================================

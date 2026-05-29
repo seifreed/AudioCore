@@ -164,7 +164,6 @@ def pad_segments(
 def validate_segments(
     segments: list[tuple[float, float, float]],
     total_duration: float,
-    config: VADConfig,
 ) -> None:
     """Validate segments for correctness.
 
@@ -172,7 +171,6 @@ def validate_segments(
     - Segments are in chronological order
     - No overlapping segments
     - No segments extending beyond total_duration
-    - No gaps larger than min_silence_duration_ms * 2
 
     Raises:
         ValueError: If validation fails.
@@ -192,14 +190,6 @@ def validate_segments(
             prev_start, prev_end, _ = segments[i - 1]
             if start < prev_end:
                 raise ValueError(f"Overlapping segments at index {i}")
-
-    # Check for large gaps (indicates VAD might have missed speech)
-    max_gap = config.min_silence_duration_ms / 1000.0 * 2
-    for i in range(1, len(segments)):
-        gap = segments[i][0] - segments[i - 1][1]
-        if gap > max_gap:
-            # Warning, not error - may be legitimate silence
-            pass  # Could log warning here
 
 
 def to_segment_models(
@@ -266,7 +256,7 @@ def process_segments(
     segments = split_long_segments(segments, config)
 
     # 6. Validate segments
-    validate_segments(segments, total_duration, config)
+    validate_segments(segments, total_duration)
 
     # 7. Convert to Segment models
     return to_segment_models(segments)
