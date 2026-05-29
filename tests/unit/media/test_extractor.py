@@ -601,15 +601,16 @@ class TestFfprobePathDerivation:
         Now uses Path-based replacement that only swaps the filename.
         """
         # Test with a path that has "ffmpeg" in both directory and filename
-        ffmpeg_path = "/ffmpeg/bin/ffmpeg"
-        ffmpeg_path_obj = Path(ffmpeg_path)
-        ffprobe_path = str(
-            ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace("ffmpeg", "ffprobe")
+        ffmpeg_path_obj = Path("/ffmpeg/bin/ffmpeg")
+        ffprobe_path_obj = ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace(
+            "ffmpeg", "ffprobe"
         )
 
-        # Old bug: str.replace would give /ffprobe/bin/ffprobe (wrong)
-        # Fixed: Path-based gives /ffmpeg/bin/ffprobe (correct)
-        assert ffprobe_path == "/ffmpeg/bin/ffprobe"
+        # Old bug: str.replace gave .../ffprobe/bin/ffprobe (directory renamed too).
+        # Fixed: only the filename is swapped; the directory is preserved.
+        # Asserted via path components so it holds on POSIX and Windows alike.
+        assert ffprobe_path_obj.name == "ffprobe"
+        assert ffprobe_path_obj.parent == ffmpeg_path_obj.parent
 
     def test_ffprobe_path_simple(self):
         """Test simple ffprobe path derivation with default ffmpeg path."""
@@ -622,12 +623,13 @@ class TestFfprobePathDerivation:
 
     def test_ffprobe_path_with_directory(self):
         """Test ffprobe path derivation with custom directory."""
-        ffmpeg_path = "/usr/local/bin/ffmpeg"
-        ffmpeg_path_obj = Path(ffmpeg_path)
-        ffprobe_path = str(
-            ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace("ffmpeg", "ffprobe")
+        ffmpeg_path_obj = Path("/usr/local/bin/ffmpeg")
+        ffprobe_path_obj = ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace(
+            "ffmpeg", "ffprobe"
         )
-        assert ffprobe_path == "/usr/local/bin/ffprobe"
+        # Path-component assertions keep this portable across separators.
+        assert ffprobe_path_obj.name == "ffprobe"
+        assert ffprobe_path_obj.parent == ffmpeg_path_obj.parent
 
 
 class TestExtractAudioTimeout:

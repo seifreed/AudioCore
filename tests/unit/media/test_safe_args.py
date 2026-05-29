@@ -20,11 +20,17 @@ class TestAsFileArgument:
 
     def test_absolute_path_unchanged(self) -> None:
         """An absolute path never starts with '-' and is returned verbatim."""
-        assert as_file_argument(Path("/tmp/audio.wav")) == "/tmp/audio.wav"
+        path = Path("/tmp/audio.wav")
+        result = as_file_argument(path)
+        assert result == str(path)
+        assert not result.startswith("-")
 
     def test_nested_relative_path_unchanged(self) -> None:
         """A nested relative path whose first char is not '-' is unchanged."""
-        assert as_file_argument(Path("subdir/-weird.wav")) == "subdir/-weird.wav"
+        path = Path("subdir/-weird.wav")
+        result = as_file_argument(path)
+        assert result == str(path)
+        assert not result.startswith("-")
 
     def test_leading_dash_relative_path_is_prefixed(self) -> None:
         """A path starting with '-' is prefixed with './' so it is not an option."""
