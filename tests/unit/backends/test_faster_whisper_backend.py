@@ -46,8 +46,9 @@ class TestFasterWhisperBackendBasics:
     def test_is_available_returns_false_when_not_installed(self) -> None:
         """is_available() should return False when faster-whisper is not installed."""
         backend = FasterWhisperBackend()
-        # Mock import to fail
-        with patch("builtins.__import__", side_effect=ImportError("No module")):
+        # A None entry in sys.modules makes `import x` raise ImportError, without
+        # globally overriding __import__ (which would also break coverage tracing).
+        with patch.dict("sys.modules", {"ctranslate2": None, "faster_whisper": None}):
             result = backend.is_available()
         assert result is False
 
@@ -169,10 +170,10 @@ class TestFasterWhisperBackendModelLoading:
     def test_load_model_raises_backend_unavailable_when_not_installed(self, tmp_path: Path) -> None:
         """is_available() should return False when faster-whisper is not importable."""
         backend = FasterWhisperBackend()
-        # Mock the import of faster_whisper to fail
-        with patch.dict("sys.modules", {"faster_whisper": None, "faster_whisper.WhisperModel": None}):
-            with patch("builtins.__import__", side_effect=ImportError("No module named 'faster_whisper'")):
-                result = backend.is_available()
+        # A None entry in sys.modules makes `import faster_whisper` raise ImportError,
+        # without globally overriding __import__ (which would also break coverage tracing).
+        with patch.dict("sys.modules", {"faster_whisper": None}):
+            result = backend.is_available()
         assert result is False
 
 
