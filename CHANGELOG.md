@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Streaming API. Adds `stream_transcribe()` and `Pipeline.stream_transcribe()`
   yielding `Segment` objects incrementally, plus a `TranscriptionBackend.transcribe_stream`
   hook (faster-whisper streams lazily from its decode generator).
+- Real-time transcription (`audiocore.realtime`). Adds an `AudioSource` protocol,
+  an optional `sounddevice`-backed `MicrophoneSource`, an energy-based
+  `UtteranceSegmenter`, and `RealtimeTranscriber` / `transcribe_realtime` that
+  stream a live source into transcribed segments. New optional extra: `realtime`.
 
 ## [1.0.0] - 2025-03-27
 

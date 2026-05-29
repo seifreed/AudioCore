@@ -818,7 +818,7 @@ Please ensure all tests pass and code coverage remains above 95%.
 
 ### Future (v2.0)
 
-- [ ] Real-time transcription
+- [x] Real-time transcription
 - [ ] Speaker diarization
 - [ ] WebAssembly support
 - [x] Streaming API
@@ -916,6 +916,28 @@ from audiocore import stream_transcribe
 
 for segment in stream_transcribe("podcast.mp3", backend="faster_whisper"):
     print(f"[{segment.start_time:.2f}s] {segment.text}")
+```
+
+#### Real-time transcription
+
+Transcribe a live audio stream utterance by utterance. An energy gate groups
+incoming chunks into utterances and hands each to the backend as the speaker
+pauses. Microphone capture needs the optional `realtime` extra
+(`pip install audiocore[realtime]`); any iterable of float32 chunks works as a
+custom `AudioSource` without it.
+
+```python
+from audiocore.realtime import MicrophoneSource, RealtimeTranscriber, transcribe_realtime
+
+# Convenience: auto-selects a backend from config.
+for segment in transcribe_realtime(MicrophoneSource(), backend=None):
+    print(segment.text)
+
+# Or drive it explicitly with any backend.
+from audiocore.backends import FasterWhisperBackend
+transcriber = RealtimeTranscriber(FasterWhisperBackend())
+for segment in transcriber.stream(MicrophoneSource()):
+    print(f"[{segment.start_time:.1f}s] {segment.text}")
 ```
 
 ---
