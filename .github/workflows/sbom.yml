@@ -21,8 +21,9 @@ permissions:
 env:
   # Pinned for reproducible scoring; bump deliberately alongside any score change.
   SBOM_TOOLS_VERSION: v0.1.21
+  SBOMQS_VERSION: v2.0.8
   SBOM_FILE: sbom/audiocore.cdx.json
-  # Grade A is 90+. The committed SBOM scores ~91.5 on the standard profile;
+  # Grade A is 90+. The committed SBOM scores ~92.6 on the standard profile;
   # gate just below so a regression that drops the rating out of Grade A fails CI.
   MIN_SCORE: "90"
 
@@ -54,6 +55,27 @@ jobs:
             --profile standard \
             --min-score "$MIN_SCORE" \
             --no-color -o table
+
+      - name: Install sbomqs
+        run: |
+          set -euo pipefail
+          url="https://github.com/interlynk-io/sbomqs/releases/download/${SBOMQS_VERSION}/sbomqs_${SBOMQS_VERSION#v}_Linux_x86_64.tar.gz"
+          curl -fsSL -o sbomqs.tar.gz "$url"
+          tar xzf sbomqs.tar.gz
+          sudo mv sbomqs /usr/local/bin/
+          sbomqs version | head -n1 || true
+
+      - name: NTIA 100/A gate (sbomqs)
+        run: |
+          set -euo pipefail
+          # Require a perfect 10.0 (=100%) Grade A on the NTIA Minimum Elements profile.
+          score="$(sbomqs score "$SBOM_FILE" --profile ntia -b | awk -F'\t' 'NR==1{print $1}')"
+          grade="$(sbomqs score "$SBOM_FILE" --profile ntia -b | awk -F'\t' 'NR==1{print $2}')"
+          echo "sbomqs NTIA: ${score} / ${grade}"
+          if [ "$score" != "10.0" ] || [ "$grade" != "A" ]; then
+            echo "::error::NTIA rating regressed (expected 10.0/A, got ${score}/${grade})"
+            exit 1
+          fi
 
       - name: Generate quality report (Markdown)
         if: always()

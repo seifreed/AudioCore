@@ -34,13 +34,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`format_transcript`, `segments_from_data`, `is_wasm`) that renders
   text/JSON/SRT/VTT from segment data without importing torch, ctranslate2,
   ffmpeg, openai, or any backend.
-- SBOM integration via [sbom-tools](https://github.com/sbom-tool/sbom-tools).
-  A reproducible `sbom/generate_sbom.py` pipeline emits an enriched CycloneDX
-  SBOM of the runtime dependency closure (`sbom/audiocore.cdx.json`) that scores
-  **Grade A** (91.5/100 standard, 92.2 minimal) with Completeness, Identifiers,
-  and Integrity at 100/100 and NTIA-minimum-elements compliance. Adds a
-  `Makefile` (`make sbom`/`sbom-score`/`sbom-validate`) and a `sbom.yml` CI
-  workflow that gates the rating at Grade A.
+- SBOM integration and quality scoring. A reproducible `sbom/generate_sbom.py`
+  pipeline emits an enriched CycloneDX SBOM of the runtime dependency closure
+  (`sbom/audiocore.cdx.json`), graded by two independent scorers:
+  [sbomqs](https://github.com/interlynk-io/sbomqs) at **10.0/10 = 100%, Grade A**
+  on the NTIA Minimum Elements standard (2021 and 2025), and
+  [sbom-tools](https://github.com/sbom-tool/sbom-tools) at **Grade A** (92.6/100
+  standard) with Completeness, Identifiers, Integrity, and Licenses at 100/100.
+  Adds a `Makefile` (`make sbom`/`sbom-score`/`sbom-score-ntia`/`sbom-validate`)
+  and a `sbom.yml` CI workflow that fails if either rating regresses.
 
 ### Changed
 - `Pipeline` and `transcribe` are now imported lazily from `audiocore.pipeline`

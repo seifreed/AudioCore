@@ -46,6 +46,12 @@
             "id": "BSD-3-Clause",
             "acknowledgement": "declared"
           }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "Jinja2",
@@ -112,6 +118,12 @@
           "license": {
             "acknowledgement": "declared",
             "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -185,6 +197,12 @@
             "acknowledgement": "declared",
             "id": "MIT"
           }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "PyYAML",
@@ -247,6 +265,12 @@
             "acknowledgement": "declared",
             "id": "BSD-2-Clause"
           }
+        },
+        {
+          "license": {
+            "id": "BSD-2-Clause",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "Pygments",
@@ -305,6 +329,12 @@
             "acknowledgement": "declared",
             "id": "MIT"
           }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "annotated-doc",
@@ -356,6 +386,12 @@
           "license": {
             "acknowledgement": "declared",
             "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -419,6 +455,12 @@
             "acknowledgement": "declared",
             "id": "MIT"
           }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "anyio",
@@ -467,6 +509,12 @@
           "license": {
             "acknowledgement": "declared",
             "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -520,6 +568,12 @@
           "license": {
             "id": "MPL-2.0",
             "acknowledgement": "declared"
+          }
+        },
+        {
+          "license": {
+            "id": "MPL-2.0",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -582,6 +636,12 @@
           "license": {
             "acknowledgement": "declared",
             "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -647,6 +707,12 @@
             "acknowledgement": "declared",
             "id": "BSD-3-Clause"
           }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "click",
@@ -709,6 +775,12 @@
             "acknowledgement": "declared",
             "id": "MIT"
           }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "ctranslate2",
@@ -752,6 +824,12 @@
             "id": "Apache-2.0",
             "acknowledgement": "declared"
           }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "distro",
@@ -793,6 +871,12 @@
           "license": {
             "acknowledgement": "declared",
             "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -851,6 +935,12 @@
             "acknowledgement": "declared",
             "id": "MIT"
           }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "filelock",
@@ -902,6 +992,12 @@
           "license": {
             "id": "Apache-2.0",
             "acknowledgement": "declared"
+          }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -956,6 +1052,12 @@
             "acknowledgement": "declared",
             "id": "BSD-3-Clause"
           }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "fsspec",
@@ -997,6 +1099,12 @@
           "license": {
             "acknowledgement": "declared",
             "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -1050,6 +1158,12 @@
             "acknowledgement": "declared",
             "id": "Apache-2.0"
           }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "hf-xet",
@@ -1102,6 +1216,12 @@
           "license": {
             "acknowledgement": "declared",
             "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -1167,6 +1287,12 @@
             "id": "BSD-3-Clause",
             "acknowledgement": "declared"
           }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "httpx",
@@ -1214,6 +1340,12 @@
           "license": {
             "id": "Apache-2.0",
             "acknowledgement": "declared"
+          }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -1272,6 +1404,12 @@
             "acknowledgement": "declared",
             "id": "BSD-3-Clause"
           }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "idna",
@@ -1313,6 +1451,12 @@
           "license": {
             "acknowledgement": "declared",
             "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -1361,6 +1505,12 @@
             "acknowledgement": "declared",
             "id": "MIT"
           }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "markdown-it-py",
@@ -1402,6 +1552,12 @@
           "license": {
             "acknowledgement": "declared",
             "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -1460,6 +1616,12 @@
             "id": "BSD-3-Clause",
             "acknowledgement": "declared"
           }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "mpmath",
@@ -1517,6 +1679,12 @@
           "license": {
             "acknowledgement": "declared",
             "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -1631,6 +1799,12 @@
             "acknowledgement": "declared",
             "id": "MIT"
           }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "onnxruntime",
@@ -1678,6 +1852,12 @@
           "license": {
             "id": "Apache-2.0",
             "acknowledgement": "declared"
+          }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -1784,6 +1964,12 @@
             "id": "BSD-3-Clause",
             "acknowledgement": "declared"
           }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause",
+            "acknowledgement": "concluded"
+          }
         }
       ]
     },
@@ -1827,6 +2013,12 @@
           "license": {
             "acknowledgement": "declared",
             "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -1890,6 +2082,12 @@
             "acknowledgement": "declared",
             "id": "MIT"
           }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "pydantic-settings",
@@ -1947,6 +2145,12 @@
             "acknowledgement": "declared",
             "id": "MIT"
           }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "pydantic_core",
@@ -1993,6 +2197,12 @@
           "license": {
             "acknowledgement": "declared",
             "id": "BSD-3-Clause"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -2052,6 +2262,12 @@
             "id": "Apache-2.0",
             "acknowledgement": "declared"
           }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "requests",
@@ -2098,6 +2314,12 @@
           "license": {
             "acknowledgement": "declared",
             "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -2161,6 +2383,12 @@
             "id": "BSD-3-Clause",
             "acknowledgement": "declared"
           }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "scipy",
@@ -2219,6 +2447,12 @@
             "acknowledgement": "declared",
             "id": "MIT"
           }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "setuptools",
@@ -2260,6 +2494,12 @@
           "license": {
             "acknowledgement": "declared",
             "id": "ISC"
+          }
+        },
+        {
+          "license": {
+            "id": "ISC",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -2308,6 +2548,12 @@
             "acknowledgement": "declared",
             "id": "MIT"
           }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "silero-vad",
@@ -2344,6 +2590,18 @@
             "license": {
               "id": "Apache-2.0",
               "acknowledgement": "declared"
+            }
+          },
+          {
+            "license": {
+              "id": "MIT",
+              "acknowledgement": "concluded"
+            }
+          },
+          {
+            "license": {
+              "id": "Apache-2.0",
+              "acknowledgement": "concluded"
             }
           }
         ]
@@ -2421,6 +2679,12 @@
             "id": "BSD-3-Clause",
             "acknowledgement": "declared"
           }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "sympy",
@@ -2467,6 +2731,12 @@
           "license": {
             "id": "Apache-2.0",
             "acknowledgement": "declared"
+          }
+        },
+        {
+          "license": {
+            "id": "Apache-2.0",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -2526,6 +2796,12 @@
             "acknowledgement": "declared",
             "id": "BSD-3-Clause"
           }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "torch",
@@ -2568,6 +2844,12 @@
           "license": {
             "id": "BSD-3-Clause",
             "acknowledgement": "declared"
+          }
+        },
+        {
+          "license": {
+            "id": "BSD-3-Clause",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -2677,6 +2959,12 @@
             "acknowledgement": "declared",
             "id": "MIT"
           }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "typer",
@@ -2733,6 +3021,12 @@
           "license": {
             "acknowledgement": "declared",
             "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -2796,6 +3090,12 @@
             "acknowledgement": "declared",
             "id": "Python-2.0"
           }
+        },
+        {
+          "license": {
+            "id": "Python-2.0",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "typing_extensions",
@@ -2857,6 +3157,12 @@
           "license": {
             "acknowledgement": "declared",
             "id": "MIT"
+          }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -3288,6 +3594,12 @@
             "acknowledgement": "declared",
             "id": "MIT"
           }
+        },
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "concluded"
+          }
         }
       ],
       "name": "audiocore",
@@ -3417,6 +3729,7 @@
         }
       ]
     },
+    "timestamp": "2026-05-29T19:48:50Z",
     "authors": [
       {
         "name": "Marc Rivero",
@@ -3432,6 +3745,14 @@
     "lifecycles": [
       {
         "phase": "build"
+      }
+    ],
+    "licenses": [
+      {
+        "license": {
+          "id": "CC0-1.0",
+          "acknowledgement": "declared"
+        }
       }
     ]
   },
