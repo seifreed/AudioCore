@@ -286,9 +286,7 @@ class TestExtractAudio:
         mock_popen.assert_not_called()
 
     @pytest.mark.parametrize("duration", [0.0, -1.0, float("nan"), math.inf])
-    def test_extract_audio_rejects_invalid_duration(
-        self, tmp_path: Path, duration: float
-    ) -> None:
+    def test_extract_audio_rejects_invalid_duration(self, tmp_path: Path, duration: float) -> None:
         """duration must be finite and positive before calling ffmpeg."""
         input_file = tmp_path / "input.mp4"
         input_file.write_bytes(b"fake video content")
@@ -304,9 +302,7 @@ class TestExtractAudio:
         mock_popen.assert_not_called()
 
     @pytest.mark.parametrize("timeout", [0.0, -1.0, float("nan"), math.inf])
-    def test_extract_audio_rejects_invalid_timeout(
-        self, tmp_path: Path, timeout: float
-    ) -> None:
+    def test_extract_audio_rejects_invalid_timeout(self, tmp_path: Path, timeout: float) -> None:
         """timeout must be finite and positive before calling ffmpeg."""
         input_file = tmp_path / "input.mp4"
         input_file.write_bytes(b"fake video content")
@@ -351,6 +347,38 @@ class TestExtractAudio:
                 extract_audio(input_file, output_file)
 
             assert "ffmpeg failed" in str(exc_info.value)
+
+    def test_extract_audio_buffered_failure_preserves_stderr_line_breaks(
+        self, tmp_path: Path
+    ) -> None:
+        """Regression: multi-line ffmpeg stderr must keep its line breaks in error context.
+
+        The buffered (no-progress-callback) path previously stripped newlines via
+        splitlines() and re-joined with "", mashing distinct ffmpeg diagnostics into
+        one unreadable run-on line. The error context should carry the stderr as
+        emitted, matching the streaming path.
+        """
+        input_file = tmp_path / "input.mp4"
+        input_file.write_bytes(b"fake video content")
+        output_file = tmp_path / "output.wav"
+
+        stderr_text = (
+            "ffmpeg version 6.0\n"
+            "[error] Invalid data found when processing input\n"
+            "Conversion failed!\n"
+        )
+
+        with patch("audiocore.media.extractor.subprocess.Popen") as mock_popen:
+            mock_popen.return_value = _make_mock_popen(returncode=1, stderr=stderr_text)
+
+            with pytest.raises(MediaError) as exc_info:
+                extract_audio(input_file, output_file)
+
+        context_stderr = exc_info.value.context["stderr"]
+        assert "Invalid data found when processing input" in context_stderr
+        # Distinct ffmpeg lines must remain separated, not glued together.
+        assert "6.0[error]" not in context_stderr
+        assert "input\nConversion failed!" in context_stderr
 
     def test_extract_audio_raises_media_error_for_timeout(self, tmp_path: Path):
         """Test that MediaError is raised on timeout."""
@@ -564,7 +592,9 @@ class TestFfprobePathDerivation:
         # Test with a path that has "ffmpeg" in both directory and filename
         ffmpeg_path = "/ffmpeg/bin/ffmpeg"
         ffmpeg_path_obj = Path(ffmpeg_path)
-        ffprobe_path = str(ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace("ffmpeg", "ffprobe"))
+        ffprobe_path = str(
+            ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace("ffmpeg", "ffprobe")
+        )
 
         # Old bug: str.replace would give /ffprobe/bin/ffprobe (wrong)
         # Fixed: Path-based gives /ffmpeg/bin/ffprobe (correct)
@@ -574,14 +604,18 @@ class TestFfprobePathDerivation:
         """Test simple ffprobe path derivation with default ffmpeg path."""
         ffmpeg_path = "ffmpeg"
         ffmpeg_path_obj = Path(ffmpeg_path)
-        ffprobe_path = str(ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace("ffmpeg", "ffprobe"))
+        ffprobe_path = str(
+            ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace("ffmpeg", "ffprobe")
+        )
         assert ffprobe_path == "ffprobe"
 
     def test_ffprobe_path_with_directory(self):
         """Test ffprobe path derivation with custom directory."""
         ffmpeg_path = "/usr/local/bin/ffmpeg"
         ffmpeg_path_obj = Path(ffmpeg_path)
-        ffprobe_path = str(ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace("ffmpeg", "ffprobe"))
+        ffprobe_path = str(
+            ffmpeg_path_obj.parent / ffmpeg_path_obj.name.replace("ffmpeg", "ffprobe")
+        )
         assert ffprobe_path == "/usr/local/bin/ffprobe"
 
 

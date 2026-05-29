@@ -322,9 +322,10 @@ def _run_ffmpeg_buffered(command: list[str], timeout: float) -> tuple[int, str]:
         process.kill()
         process.wait()
         raise
-    stderr_lines = stderr_data.splitlines() if stderr_data else []
     returncode = process.returncode if process.returncode is not None else 0
-    return returncode, "".join(stderr_lines)
+    # Return stderr verbatim so line breaks survive into error context, matching
+    # the streaming path (which joins newline-terminated lines).
+    return returncode, stderr_data or ""
 
 
 def _run_ffmpeg(
