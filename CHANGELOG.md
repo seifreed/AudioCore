@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an optional `sounddevice`-backed `MicrophoneSource`, an energy-based
   `UtteranceSegmenter`, and `RealtimeTranscriber` / `transcribe_realtime` that
   stream a live source into transcribed segments. New optional extra: `realtime`.
+- Speaker diarization (`audiocore.diarization`). Adds a `Diarizer` protocol,
+  `SpeakerTurn`, `assign_speakers`, and an optional `PyannoteDiarizer`. Wired
+  through `transcribe(..., diarizer=...)` / `Pipeline(diarizer=...)`; labels land
+  on a new `Segment.speaker` field. New optional extra: `diarization`. Adds a
+  `PipelineStage.DIARIZING` stage.
 
 ## [1.0.0] - 2025-03-27
 

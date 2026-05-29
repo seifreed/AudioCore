@@ -27,6 +27,7 @@ class TestPipelineStage:
         assert PipelineStage.VAD.value == "vad"
         assert PipelineStage.SELECTING.value == "selecting"
         assert PipelineStage.TRANSCRIBING.value == "transcribing"
+        assert PipelineStage.DIARIZING.value == "diarizing"
         assert PipelineStage.FORMATTING.value == "formatting"
         assert PipelineStage.COMPLETE.value == "complete"
 

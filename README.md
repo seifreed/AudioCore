@@ -819,7 +819,7 @@ Please ensure all tests pass and code coverage remains above 95%.
 ### Future (v2.0)
 
 - [x] Real-time transcription
-- [ ] Speaker diarization
+- [x] Speaker diarization
 - [ ] WebAssembly support
 - [x] Streaming API
 - [x] Custom VAD models
@@ -938,6 +938,23 @@ from audiocore.backends import FasterWhisperBackend
 transcriber = RealtimeTranscriber(FasterWhisperBackend())
 for segment in transcriber.stream(MicrophoneSource()):
     print(f"[{segment.start_time:.1f}s] {segment.text}")
+```
+
+#### Speaker diarization
+
+Pass a `Diarizer` to label each segment with a speaker (`Segment.speaker`,
+included in JSON output). The optional pyannote backend needs the `diarization`
+extra (`pip install audiocore[diarization]`) and a Hugging Face token for the
+gated model; any object implementing `diarize(audio_path) -> list[SpeakerTurn]`
+works without it.
+
+```python
+from audiocore import transcribe
+from audiocore.diarization import PyannoteDiarizer
+
+result = transcribe("meeting.wav", diarizer=PyannoteDiarizer(auth_token="hf_..."))
+for segment in result.segments:
+    print(f"{segment.speaker}: {segment.text}")
 ```
 
 ---

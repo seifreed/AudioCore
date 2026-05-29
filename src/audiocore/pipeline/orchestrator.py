@@ -40,6 +40,7 @@ from audiocore.vad import detect_speech
 
 if TYPE_CHECKING:
     from audiocore.backends.base import TranscriptionBackend
+    from audiocore.diarization import Diarizer
     from audiocore.types import BackendType
     from audiocore.vad import VADModel
 
@@ -95,6 +96,7 @@ class Pipeline:
         progress_callback: ProgressCallback | None = None,
         cancellation_token: CancellationToken | None = None,
         vad_model: VADModel | None = None,
+        diarizer: Diarizer | None = None,
     ):
         """Initialize the pipeline with optional configuration.
 
@@ -104,12 +106,15 @@ class Pipeline:
             cancellation_token: Optional default cancellation token for transcribe().
             vad_model: Optional custom VAD detector (``VADModel`` protocol) used
                 for the speech-detection stage instead of the bundled Silero VAD.
+            diarizer: Optional speaker diarizer (``Diarizer`` protocol). When set,
+                transcribed segments are labeled with speaker turns.
         """
         register_builtin_backends()
         self.config = config or AppConfig()
         self._progress_callback = progress_callback
         self._cancellation_token = cancellation_token
         self._vad_model = vad_model
+        self._diarizer = diarizer
         self._registry = BackendRegistry()
         self._selector = BackendSelector(config=self.config)
 
@@ -213,6 +218,9 @@ class Pipeline:
                     emit_progress=emit_progress,
                 )
                 emit_progress(PipelineStage.TRANSCRIBING, 1.0, "Transcription complete")
+                check_cancellation()
+
+                self._diarize_stage(result, audio_path, emit_progress)
                 check_cancellation()
 
             # Update result with backend type (processing_time is already set by backend)
@@ -418,6 +426,27 @@ class Pipeline:
                 original_error=e,
             ) from e
 
+    def _diarize_stage(
+        self,
+        result: TranscriptionResult,
+        audio_path: Path,
+        emit_progress: _EmitProgress,
+    ) -> None:
+        """Label segments with speaker turns when a diarizer is configured.
+
+        No-op when no diarizer is set. Diarization failures propagate as the
+        diarizer's typed errors (e.g. ProcessingError); they are not silently
+        swallowed, since a requested diarization that failed is a real error.
+        """
+        if self._diarizer is None:
+            return
+        from audiocore.diarization import assign_speakers
+
+        emit_progress(PipelineStage.DIARIZING, 0.0, "Identifying speakers")
+        turns = self._diarizer.diarize(audio_path)
+        result.segments = assign_speakers(result.segments, turns)
+        emit_progress(PipelineStage.DIARIZING, 1.0, "Speaker diarization complete")
+
     def _format_output_stage(
         self,
         result: TranscriptionResult,
@@ -537,6 +566,7 @@ def transcribe(
     progress_callback: ProgressCallback | None = None,
     cancellation_token: CancellationToken | None = None,
     vad_model: VADModel | None = None,
+    diarizer: Diarizer | None = None,
 ) -> TranscriptionResult:
     """Convenience function for one-line transcription.
 
@@ -550,6 +580,8 @@ def transcribe(
         progress_callback: Optional callback for progress notifications.
         cancellation_token: Optional token for cancellation support.
         vad_model: Optional custom VAD detector (``VADModel`` protocol).
+        diarizer: Optional speaker diarizer (``Diarizer`` protocol) for labeling
+            segments with speaker turns.
 
     Returns:
         TranscriptionResult: Complete transcription result with segments,
@@ -571,7 +603,7 @@ def transcribe(
         >>> options = TranscriptionOptions(backend=BackendType.OPENAI)
         >>> result = transcribe("audio.mp3", options)
     """
-    pipeline = Pipeline(config=config, vad_model=vad_model)
+    pipeline = Pipeline(config=config, vad_model=vad_model, diarizer=diarizer)
     return pipeline.transcribe(
         path=path,
         options=options,

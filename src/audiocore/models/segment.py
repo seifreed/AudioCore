@@ -97,6 +97,10 @@ class Segment(BaseModel):
         default=None,
         description="Optional word-level timestamps (present when word_timestamps is enabled)",
     )
+    speaker: str | None = Field(
+        default=None,
+        description="Optional speaker label assigned by diarization (e.g. 'SPEAKER_00')",
+    )
 
     @model_validator(mode="after")
     def validate_time_order(self) -> Self:

@@ -32,6 +32,7 @@ class PipelineStage(StrEnum):
         VAD: Voice Activity Detection processing
         SELECTING: Backend selection and availability checking
         TRANSCRIBING: Audio transcription execution
+        DIARIZING: Speaker diarization (only when a diarizer is configured)
         FORMATTING: Output formatting (text/JSON)
         COMPLETE: Pipeline completion
     """
@@ -41,6 +42,7 @@ class PipelineStage(StrEnum):
     VAD = "vad"
     SELECTING = "selecting"
     TRANSCRIBING = "transcribing"
+    DIARIZING = "diarizing"
     FORMATTING = "formatting"
     COMPLETE = "complete"
 
