@@ -1,0 +1,85 @@
+name: SBOM Quality
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "sbom/**"
+      - "pyproject.toml"
+      - ".github/workflows/sbom.yml"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "sbom/**"
+      - "pyproject.toml"
+      - ".github/workflows/sbom.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  # Pinned for reproducible scoring; bump deliberately alongside any score change.
+  SBOM_TOOLS_VERSION: v0.1.21
+  SBOM_FILE: sbom/audiocore.cdx.json
+  # Grade A is 90+. The committed SBOM scores ~91.5 on the standard profile;
+  # gate just below so a regression that drops the rating out of Grade A fails CI.
+  MIN_SCORE: "90"
+
+jobs:
+  quality:
+    name: Score and validate SBOM
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install sbom-tools
+        run: |
+          set -euo pipefail
+          url="https://github.com/sbom-tool/sbom-tools/releases/download/${SBOM_TOOLS_VERSION}/sbom-tools-linux-x86_64.tar.gz"
+          curl -fsSL -o sbom-tools.tar.gz "$url"
+          tar xzf sbom-tools.tar.gz
+          sudo mv sbom-tools /usr/local/bin/
+          sbom-tools --version
+
+      - name: Validate SBOM (NTIA minimum elements)
+        run: sbom-tools validate "$SBOM_FILE" --no-color
+
+      - name: Quality gate (standard profile, Grade A)
+        run: |
+          sbom-tools quality "$SBOM_FILE" \
+            --profile standard \
+            --min-score "$MIN_SCORE" \
+            --no-color -o table
+
+      - name: Generate quality report (Markdown)
+        if: always()
+        run: |
+          sbom-tools quality "$SBOM_FILE" --profile standard --recommendations \
+            --no-color -o markdown -O sbom-quality-report.md || true
+
+      - name: Generate SARIF for code scanning
+        if: always()
+        run: |
+          sbom-tools quality "$SBOM_FILE" --profile standard \
+            --no-color -o sarif -O sbom-quality.sarif || true
+
+      - name: Upload SARIF
+        if: always() && hashFiles('sbom-quality.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: sbom-quality.sarif
+          category: sbom-quality
+
+      - name: Upload quality report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-quality-report
+          path: |
+            sbom-quality-report.md
+            ${{ env.SBOM_FILE }}
+          retention-days: 30
