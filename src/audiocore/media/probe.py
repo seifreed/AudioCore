@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from audiocore.errors import InvalidInputError, MediaError
+from audiocore.media.safe_args import as_file_argument
 from audiocore.models import MediaInfo
 
 # Max characters of ffprobe stdout/stderr retained in error context.
@@ -145,7 +146,7 @@ def _run_ffprobe(file_path: Path, ffprobe_path: str, timeout: float) -> str:
         "json",
         "-show_format",
         "-show_streams",
-        str(file_path),
+        as_file_argument(file_path),
     ]
 
     try:

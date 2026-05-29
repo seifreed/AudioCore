@@ -18,6 +18,7 @@ from tempfile import NamedTemporaryFile
 
 from audiocore.errors import InvalidInputError, MediaError
 from audiocore.media.probe import probe
+from audiocore.media.safe_args import as_file_argument
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,7 @@ def _build_ffmpeg_command(
     if start_time is not None:
         command.extend(["-ss", str(start_time)])
 
-    command.extend(["-i", str(input_path)])
+    command.extend(["-i", as_file_argument(input_path)])
 
     if duration is not None:
         command.extend(["-t", str(duration)])
@@ -66,7 +67,7 @@ def _build_ffmpeg_command(
             "1",  # Mono channel
             "-c:a",
             "pcm_s16le",  # Lossless PCM codec
-            str(output_path),
+            as_file_argument(output_path),
         ]
     )
 

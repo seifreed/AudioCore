@@ -107,6 +107,17 @@ class TestBuildFfmpegCommand:
 
         assert cmd[0] == "/usr/local/bin/ffmpeg"
 
+    def test_build_command_neutralizes_leading_dash_paths(self):
+        """Security: leading-dash paths must not be passable as ffmpeg options (CWE-88)."""
+        cmd = _build_ffmpeg_command(Path("-i.mp4"), Path("-out.wav"))
+
+        # The raw option-like tokens must not appear as bare arguments.
+        assert "-i.mp4" not in cmd
+        assert "-out.wav" not in cmd
+        # They are rendered as './'-prefixed filenames instead.
+        assert "./-i.mp4" in cmd
+        assert "./-out.wav" in cmd
+
 
 class TestValidateOutput:
     """Tests for _validate_output helper."""

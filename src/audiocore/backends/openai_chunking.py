@@ -16,6 +16,7 @@ from pathlib import Path
 
 from audiocore.backends.openai_response import parse_positive_duration
 from audiocore.errors import TranscriptionError
+from audiocore.media.safe_args import as_file_argument
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +146,7 @@ def run_ffmpeg_segment(
         "-loglevel",
         "error",
         "-i",
-        str(audio_path),
+        as_file_argument(audio_path),
         "-f",
         "segment",
         "-segment_time",
@@ -154,7 +155,7 @@ def run_ffmpeg_segment(
         "1",
         "-c",
         "copy",
-        str(output_pattern),
+        as_file_argument(output_pattern),
     ]
 
     try:
@@ -209,7 +210,7 @@ def get_audio_duration(audio_path: Path, *, ffprobe_path: str) -> float:
         "format=duration",
         "-of",
         "default=noprint_wrappers=1:nokey=1",
-        str(audio_path),
+        as_file_argument(audio_path),
     ]
     try:
         result = subprocess.run(
