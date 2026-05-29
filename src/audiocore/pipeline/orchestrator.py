@@ -225,11 +225,9 @@ class Pipeline:
             emit_progress(PipelineStage.COMPLETE, 0.0, "Pipeline cancelled")
             raise
         except PipelineStageError as e:
-            if isinstance(e, CancelledError) or isinstance(e.original_error, CancelledError):
+            if isinstance(e.original_error, CancelledError):
                 emit_progress(PipelineStage.COMPLETE, 0.0, "Pipeline cancelled")
-                raise (
-                    e.original_error if isinstance(e.original_error, CancelledError) else e
-                ) from e
+                raise e.original_error from e
             raise
 
     def _probe_stage(self, path: Path, emit_progress: _EmitProgress) -> MediaInfo:
