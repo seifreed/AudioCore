@@ -341,7 +341,9 @@ class TestLargeFileChunking:
         ]
 
         backend = OpenAIBackend(
-            config=OpenAIConfig(max_upload_size_mb=2.0, chunk_target_size_mb=1.0)
+            config=OpenAIConfig(
+                api_key="sk-test123", max_upload_size_mb=2.0, chunk_target_size_mb=1.0
+            )
         )
         backend._split_audio_for_upload = MagicMock(return_value=[chunk_1, chunk_2])
         backend._get_audio_duration = MagicMock(side_effect=[10.0, 20.0])
@@ -384,7 +386,9 @@ class TestLargeFileChunking:
         mock_client.audio.transcriptions.create.return_value = mock_response
 
         backend = OpenAIBackend(
-            config=OpenAIConfig(max_upload_size_mb=2.0, chunk_target_size_mb=1.0)
+            config=OpenAIConfig(
+                api_key="sk-test123", max_upload_size_mb=2.0, chunk_target_size_mb=1.0
+            )
         )
         backend._split_audio_for_upload = MagicMock()
 
@@ -421,6 +425,7 @@ class TestLargeFileChunking:
 
         backend = OpenAIBackend(
             config=OpenAIConfig(
+                api_key="sk-test123",
                 max_upload_size_mb=2.0,
                 chunk_target_size_mb=1.0,
                 chunk_prompt_chars=0,
