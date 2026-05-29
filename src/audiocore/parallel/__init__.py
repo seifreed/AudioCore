@@ -1,7 +1,7 @@
 """Parallel processing module for AudioCore.
 
 This module provides concurrent processing capabilities for:
-- Segment-level parallel transcription (future feature)
+- Segment-level parallel transcription
 - File-level batch processing
 
 The module enables efficient utilization of system resources when
