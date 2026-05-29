@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, cast
 from audiocore.backends import register_builtin_backends
 from audiocore.errors import AudioCoreError
 from audiocore.models import (
+    Segment,
     TranscriptionOptions,
     TranscriptionResult,
     transcription_options_from_config,
@@ -26,6 +27,8 @@ from audiocore.pipeline import Pipeline
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from audiocore.config import AppConfig
     from audiocore.parallel.files import FileResult
     from audiocore.pipeline.cancellation import CancellationToken
@@ -299,6 +302,75 @@ def transcribe(
         path=path,
         options=options,
         progress_callback=progress_callback,
+        cancellation_token=cancellation_token,
+    )
+
+
+def stream_transcribe(
+    path: str | Path,
+    options: TranscriptionOptions | None = None,
+    config: AppConfig | None = None,
+    cancellation_token: CancellationToken | None = None,
+    *,
+    backend: BackendType | str | None = None,
+    model_size: ModelSize | str | None = None,
+    language: str | None = None,
+    backend_preference: SelectionPolicy | str | None = None,
+    strict_vad: bool | None = None,
+    vad_config: VADConfig | None = None,
+) -> Iterator[Segment]:
+    """Transcribe a file synchronously, yielding segments as they are produced.
+
+    This is the streaming counterpart to :func:`transcribe`. It accepts the
+    same configuration and overrides but returns a generator of ``Segment``
+    objects rather than a single ``TranscriptionResult``. With a lazily-decoding
+    backend (faster-whisper) segments arrive incrementally; other backends yield
+    once decoding completes. ``output_format`` is not accepted because streaming
+    emits raw segments, not a formatted document.
+
+    Args:
+        path: Path to the audio/video file to transcribe.
+        options: Transcription options. If None, loads defaults from config.
+        config: Application configuration. If None, loads via load_config().
+        cancellation_token: Optional token checked between segments.
+        backend: Optional backend override (enum or string).
+        model_size: Optional model-size override (enum or string).
+        language: Optional language override.
+        backend_preference: Optional automatic backend selection preference.
+        strict_vad: Optional VAD failure behavior override.
+        vad_config: Optional VAD configuration override.
+
+    Yields:
+        Segment: Each transcribed segment, in order.
+
+    Raises:
+        AudioCoreError: Base exception for all AudioCore errors.
+
+    Example:
+        >>> from audiocore import stream_transcribe
+        >>> for segment in stream_transcribe("audio.mp3"):
+        ...     print(f"[{segment.start_time:.2f}s] {segment.text}")
+    """
+    from audiocore.config import load_config
+
+    if config is None:
+        config = load_config()
+    config = _apply_vad_config(config, vad_config)
+
+    options = _resolve_options(
+        config,
+        options,
+        backend=backend,
+        model_size=model_size,
+        language=language,
+        backend_preference=backend_preference,
+        strict_vad=strict_vad,
+    )
+
+    pipeline = Pipeline(config=config)
+    yield from pipeline.stream_transcribe(
+        path=path,
+        options=options,
         cancellation_token=cancellation_token,
     )
 

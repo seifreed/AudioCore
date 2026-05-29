@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Custom VAD models. Adds a `VADModel` protocol so any detector can drive the
   speech-detection stage (`transcribe(..., vad_model=...)`, `Pipeline(vad_model=...)`),
   plus `VADConfig.model_path` to load a custom Silero-format TorchScript model.
+- Streaming API. Adds `stream_transcribe()` and `Pipeline.stream_transcribe()`
+  yielding `Segment` objects incrementally, plus a `TranscriptionBackend.transcribe_stream`
+  hook (faster-whisper streams lazily from its decode generator).
 
 ## [1.0.0] - 2025-03-27
 

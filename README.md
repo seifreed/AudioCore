@@ -821,7 +821,7 @@ Please ensure all tests pass and code coverage remains above 95%.
 - [ ] Real-time transcription
 - [ ] Speaker diarization
 - [ ] WebAssembly support
-- [ ] Streaming API
+- [x] Streaming API
 - [x] Custom VAD models
 - [x] Word-level timestamps
 - [x] Translation API
@@ -902,6 +902,21 @@ Two extension points replace the bundled Silero VAD:
 
    result = transcribe("audio.mp3", vad_model=EnergyVAD())
    ```
+
+#### Streaming API
+
+`stream_transcribe()` yields `Segment` objects as they are produced instead of
+returning one `TranscriptionResult` at the end. With the local faster-whisper
+backend, segments arrive incrementally as the model decodes; other backends
+yield once decoding completes. `Pipeline.stream_transcribe()` is the
+class-level equivalent.
+
+```python
+from audiocore import stream_transcribe
+
+for segment in stream_transcribe("podcast.mp3", backend="faster_whisper"):
+    print(f"[{segment.start_time:.2f}s] {segment.text}")
+```
 
 ---
 

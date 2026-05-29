@@ -47,7 +47,7 @@ Example:
 # Note: transcribe and async_transcribe are imported lazily to avoid circular imports
 # They are defined in audiocore.api.transcribe and imported when accessed
 # Import convenience function that handles lazy loading
-from audiocore.api.transcribe import async_transcribe, transcribe
+from audiocore.api.transcribe import async_transcribe, stream_transcribe, transcribe
 from audiocore.errors import (
     APIError,
     APITimeoutError,
@@ -89,6 +89,7 @@ __all__ = [
     # Main functions
     "transcribe",
     "async_transcribe",
+    "stream_transcribe",
     "AppConfig",
     # Result types
     "TranscriptionResult",

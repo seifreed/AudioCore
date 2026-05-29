@@ -21,9 +21,10 @@ from typing import TYPE_CHECKING
 from audiocore.errors import InvalidInputError
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
-    from audiocore.models import TranscriptionOptions, TranscriptionResult
+    from audiocore.models import Segment, TranscriptionOptions, TranscriptionResult
     from audiocore.types import BackendType
 
 logger = logging.getLogger(__name__)
@@ -111,6 +112,30 @@ class TranscriptionBackend(abc.ABC):
             'Hello, world!'
         """
         ...
+
+    def transcribe_stream(
+        self, audio_path: Path | str, options: TranscriptionOptions
+    ) -> Iterator[Segment]:
+        """Transcribe an audio/video file, yielding segments incrementally.
+
+        The default implementation runs the full transcription and then yields
+        the resulting segments; it always works but does not produce output
+        before transcription finishes. Backends that decode lazily (e.g.
+        faster-whisper) override this to yield each segment as it is produced.
+
+        Args:
+            audio_path: Path to the audio/video file to transcribe.
+            options: Transcription configuration options.
+
+        Yields:
+            Segment: Each transcribed segment, in order.
+
+        Raises:
+            BackendUnavailableError: If the backend is not available.
+            TranscriptionError: If transcription fails.
+        """
+        result = self.transcribe(audio_path, options)
+        yield from result.segments
 
     @abc.abstractmethod
     def get_name(self) -> str:

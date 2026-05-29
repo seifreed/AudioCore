@@ -97,6 +97,7 @@ __all__ = [
     # Main functions (lazy loaded)
     "transcribe",
     "async_transcribe",
+    "stream_transcribe",
     "Pipeline",
     "AppConfig",
     # Result types
@@ -165,6 +166,11 @@ def __getattr__(name: str):
 
         globals()[name] = async_transcribe
         return async_transcribe
+    if name == "stream_transcribe":
+        from audiocore.api.transcribe import stream_transcribe
+
+        globals()[name] = stream_transcribe
+        return stream_transcribe
     if name == "Pipeline":
         from audiocore.pipeline import Pipeline
 

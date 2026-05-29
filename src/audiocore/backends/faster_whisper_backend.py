@@ -44,6 +44,8 @@ from audiocore.models import (
 from audiocore.types import BackendType
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from audiocore.config import AppConfig
 
 logger = logging.getLogger(__name__)
@@ -350,6 +352,51 @@ class FasterWhisperBackend(TranscriptionBackend):
         except Exception as e:
             raise TranscriptionError(
                 f"Faster-Whisper transcription failed: {e}",
+                context={"backend": "faster_whisper", "file_path": str(audio_path)},
+                suggestions=[
+                    "Check audio file format (mp3, wav, m4a, etc.)",
+                    "Verify audio file is not corrupted",
+                    "Try with different audio file",
+                ],
+            ) from e
+
+    def transcribe_stream(
+        self, audio_path: Path | str, options: TranscriptionOptions
+    ) -> Iterator[Segment]:
+        """Yield segments lazily as faster-whisper decodes them.
+
+        faster-whisper's ``model.transcribe`` returns a generator that decodes
+        on demand, so each segment can be surfaced as soon as it is produced
+        rather than waiting for the whole file.
+
+        Raises:
+            BackendUnavailableError: If faster-whisper is not installed.
+            TranscriptionError: If transcription fails.
+        """
+        audio_path = Path(audio_path)
+        self._validate_audio_file(audio_path)
+
+        params = self._build_transcribe_params(options)
+        if "model_size" in options.model_fields_set:
+            effective_model_size = options.model_size
+        else:
+            effective_model_size = self.config.model_size
+        model = self._load_model(model_size=effective_model_size.value)
+
+        try:
+            segments, _info = model.transcribe(str(audio_path), **params)
+            for seg in segments:
+                yield Segment(
+                    start_time=seg.start,
+                    end_time=seg.end,
+                    text=seg.text.strip(),
+                    words=self._extract_words(seg),
+                )
+        except BackendUnavailableError:
+            raise
+        except Exception as e:
+            raise TranscriptionError(
+                f"Faster-Whisper streaming transcription failed: {e}",
                 context={"backend": "faster_whisper", "file_path": str(audio_path)},
                 suggestions=[
                     "Check audio file format (mp3, wav, m4a, etc.)",

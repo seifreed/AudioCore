@@ -7,7 +7,7 @@ transcription workflow from media input to formatted output.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -234,6 +234,71 @@ class Pipeline:
                 emit_progress(PipelineStage.COMPLETE, 0.0, "Pipeline cancelled")
                 raise e.original_error from e
             raise
+
+    def stream_transcribe(
+        self,
+        path: str | Path,
+        options: TranscriptionOptions | None = None,
+        cancellation_token: CancellationToken | None = None,
+    ) -> Iterator[Segment]:
+        """Transcribe a file, yielding segments incrementally as they decode.
+
+        Runs the same preparation stages as :meth:`transcribe` (format check,
+        probe, audio extraction, backend selection) but then streams segments
+        from the backend instead of assembling a full ``TranscriptionResult``.
+        With a lazily-decoding backend (faster-whisper) segments are yielded as
+        soon as each is produced; other backends yield once decoding completes.
+
+        The temporary extracted-audio file is kept alive for the duration of
+        iteration and cleaned up when the generator is exhausted or closed.
+
+        Args:
+            path: Path to the audio/video file to transcribe.
+            options: Transcription options. If None, uses defaults.
+            cancellation_token: Optional token checked between segments.
+
+        Yields:
+            Segment: Each transcribed segment, in order.
+
+        Raises:
+            MediaFormatError: If the input format is not supported.
+            MediaError: If media probing or extraction fails.
+            BackendUnavailableError: If no backend is available.
+            TranscriptionError: If transcription fails.
+            CancelledError: If cancellation is requested during streaming.
+        """
+        path = Path(path)
+        if options is None:
+            options = transcription_options_from_config(self.config)
+        effective_cancellation_token = (
+            cancellation_token if cancellation_token is not None else self._cancellation_token
+        )
+
+        def check_cancellation() -> None:
+            if effective_cancellation_token is not None:
+                effective_cancellation_token.check()
+
+        def noop_emit(stage: PipelineStage, progress: float, message: str) -> None:
+            """Streaming has no progress callback; stage helpers still need an emitter."""
+
+        validate_format_or_raise(path)
+        check_cancellation()
+        # Probe validates the media and surfaces MediaError before extraction;
+        # the streaming path does not need the returned metadata.
+        self._probe_stage(path, noop_emit)
+        check_cancellation()
+
+        with temp_audio_file(suffix=".wav") as audio_path:
+            self._extract_stage(path, audio_path, noop_emit)
+            check_cancellation()
+
+            selected_backend_type = self._select_backend_stage(options, noop_emit)
+            check_cancellation()
+
+            backend = self._get_backend(selected_backend_type)
+            for segment in backend.transcribe_stream(audio_path, options):
+                check_cancellation()
+                yield segment
 
     def _probe_stage(self, path: Path, emit_progress: _EmitProgress) -> MediaInfo:
         """Probe media metadata, wrapping failures in PipelineStageError."""
