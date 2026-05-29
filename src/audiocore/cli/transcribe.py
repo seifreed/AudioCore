@@ -573,9 +573,6 @@ def _run_batch_transcription(
     total_files = len(input_files)
     failed_count = 0
 
-    def progress_callback(completed: int, total: int, current_path: Path) -> None:
-        """Update batch progress."""
-
     console.print(f"[cyan]Processing {total_files} file(s) with {max_workers} workers...[/cyan]")
 
     async def run_batch() -> list[FileResult]:
@@ -585,7 +582,6 @@ def _run_batch_transcription(
             options=options,
             max_workers=max_workers,
             continue_on_error=True,
-            progress_callback=progress_callback,
             config=config,
         )
 
