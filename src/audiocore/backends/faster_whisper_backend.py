@@ -364,7 +364,7 @@ class FasterWhisperBackend(TranscriptionBackend):
         Language priority is options.language > config.language > None (auto-detect);
         decoding, thresholds, and advanced flags come from config.
         """
-        params: dict[str, Any] = {}
+        params: dict[str, Any] = {"task": options.task.value}
         if options.language:
             params["language"] = options.language
         elif self.config.language:

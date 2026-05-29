@@ -50,7 +50,13 @@ from audiocore.models import (
 from audiocore.output.file_writer import OutputFileConfig, format_and_write
 from audiocore.parallel import FileResult, transcribe_files_concurrent
 from audiocore.pipeline import Pipeline
-from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
+from audiocore.types import (
+    BackendType,
+    ModelSize,
+    OutputFormat,
+    SelectionPolicy,
+    TranscriptionTask,
+)
 
 if TYPE_CHECKING:
     from audiocore.pipeline.progress import PipelineStage
@@ -186,6 +192,7 @@ def _build_transcription_options(
     language: str | None,
     strict_vad: bool,
     word_timestamps: bool = False,
+    translate: bool = False,
 ) -> TranscriptionOptions:
     """Resolve CLI override values into TranscriptionOptions.
 
@@ -232,6 +239,8 @@ def _build_transcription_options(
         updates["strict_vad"] = True
     if word_timestamps:
         updates["word_timestamps"] = True
+    if translate:
+        updates["task"] = TranscriptionTask.TRANSLATE
     if updates:
         options = options.model_copy(update=updates)
     return options
@@ -333,6 +342,13 @@ def transcribe(
             help="Emit word-level timestamps (included in JSON output).",
         ),
     ] = False,
+    translate: Annotated[
+        bool,
+        typer.Option(
+            "--translate",
+            help="Translate speech to English instead of transcribing in the source language.",
+        ),
+    ] = False,
 ) -> None:
     """Transcribe one or more audio/video files.
 
@@ -388,6 +404,7 @@ def transcribe(
         language=language,
         strict_vad=strict_vad,
         word_timestamps=word_timestamps,
+        translate=translate,
     )
 
     # Determine batch mode

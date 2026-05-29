@@ -55,7 +55,7 @@ from audiocore.models import (
     Word,
     floor_media_duration,
 )
-from audiocore.types import BackendType
+from audiocore.types import BackendType, TranscriptionTask
 
 from . import openai_chunking, openai_response
 from .base import TranscriptionBackend
@@ -405,17 +405,21 @@ class OpenAIBackend(TranscriptionBackend):
             # Build API call parameters
             # SIM115: File handle closed in finally block and error handlers
             audio_file = open(audio_path, "rb")  # noqa: SIM115
-            api_params = {
+            api_params: dict[str, object] = {
                 "model": "whisper-1",
                 "file": audio_file,
                 "response_format": "verbose_json",  # Get segments with timestamps
             }
-
-            # Add optional parameters
-            if options.language:
-                api_params["language"] = options.language
             if prompt:
                 api_params["prompt"] = prompt
+
+            if options.task == TranscriptionTask.TRANSLATE:
+                # The translations endpoint always outputs English: it accepts
+                # neither a language nor word-level timestamp_granularities.
+                return client.audio.translations.create(**api_params)  # type: ignore[arg-type]
+
+            if options.language:
+                api_params["language"] = options.language
             if options.word_timestamps:
                 # Request both granularities: asking for "word" alone drops the
                 # segment-level breakdown the result model is built around.

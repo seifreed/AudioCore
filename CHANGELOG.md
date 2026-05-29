@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Adds a `Word` model and a `Segment.words` field populated by both backends
   (faster-whisper native word timestamps with confidence; OpenAI
   `timestamp_granularities`). Words appear in JSON output.
+- Translation task (`TranscriptionOptions.task`, `TranscriptionTask`, `--translate`).
+  Translates speech to English via faster-whisper's `translate` task or the
+  OpenAI translations endpoint.
 
 ## [1.0.0] - 2025-03-27
 

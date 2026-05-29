@@ -154,6 +154,30 @@ class TestTranscribeCommand:
         assert options.strict_vad is True
         assert "strict_vad" in options.model_fields_set
 
+    def test_transcribe_with_word_timestamps_flag(
+        self, audio_file: Path, mock_pipeline: MagicMock
+    ) -> None:
+        """The --word-timestamps flag enables word_timestamps on the options."""
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file), "--word-timestamps"])
+
+        assert result.exit_code == 0
+        options = mock_pipeline.transcribe.call_args[1]["options"]
+        assert options.word_timestamps is True
+
+    def test_transcribe_with_translate_flag(
+        self, audio_file: Path, mock_pipeline: MagicMock
+    ) -> None:
+        """The --translate flag sets the task to TRANSLATE."""
+        from audiocore.types import TranscriptionTask
+
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file), "--translate"])
+
+        assert result.exit_code == 0
+        options = mock_pipeline.transcribe.call_args[1]["options"]
+        assert options.task == TranscriptionTask.TRANSLATE
+
     def test_transcribe_uses_config_defaults_when_flags_omitted(
         self, audio_file: Path, mock_pipeline: MagicMock
     ) -> None:

@@ -8,6 +8,7 @@ from audiocore.types.backend import BackendType, ModelSize, to_json_serializable
 from audiocore.types.error import ModelErrorType
 from audiocore.types.format import OutputFormat
 from audiocore.types.policy import SelectionPolicy
+from audiocore.types.task import TranscriptionTask
 
 __all__ = [
     "BackendType",
@@ -15,5 +16,6 @@ __all__ = [
     "ModelErrorType",
     "OutputFormat",
     "SelectionPolicy",
+    "TranscriptionTask",
     "to_json_serializable",
 ]

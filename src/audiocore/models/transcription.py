@@ -8,7 +8,13 @@ from pydantic import BaseModel, Field, model_validator
 
 from audiocore.models.media import MediaInfo
 from audiocore.models.segment import Segment
-from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
+from audiocore.types import (
+    BackendType,
+    ModelSize,
+    OutputFormat,
+    SelectionPolicy,
+    TranscriptionTask,
+)
 
 if TYPE_CHECKING:
     from audiocore.config import AppConfig
@@ -63,6 +69,8 @@ class TranscriptionOptions(BaseModel):
             fall back to whole-file transcription when VAD fails.
         word_timestamps: If True, request word-level timestamps from the backend
             and attach them to each segment's ``words`` field. Defaults to False.
+        task: Whether to transcribe (keep the source language) or translate the
+            audio to English. Defaults to TranscriptionTask.TRANSCRIBE.
 
     Example:
         >>> opts = TranscriptionOptions()
@@ -101,6 +109,10 @@ class TranscriptionOptions(BaseModel):
     word_timestamps: bool = Field(
         default=False,
         description="If True, request word-level timestamps from the backend and attach them to segments.",
+    )
+    task: TranscriptionTask = Field(
+        default=TranscriptionTask.TRANSCRIBE,
+        description="Task to perform: transcribe (keep source language) or translate (to English).",
     )
 
 

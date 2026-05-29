@@ -824,7 +824,7 @@ Please ensure all tests pass and code coverage remains above 95%.
 - [ ] Streaming API
 - [ ] Custom VAD models
 - [x] Word-level timestamps
-- [ ] Translation API
+- [x] Translation API
 
 #### Word-level timestamps
 
@@ -849,6 +849,29 @@ for segment in result.segments:
 
 ```bash
 audiocore transcribe audio.mp3 --word-timestamps --format json
+```
+
+#### Translation API
+
+Pass `task=TranscriptionTask.TRANSLATE` (or `--translate` on the CLI) to
+translate speech into English. faster-whisper uses its `translate` task; the
+OpenAI backend routes to the dedicated translations endpoint. (Whisper's
+translate task always targets English regardless of the source language.)
+
+```python
+from audiocore import transcribe
+from audiocore.models import TranscriptionOptions
+from audiocore.types import TranscriptionTask
+
+result = transcribe(
+    "entrevista_es.mp3",
+    options=TranscriptionOptions(task=TranscriptionTask.TRANSLATE),
+)
+print(result.formatted_output)  # English translation
+```
+
+```bash
+audiocore transcribe entrevista_es.mp3 --translate
 ```
 
 ---
