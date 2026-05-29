@@ -199,23 +199,6 @@ class BackendRegistry:
         return backend_class(config=config)
 
     @staticmethod
-    def _normalize_config(config: object) -> object:
-        """Normalize AppConfig to the relevant sub-config for comparison.
-
-        If config is an AppConfig and we're comparing against a backend-specific
-        config, extract the matching sub-config to avoid AttributeError on
-        incompatible field sets.
-        """
-        from audiocore.config import AppConfig
-
-        if not isinstance(config, AppConfig):
-            return config
-
-        # Return the AppConfig itself — callers should extract sub-configs
-        # as needed for comparison. We handle normalization in _configs_match.
-        return config
-
-    @staticmethod
     def _configs_match(config_a: object, config_b: object) -> bool:
         """Compare two configs for equality, handling SecretStr correctly.
 
