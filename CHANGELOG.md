@@ -30,6 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   through `transcribe(..., diarizer=...)` / `Pipeline(diarizer=...)`; labels land
   on a new `Segment.speaker` field. New optional extra: `diarization`. Adds a
   `PipelineStage.DIARIZING` stage.
+- WebAssembly support (`audiocore.wasm`). A Pyodide-safe surface
+  (`format_transcript`, `segments_from_data`, `is_wasm`) that renders
+  text/JSON/SRT/VTT from segment data without importing torch, ctranslate2,
+  ffmpeg, openai, or any backend.
+
+### Changed
+- `Pipeline` and `transcribe` are now imported lazily from `audiocore.pipeline`
+  (via module `__getattr__`), so `import audiocore` no longer eagerly loads the
+  backend layer. The public import paths are unchanged.
 
 ## [1.0.0] - 2025-03-27
 

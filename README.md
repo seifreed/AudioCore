@@ -820,7 +820,7 @@ Please ensure all tests pass and code coverage remains above 95%.
 
 - [x] Real-time transcription
 - [x] Speaker diarization
-- [ ] WebAssembly support
+- [x] WebAssembly support
 - [x] Streaming API
 - [x] Custom VAD models
 - [x] Word-level timestamps
@@ -955,6 +955,26 @@ from audiocore.diarization import PyannoteDiarizer
 result = transcribe("meeting.wav", diarizer=PyannoteDiarizer(auth_token="hf_..."))
 for segment in result.segments:
     print(f"{segment.speaker}: {segment.text}")
+```
+
+#### WebAssembly support
+
+The transcription engine depends on native components (ffmpeg, PyTorch,
+CTranslate2) that cannot run in a browser, but AudioCore's models and output
+formatters are pure Python. `audiocore.wasm` is the Pyodide-safe entry point —
+importing it pulls in **no** torch, ctranslate2, ffmpeg, openai, or backend
+code — so a browser app can render text/JSON/SRT/VTT from timing+text produced
+elsewhere (e.g. a JS-side `whisper.cpp` WASM build or an API response).
+
+```python
+from audiocore.wasm import format_transcript, is_wasm
+
+segments = [
+    {"start_time": 0.0, "end_time": 1.5, "text": "Hello"},
+    {"start_time": 1.5, "end_time": 3.0, "text": "world"},
+]
+srt = format_transcript(segments, "srt")   # also: "text", "json", "vtt"
+print(is_wasm())                            # True under Pyodide/Emscripten
 ```
 
 ---

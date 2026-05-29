@@ -24,6 +24,8 @@ Cancellation tokens enable clean termination mid-pipeline:
     >>> # Pipeline will raise CancelledError when checked
 """
 
+from typing import TYPE_CHECKING
+
 from audiocore.pipeline.cancellation import CancellationToken, CancelledError
 from audiocore.pipeline.errors import (
     PartialResultError,
@@ -31,8 +33,10 @@ from audiocore.pipeline.errors import (
     PipelineError,
     PipelineStageError,
 )
-from audiocore.pipeline.orchestrator import Pipeline, transcribe
 from audiocore.pipeline.progress import PipelineStage, ProgressCallback, ProgressEvent
+
+if TYPE_CHECKING:
+    from audiocore.pipeline.orchestrator import Pipeline, transcribe
 
 __all__ = [
     # Main exports
@@ -51,3 +55,19 @@ __all__ = [
     "PipelineCancelledError",
     "PartialResultError",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """Lazily expose Pipeline and transcribe without importing backends eagerly.
+
+    Importing the orchestrator pulls in the backend layer (and its optional
+    dependencies). Deferring it keeps ``import audiocore`` / ``audiocore.pipeline``
+    lightweight — and lets the pure-Python ``audiocore.wasm`` surface load in
+    WebAssembly runtimes where those backends cannot — while preserving
+    ``from audiocore.pipeline import Pipeline, transcribe``.
+    """
+    if name in ("Pipeline", "transcribe"):
+        from audiocore.pipeline import orchestrator
+
+        return getattr(orchestrator, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
