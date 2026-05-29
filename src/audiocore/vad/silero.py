@@ -96,8 +96,8 @@ class SileroVAD:
     This class provides a thread-safe singleton pattern for the Silero VAD model,
     ensuring it's only loaded once and reused across all instances.
 
-    The model is loaded lazily on first use via torch.hub, with fallback to local
-    cache if network is unavailable.
+    The model is loaded lazily on first use from the bundled ``silero-vad``
+    package weights (offline, no network or remote code execution).
 
     Thread Safety:
         The model instance is a singleton shared across threads. Inference is
@@ -130,128 +130,45 @@ class SileroVAD:
         self.config = config or VADConfig()
 
     @classmethod
-    def _load_model(cls, timeout_seconds: int = 300) -> nn.Module:
-        """Load the Silero VAD model with fallback to local cache.
+    def _load_model(cls) -> nn.Module:
+        """Load the Silero VAD model from the bundled ``silero-vad`` package.
 
-        Attempts to load model from torch.hub first, then falls back to
-        local cache if network is unavailable.
-
-        Args:
-            timeout_seconds: Timeout for model download in seconds (default: 300s / 5min).
+        Uses the official ``silero-vad`` PyPI package, which ships the model
+        weights inside the wheel and loads them offline via importlib.resources.
+        No network access, git clone, or remote code execution occurs. The
+        package returns the TorchScript model already in evaluation mode.
 
         Returns:
-            Loaded Silero VAD model.
+            Loaded Silero VAD model (a TorchScript ``nn.Module``).
 
         Raises:
-            VADError: If model cannot be loaded from torch.hub or local cache.
+            VADError: If the ``silero-vad`` package is not installed or the
+                bundled model fails to load.
         """
         try:
-            return cls._download_model_with_timeout(timeout_seconds)
-        except TimeoutError as timeout_exc:
-            cached = cls._load_from_cache()
-            if cached is not None:
-                return cached
-            raise VADError(
-                message=f"Silero VAD model download timed out after {timeout_seconds} seconds",
-                context={"timeout_seconds": timeout_seconds},
-                suggestions=[
-                    "Check internet connection and try again",
-                    "Download model manually from https://github.com/snakers4/silero-vad",
-                    "Increase timeout by passing timeout_seconds parameter",
-                    "Use whole-file transcription without VAD segmentation",
-                ],
-            ) from timeout_exc
+            from silero_vad import load_silero_vad
         except ImportError as import_error:
             raise VADError(
-                message="torch is not installed, which is required for Silero VAD",
+                message="The 'silero-vad' package is required for voice activity detection",
                 context={"import_error": str(import_error)},
                 suggestions=[
-                    "Install torch: pip install torch",
+                    "Install it: pip install silero-vad",
                     "Or use whole-file transcription without VAD segmentation",
                 ],
             ) from import_error
-        except Exception as hub_error:
-            cached = cls._load_from_cache()
-            if cached is not None:
-                return cached
+
+        try:
+            return load_silero_vad(onnx=False)
+        except Exception as load_error:
             raise VADError(
-                message="Failed to load Silero VAD model",
-                context={
-                    "hub_error": str(hub_error),
-                    "cache_dir": str(cls._silero_cache_dir()),
-                },
+                message="Failed to load the bundled Silero VAD model",
+                context={"load_error": str(load_error)},
                 suggestions=[
-                    "Check internet connection for initial model download",
+                    "Reinstall the silero-vad package: pip install --force-reinstall silero-vad",
                     "Ensure torch is installed correctly: pip install torch",
-                    "Try downloading model manually from https://github.com/snakers4/silero-vad",
                     "Use whole-file transcription without VAD segmentation",
                 ],
-            ) from hub_error
-
-    @classmethod
-    def _download_model_with_timeout(cls, timeout_seconds: int) -> nn.Module:
-        """Download the Silero VAD model from torch.hub with a hard timeout.
-
-        Raises:
-            TimeoutError: If the download exceeds timeout_seconds.
-        """
-        import concurrent.futures
-
-        def _download_from_hub() -> nn.Module:
-            model, _ = torch.hub.load(
-                repo_or_dir="snakers4/silero-vad",
-                model="silero_vad",
-                force_reload=False,
-                onnx=False,
-                trust_repo=True,
-            )
-            model.eval()
-            return model
-
-        executor = concurrent.futures.ThreadPoolExecutor(
-            max_workers=1, thread_name_prefix="silero-download"
-        )
-        future = executor.submit(_download_from_hub)
-        try:
-            return future.result(timeout=timeout_seconds)
-        except concurrent.futures.TimeoutError:
-            raise TimeoutError(
-                f"Model download timed out after {timeout_seconds} seconds"
-            ) from None
-        finally:
-            executor.shutdown(wait=False, cancel_futures=True)
-
-    @staticmethod
-    def _silero_cache_dir() -> Path:
-        """Return the platform-specific torch.hub cache directory for Silero VAD."""
-        import os
-        import sys
-
-        if sys.platform == "win32":
-            base = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
-            return Path(os.path.join(base, "torch", "hub", "snakers4_silero-vad_master"))
-        return Path(os.path.expanduser("~/.cache/torch/hub/snakers4_silero-vad_master/"))
-
-    @classmethod
-    def _load_from_cache(cls) -> nn.Module | None:
-        """Load Silero VAD from the local torch.hub cache, or None if unavailable.
-
-        A cache load that raises is logged and treated as unavailable so the
-        caller can surface the primary download failure instead.
-        """
-        cache_dir = cls._silero_cache_dir()
-        if not cache_dir.exists():
-            return None
-        try:
-            model_path = cache_dir / "files" / "silero_vad.jit"
-            if not model_path.exists():
-                return None
-            loaded = torch.jit.load(str(model_path))
-            loaded.eval()
-            return loaded
-        except Exception as cache_error:
-            logger.warning(f"Failed to load Silero VAD from local cache: {cache_error}")
-            return None
+            ) from load_error
 
     @classmethod
     def get_model(cls) -> nn.Module:

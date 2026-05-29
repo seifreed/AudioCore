@@ -1,7 +1,8 @@
 """Unit tests for Silero VAD integration.
 
-These tests mock torch.hub.load to avoid downloading the model.
-Integration tests that actually load the model are skipped by default.
+These tests patch silero_vad.load_silero_vad to avoid loading the bundled
+model. The real model is shipped offline inside the silero-vad package, so
+no download occurs.
 """
 
 from __future__ import annotations
@@ -21,162 +22,78 @@ from audiocore.errors import VADError
 from audiocore.vad.silero import SileroVAD
 
 
+class _FakeVADModel:
+    """Real in-memory stand-in for the Silero JIT model (not a MagicMock).
+
+    Exposes the surface the loader contract relies on: ``reset_states`` and a
+    ``__call__(chunk, sample_rate)`` returning a tensor with ``.item()``.
+    """
+
+    def __init__(self) -> None:
+        self.reset_calls = 0
+
+    def reset_states(self) -> None:
+        self.reset_calls += 1
+
+    def __call__(self, chunk: object, sample_rate: int) -> torch.Tensor:
+        return torch.tensor(0.5)
+
+
+@pytest.fixture(autouse=True)
+def _reset_silero_singleton() -> Any:
+    """Reset the cached singleton model around each test for isolation."""
+    SileroVAD._model = None
+    yield
+    SileroVAD._model = None
+
+
 class TestModelLoading:
     """Test model loading and caching behavior."""
 
     def test_model_is_none_on_import(self) -> None:
-        """Verify model is None before first use (lazy loading)."""
-        # Create a new class to test lazy loading
-        # The global SileroVAD may have been loaded by other tests
-        # So we check that the class supports the pattern
+        """Verify the class exposes the lazy-loading singleton attributes."""
         assert hasattr(SileroVAD, "_model")
         assert hasattr(SileroVAD, "_lock")
         assert hasattr(SileroVAD, "_sample_rate")
         assert SileroVAD._sample_rate == 16000
 
-    @patch("audiocore.vad.silero.torch.hub.load")
-    def test_get_model_loads_on_first_call(self, mock_load: MagicMock) -> None:
-        """Test that get_model loads the model on first call."""
-        # Setup mock model
-        mock_model = MagicMock(spec=torch.nn.Module)
-        mock_model.eval.return_value = mock_model
-        mock_load.return_value = (mock_model, None)
+    def test_get_model_loads_via_load_silero_vad(self) -> None:
+        """get_model loads the bundled model through load_silero_vad(onnx=False)."""
+        fake = _FakeVADModel()
+        with patch("silero_vad.load_silero_vad", return_value=fake) as mock_load:
+            model = SileroVAD.get_model()
 
-        # Reset class state for isolated test
-        SileroVAD._model = None
+        mock_load.assert_called_once_with(onnx=False)
+        assert model is fake
 
-        # First call should load the model
-        model = SileroVAD.get_model()
+    def test_get_model_caches_model(self) -> None:
+        """Subsequent calls return the cached model without reloading."""
+        fake = _FakeVADModel()
+        with patch("silero_vad.load_silero_vad", return_value=fake) as mock_load:
+            model1 = SileroVAD.get_model()
+            model2 = SileroVAD.get_model()
 
-        # Verify torch.hub.load was called with correct args
-        mock_load.assert_called_once()
-        call_args = mock_load.call_args
-        assert call_args[1]["repo_or_dir"] == "snakers4/silero-vad"
-        assert call_args[1]["model"] == "silero_vad"
-
-        # Model should be the loaded instance
-        assert model is mock_model
-
-    @patch("audiocore.vad.silero.torch.hub.load")
-    def test_get_model_caches_model(self, mock_load: MagicMock) -> None:
-        """Test that subsequent calls return cached model without reloading."""
-        # Setup mock model
-        mock_model = MagicMock(spec=torch.nn.Module)
-        mock_model.eval.return_value = mock_model
-        mock_load.return_value = (mock_model, None)
-
-        # Reset class state for isolated test
-        SileroVAD._model = None
-
-        # First call
-        model1 = SileroVAD.get_model()
-
-        # Second call
-        model2 = SileroVAD.get_model()
-
-        # Both should return same instance
         assert model1 is model2
-
-        # torch.hub.load should only be called once
         assert mock_load.call_count == 1
 
-    @patch("audiocore.vad.silero.torch.hub.load")
-    @patch("pathlib.Path.exists")
-    def test_load_model_raises_vad_error_on_network_failure(
-        self, mock_exists: MagicMock, mock_load: MagicMock
-    ) -> None:
-        """Test that VADError is raised when model loading fails via network."""
-        # Make torch.hub.load fail
-        mock_load.side_effect = RuntimeError("Network error")
-
-        # Make local cache not exist
-        mock_exists.return_value = False
-
-        # Reset class state
-        SileroVAD._model = None
-
-        # Should raise VADError
-        with pytest.raises(VADError) as exc_info:
-            SileroVAD.get_model()
-
-        # Check error details
-        assert "Failed to load Silero VAD model" in str(exc_info.value)
-        assert exc_info.value.error_code == "AUD-401"
-        assert "Network error" in exc_info.value.context.get("hub_error", "")
-
-    @patch("audiocore.vad.silero.torch.hub.load")
-    @patch("audiocore.vad.silero.Path")
-    def test_load_model_timeout_preserves_exception_chain(
-        self, mock_path_class: MagicMock, mock_load: MagicMock
-    ) -> None:
-        """Regression: TimeoutError must be preserved in exception chain.
-
-        Previously, when the cache directory didn't exist after a timeout,
-        `raise VADError(...) from cache_fallback_error` used `None` as the
-        cause, suppressing the original TimeoutError. Now the original
-        TimeoutError is chained as __cause__.
-        """
-        import concurrent.futures
-
-        # Make torch.hub.load raise a timeout via the executor
-        mock_load.side_effect = RuntimeError("Download failed")
-
-        # Make local cache not exist (so fallback also fails)
-        mock_cache_dir = MagicMock(spec=Path)
-        mock_cache_dir.exists.return_value = False
-        mock_path_class.return_value = mock_cache_dir
-
-        # Reset class state
-        SileroVAD._model = None
-
-        # Test the _load_model method directly with timeout to verify chaining
-        # Patch the executor to simulate a timeout
-        with patch.object(concurrent.futures.ThreadPoolExecutor, "submit") as mock_submit:
-            future = concurrent.futures.Future()
-            future.set_exception(TimeoutError("Model download timed out after 1 seconds"))
-            mock_submit.return_value = future
-
+    def test_load_model_raises_vad_error_when_package_missing(self) -> None:
+        """A missing silero-vad package surfaces as VADError with install guidance."""
+        with patch.dict("sys.modules", {"silero_vad": None}):
             with pytest.raises(VADError) as exc_info:
-                SileroVAD._load_model(timeout_seconds=1)
+                SileroVAD.get_model()
 
-        # The original TimeoutError should be in the exception chain,
-        # not None (which was the bug)
-        assert exc_info.value.__cause__ is not None
-        assert isinstance(exc_info.value.__cause__, TimeoutError)
+        assert exc_info.value.error_code == "AUD-401"
+        assert "silero-vad" in str(exc_info.value)
+        assert any("pip install silero-vad" in s for s in exc_info.value.suggestions)
 
-    @patch("audiocore.vad.silero.torch.hub.load")
-    @patch("audiocore.vad.silero.Path")
-    def test_load_model_uses_local_cache_fallback(
-        self, mock_path_class: MagicMock, mock_load: MagicMock
-    ) -> None:
-        """Test that loading falls back to local cache when torch.hub fails."""
-        # Make torch.hub.load fail
-        mock_load.side_effect = RuntimeError("Network unavailable")
+    def test_load_model_wraps_loader_failure_in_vad_error(self) -> None:
+        """A loader failure is wrapped in VADError, preserving the cause chain."""
+        with patch("silero_vad.load_silero_vad", side_effect=RuntimeError("boom")):
+            with pytest.raises(VADError) as exc_info:
+                SileroVAD.get_model()
 
-        mock_cache_dir = MagicMock(spec=Path)
-        mock_cache_dir.exists.return_value = True
-
-        # Mock model file path
-        mock_model_file = MagicMock(spec=Path)
-        mock_model_file.exists.return_value = True
-        mock_cache_dir.__truediv__ = lambda self, x: (  # type: ignore
-            mock_model_file if x == "files" else mock_cache_dir / x
-        )
-        mock_path_class.return_value = mock_cache_dir
-
-        # Mock torch.jit.load
-        mock_model = MagicMock(spec=torch.nn.Module)
-        with patch("audiocore.vad.silero.torch.jit.load") as mock_jit_load:
-            mock_jit_load.return_value = mock_model
-
-            # Reset class state
-            SileroVAD._model = None
-
-            # Should successfully load from local cache
-            result = SileroVAD.get_model()
-
-            # Verify result
-            assert result is mock_model
+        assert "Failed to load the bundled Silero VAD model" in str(exc_info.value)
+        assert isinstance(exc_info.value.__cause__, RuntimeError)
 
 
 class TestAudioLoading:
@@ -452,48 +369,32 @@ class TestSpeechDetection:
 class TestThreadSafety:
     """Test thread-safe model caching."""
 
-    # Note: This test is skipped because it requires actual model loading
-    @pytest.mark.skip(reason="Integration test requires model download")
-    @patch("audiocore.vad.silero.torch.hub.load")
-    def test_concurrent_get_model_calls_load_once(self, mock_load: MagicMock) -> None:
-        """Test that concurrent calls only load model once."""
+    def test_concurrent_get_model_calls_load_once(self) -> None:
+        """Concurrent get_model calls load the model exactly once (singleton)."""
         call_count = [0]
         load_lock = threading.Lock()
 
-        def slow_load(*args: Any, **kwargs: Any) -> tuple[torch.nn.Module, None]:
-            """Simulate slow model loading."""
+        def slow_load(*args: Any, **kwargs: Any) -> _FakeVADModel:
+            """Simulate a slow model load to exercise the double-checked lock."""
             with load_lock:
                 call_count[0] += 1
-            threading.Event().wait(0.1)  # Simulate network delay
-            mock_model = MagicMock(spec=torch.nn.Module)
-            mock_model.eval.return_value = mock_model
-            return mock_model, None
+            threading.Event().wait(0.05)
+            return _FakeVADModel()
 
-        mock_load.side_effect = slow_load
-
-        # Reset class state
-        SileroVAD._model = None
-
-        # Start multiple threads calling get_model concurrently
-        results: list[torch.nn.Module | None] = []
-        threads = []
+        results: list[object] = []
 
         def get_model_thread() -> None:
-            model = SileroVAD.get_model()
-            results.append(model)
+            results.append(SileroVAD.get_model())
 
-        for _ in range(5):
-            t = threading.Thread(target=get_model_thread)
-            threads.append(t)
-            t.start()
+        with patch("silero_vad.load_silero_vad", side_effect=slow_load):
+            threads = [threading.Thread(target=get_model_thread) for _ in range(5)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
 
-        for t in threads:
-            t.join()
-
-        # All threads should get the same model instance
+        # All threads should get the same cached instance, loaded only once.
         assert len({id(r) for r in results}) == 1
-
-        # torch.hub.load should only be called once
         assert call_count[0] == 1
 
 
