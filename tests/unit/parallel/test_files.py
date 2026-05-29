@@ -480,13 +480,21 @@ class TestAsyncioIntegration:
     """Test asyncio integration for concurrent processing."""
 
     @pytest.mark.asyncio
-    async def test_concurrent_execution_timing(
+    async def test_concurrent_execution_overlaps(
         self,
         tmp_path: Path,
         transcription_options: TranscriptionOptions,
         mock_transcription_result: TranscriptionResult,
     ) -> None:
-        """Test that files are processed concurrently (faster than sequential)."""
+        """Files are processed concurrently, not serially.
+
+        Concurrency is verified by observing that executions actually overlap
+        (max simultaneous transcriptions > 1), which is deterministic and
+        load-independent. A wall-clock ceiling was previously used here but
+        flaked under CI/system load — a busy runner can serialize the executor
+        threads and inflate elapsed time without indicating a real regression.
+        """
+        import threading
         import time
 
         files = []
@@ -495,25 +503,41 @@ class TestAsyncioIntegration:
             audio_file.write_bytes(b"fake audio")
             files.append(audio_file)
 
-        def slow_transcribe(path, options, cancellation_token=None):
-            time.sleep(0.1)  # Simulate slow transcription
+        current_concurrent = 0
+        max_observed = 0
+        counter_lock = threading.Lock()
+        # A barrier proves all three threads are in flight simultaneously when
+        # workers allow it; timeout keeps the test from hanging on regression.
+        barrier = threading.Barrier(3, timeout=5.0)
+
+        def overlapping_transcribe(path, options, cancellation_token=None):
+            nonlocal current_concurrent, max_observed
+            with counter_lock:
+                current_concurrent += 1
+                max_observed = max(max_observed, current_concurrent)
+            try:
+                barrier.wait()
+            except threading.BrokenBarrierError:
+                pass
+            time.sleep(0.01)
+            with counter_lock:
+                current_concurrent -= 1
             return mock_transcription_result
 
         with patch("audiocore.parallel.files.transcribe") as mock_transcribe:
-            mock_transcribe.side_effect = slow_transcribe
+            mock_transcribe.side_effect = overlapping_transcribe
 
-            start_time = time.time()
             results = await transcribe_files_concurrent(
                 files=files,
                 options=transcription_options,
                 max_workers=3,  # Allow all 3 to run concurrently
             )
-            elapsed_time = time.time() - start_time
 
         assert len(results) == 3
-        # If truly concurrent, should take ~0.1s, not ~0.3s
-        # Allow some overhead for test environment
-        assert elapsed_time < 0.25, f"Expected concurrent execution, took {elapsed_time:.2f}s"
+        # If truly concurrent, more than one transcription ran at the same time.
+        assert max_observed > 1, (
+            f"Expected overlapping execution, max concurrent was {max_observed}"
+        )
 
     @pytest.mark.asyncio
     async def test_semaphore_limits_concurrency(
