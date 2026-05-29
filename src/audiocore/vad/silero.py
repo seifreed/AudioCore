@@ -121,13 +121,26 @@ class SileroVAD:
     _inference_lock: threading.Lock = threading.Lock()
     _sample_rate: int = 16000
 
-    def __init__(self, config: VADConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: VADConfig | None = None,
+        model_path: Path | str | None = None,
+    ) -> None:
         """Initialize SileroVAD instance.
 
         Args:
             config: Optional VAD configuration. Uses defaults if not provided.
+            model_path: Optional path to a custom Silero-format TorchScript VAD
+                model. When provided (or set via ``config.model_path``), it is
+                loaded per-instance and the shared bundled-model singleton is
+                left untouched. Uses the bundled weights when None.
         """
         self.config = config or VADConfig()
+        resolved_path = model_path if model_path is not None else self.config.model_path
+        self._custom_model_path: Path | None = (
+            Path(resolved_path) if resolved_path is not None else None
+        )
+        self._custom_model: nn.Module | None = None
 
     @classmethod
     def _load_model(cls) -> nn.Module:
@@ -189,17 +202,59 @@ class SileroVAD:
                     cls._model = cls._load_model()
         return cls._model
 
+    def _load_custom_model(self, model_path: Path) -> nn.Module:
+        """Load a user-supplied Silero-format TorchScript VAD model from disk.
+
+        The model is loaded once per instance (not into the shared singleton)
+        so a custom detector never leaks into the bundled-model cache used by
+        other callers.
+
+        Raises:
+            VADError: If the file is missing or cannot be loaded as TorchScript.
+        """
+        if not model_path.exists():
+            raise VADError(
+                message=f"Custom VAD model not found: {model_path}",
+                context={"model_path": str(model_path)},
+                suggestions=[
+                    "Verify the model_path points to an existing file",
+                    "Use the bundled model by leaving model_path unset",
+                ],
+            )
+        try:
+            model = torch.jit.load(str(model_path))
+            # train(False) puts the module in inference mode (equivalent to eval).
+            model.train(False)
+        except Exception as load_error:
+            raise VADError(
+                message=f"Failed to load custom VAD model: {load_error}",
+                context={"model_path": str(model_path)},
+                suggestions=[
+                    "Ensure the file is a TorchScript (.jit) Silero-format model",
+                    "Confirm it accepts (chunk_tensor, sample_rate) and returns a probability",
+                ],
+            ) from load_error
+        return model
+
+    def _resolve_model(self) -> nn.Module:
+        """Return this instance's model: the custom one if set, else the singleton."""
+        if self._custom_model_path is not None:
+            if self._custom_model is None:
+                self._custom_model = self._load_custom_model(self._custom_model_path)
+            return self._custom_model
+        return self.get_model()
+
     def _prepare_model(self) -> nn.Module:
         """Get the model with reset state for processing a new audio file.
 
         Resets the model's internal state before each file to prevent
-        state accumulation across files. The model is a singleton shared
-        across threads, so concurrent access requires external synchronization.
+        state accumulation across files. The shared bundled model is a
+        singleton, so concurrent access requires external synchronization.
 
         Returns:
             Silero VAD model instance with reset state.
         """
-        model = self.get_model()
+        model = self._resolve_model()
         model.reset_states()
         return model
 
@@ -211,7 +266,7 @@ class SileroVAD:
         ongoing inference in multi-threaded contexts.
         """
         with self._inference_lock:
-            model = self.get_model()
+            model = self._resolve_model()
             model.reset_states()
 
     def _load_audio(self, audio_path: Path | str) -> tuple[NDArray[np.float32], int]:

@@ -6,11 +6,13 @@ Provides high-level speech detection and segment processing.
 from pathlib import Path
 
 from audiocore.models import Segment
+from audiocore.vad.base import VADModel
 from audiocore.vad.config import VADConfig
 from audiocore.vad.segments import process_segments
 
 __all__ = [
     "VADConfig",
+    "VADModel",
     "SileroVAD",
     "detect_speech",
     "process_segments",
@@ -30,11 +32,13 @@ def detect_speech(
     audio_path: str | Path,
     config: VADConfig | None = None,
     total_duration: float | None = None,
+    vad: VADModel | None = None,
 ) -> list[Segment]:
     """Detect speech segments in audio file.
 
     High-level function that:
-    1. Loads Silero VAD model (lazy, cached)
+    1. Loads a VAD model (the bundled Silero by default; a custom model file
+       when ``config.model_path`` is set; or a fully custom ``vad`` detector)
     2. Processes audio to find speech segments
     3. Applies VADConfig parameters for merge/split/pad
     4. Returns list of Segment models
@@ -43,6 +47,9 @@ def detect_speech(
         audio_path: Path to 16kHz mono WAV file.
         config: VAD configuration (uses defaults if None).
         total_duration: Total audio duration in seconds (auto-detected if None).
+        vad: Optional custom detector implementing the ``VADModel`` protocol.
+            When None, a ``SileroVAD`` is used (honoring ``config.model_path``
+            for a custom Silero-format model file).
 
     Returns:
         List of Segment objects with start_time, end_time, confidence.
@@ -70,9 +77,10 @@ def detect_speech(
             suggestions=["Check file path", "Ensure file exists"],
         )
 
-    from audiocore.vad.silero import SileroVAD
+    if vad is None:
+        from audiocore.vad.silero import SileroVAD
 
-    vad = SileroVAD()
+        vad = SileroVAD(config=config)
     raw_segments = vad.detect_file(audio_path, config)
 
     # Get duration from probe if not provided

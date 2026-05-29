@@ -41,6 +41,7 @@ from audiocore.vad import detect_speech
 if TYPE_CHECKING:
     from audiocore.backends.base import TranscriptionBackend
     from audiocore.types import BackendType
+    from audiocore.vad import VADModel
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,7 @@ class Pipeline:
         config: AppConfig | None = None,
         progress_callback: ProgressCallback | None = None,
         cancellation_token: CancellationToken | None = None,
+        vad_model: VADModel | None = None,
     ):
         """Initialize the pipeline with optional configuration.
 
@@ -100,11 +102,14 @@ class Pipeline:
             config: Application configuration. If None, uses default AppConfig.
             progress_callback: Optional default progress callback for transcribe().
             cancellation_token: Optional default cancellation token for transcribe().
+            vad_model: Optional custom VAD detector (``VADModel`` protocol) used
+                for the speech-detection stage instead of the bundled Silero VAD.
         """
         register_builtin_backends()
         self.config = config or AppConfig()
         self._progress_callback = progress_callback
         self._cancellation_token = cancellation_token
+        self._vad_model = vad_model
         self._registry = BackendRegistry()
         self._selector = BackendSelector(config=self.config)
 
@@ -292,6 +297,7 @@ class Pipeline:
                 audio_path=audio_path,
                 config=vad_config,
                 total_duration=media_info.duration,
+                vad=self._vad_model,
             )
         except VADError as e:
             # VAD failed - explicit request options outrank config.
@@ -465,6 +471,7 @@ def transcribe(
     config: AppConfig | None = None,
     progress_callback: ProgressCallback | None = None,
     cancellation_token: CancellationToken | None = None,
+    vad_model: VADModel | None = None,
 ) -> TranscriptionResult:
     """Convenience function for one-line transcription.
 
@@ -477,6 +484,7 @@ def transcribe(
         config: Application configuration. If None, uses default AppConfig.
         progress_callback: Optional callback for progress notifications.
         cancellation_token: Optional token for cancellation support.
+        vad_model: Optional custom VAD detector (``VADModel`` protocol).
 
     Returns:
         TranscriptionResult: Complete transcription result with segments,
@@ -498,7 +506,7 @@ def transcribe(
         >>> options = TranscriptionOptions(backend=BackendType.OPENAI)
         >>> result = transcribe("audio.mp3", options)
     """
-    pipeline = Pipeline(config=config)
+    pipeline = Pipeline(config=config, vad_model=vad_model)
     return pipeline.transcribe(
         path=path,
         options=options,

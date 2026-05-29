@@ -6,6 +6,7 @@ for speech detection and segmentation.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -32,6 +33,8 @@ class VADConfig(BaseModel):
         min_silence_duration_ms: Minimum silence duration in milliseconds to split segments.
         window_size_samples: Window size in samples for VAD processing.
             Silero optimal values: 512, 768, or 1024.
+        model_path: Optional path to a custom Silero-format TorchScript VAD model.
+            When None (default), the bundled silero-vad weights are used.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -79,6 +82,13 @@ class VADConfig(BaseModel):
     strict_vad: bool = Field(
         default=False,
         description="If True, raise VADError on VAD failure instead of falling back to whole-file transcription",
+    )
+    model_path: Path | None = Field(
+        default=None,
+        description=(
+            "Path to a custom Silero-format VAD model (TorchScript .jit) to load "
+            "instead of the bundled weights. None uses the bundled model."
+        ),
     )
 
     @model_validator(mode="after")

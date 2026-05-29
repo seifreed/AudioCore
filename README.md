@@ -822,7 +822,7 @@ Please ensure all tests pass and code coverage remains above 95%.
 - [ ] Speaker diarization
 - [ ] WebAssembly support
 - [ ] Streaming API
-- [ ] Custom VAD models
+- [x] Custom VAD models
 - [x] Word-level timestamps
 - [x] Translation API
 
@@ -873,6 +873,35 @@ print(result.formatted_output)  # English translation
 ```bash
 audiocore transcribe entrevista_es.mp3 --translate
 ```
+
+#### Custom VAD models
+
+Two extension points replace the bundled Silero VAD:
+
+1. **A custom model file** — point `VADConfig.model_path` at a Silero-format
+   TorchScript model:
+
+   ```python
+   from audiocore.vad import VADConfig
+   from audiocore.config import AppConfig
+
+   config = AppConfig(vad=VADConfig(model_path="my_vad.jit"))
+   ```
+
+2. **A fully custom detector** — implement the `VADModel` protocol
+   (`detect_file(audio_path, config) -> list[(start, end, confidence)]`) and pass
+   it to the pipeline:
+
+   ```python
+   from audiocore import transcribe
+   from audiocore.vad import VADModel
+
+   class EnergyVAD:
+       def detect_file(self, audio_path, config=None):
+           return [(0.0, 4.2, 1.0)]  # your detection logic
+
+   result = transcribe("audio.mp3", vad_model=EnergyVAD())
+   ```
 
 ---
 
