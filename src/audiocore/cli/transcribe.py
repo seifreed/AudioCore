@@ -303,13 +303,6 @@ def transcribe(
             dir_okay=True,
         ),
     ] = None,
-    parallel: Annotated[
-        bool,
-        typer.Option(
-            "--parallel",
-            help="Enable batch mode for multiple input files. Multiple inputs already use batch mode.",
-        ),
-    ] = False,
     max_workers: Annotated[
         int,
         typer.Option(
@@ -384,7 +377,7 @@ def transcribe(
     )
 
     # Determine batch mode
-    is_batch_mode = len(input_files) > 1 or (parallel and len(input_files) > 1)
+    is_batch_mode = len(input_files) > 1
 
     if is_batch_mode:
         # Batch mode: process multiple files concurrently

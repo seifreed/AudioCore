@@ -524,7 +524,7 @@ class TestBatchTranscription:
     """Test batch transcription functionality."""
 
     def test_single_file_mode(self, audio_file: Path, mock_pipeline: MagicMock) -> None:
-        """Test single file mode (no --parallel needed)."""
+        """Test single file mode."""
         with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
             result = runner.invoke(app, [str(audio_file)])
 
@@ -572,45 +572,6 @@ class TestBatchTranscription:
 
         assert result.exit_code == 0
         assert "3 file(s)" in result.output
-
-    def test_parallel_option_is_accepted_for_documented_batch_mode(self, tmp_path: Path) -> None:
-        """Regression: documented --parallel flag should be accepted by the CLI."""
-        from audiocore.parallel.files import FileResult
-
-        files = []
-        for i in range(2):
-            audio_file = tmp_path / f"test{i}.wav"
-            audio_file.write_bytes(b"fake audio data")
-            files.append(audio_file)
-
-        mock_results = [
-            FileResult(
-                path=f,
-                success=True,
-                result=TranscriptionResult(
-                    segments=[Segment(start_time=0.0, end_time=5.0, text="test")],
-                    media_info=MediaInfo(duration=5.0, format="wav", sample_rate=16000, channels=1),
-                    config_used=TranscriptionOptions(),
-                    processing_time_seconds=2.0,
-                    backend_used=BackendType.OPENAI,
-                    formatted_output="test",
-                ),
-                error=None,
-            )
-            for f in files
-        ]
-
-        async def mock_transcribe_concurrent(*args, **kwargs):
-            return mock_results
-
-        with patch(
-            "audiocore.cli.transcribe.transcribe_files_concurrent",
-            side_effect=mock_transcribe_concurrent,
-        ):
-            result = runner.invoke(app, [str(f) for f in files] + ["--parallel"])
-
-        assert result.exit_code == 0
-        assert "2 file(s)" in result.output
 
     def test_max_workers_option(self, tmp_path: Path) -> None:
         """Test --max-workers flag limits concurrency."""
