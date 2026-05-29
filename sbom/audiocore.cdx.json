@@ -1259,6 +1259,11 @@
           "type": "vcs",
           "url": "https://github.com/kjd/idna",
           "comment": "source repository"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/kjd/idna",
+          "comment": "project homepage"
         }
       ],
       "licenses": [
@@ -1976,6 +1981,11 @@
           "type": "vcs",
           "url": "https://github.com/theskumar/python-dotenv",
           "comment": "source repository"
+        },
+        {
+          "type": "website",
+          "url": "https://github.com/theskumar/python-dotenv",
+          "comment": "project homepage"
         }
       ],
       "licenses": [

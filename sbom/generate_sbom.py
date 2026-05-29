@@ -318,6 +318,12 @@ def ensure_vcs_and_website_refs(component: dict[str, Any], urls: dict[str, str])
         refs.append({"type": "vcs", "url": vcs_url, "comment": "source repository"})
 
     website_url = next((urls[label] for label in WEBSITE_LABELS if label in urls), None)
+    if website_url is None and not any(r.get("type") == "website" for r in refs):
+        # A project's source forge doubles as its homepage when no distinct
+        # website is published; reuse the vcs/forge URL so provenance is complete.
+        website_url = vcs_url or next(
+            (r["url"] for r in refs if _looks_like_vcs(r.get("url", ""))), None
+        )
     if website_url and ("website", website_url) not in existing:
         refs.append({"type": "website", "url": website_url, "comment": "project homepage"})
 
