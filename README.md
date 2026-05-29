@@ -17,6 +17,13 @@
 </p>
 
 <p align="center">
+  <a href="sbom/README.md"><img src="https://img.shields.io/badge/SBOM-CycloneDX%201.6-blue?style=flat-square&logo=linuxfoundation&logoColor=white" alt="SBOM CycloneDX"></a>
+  <a href="sbom/README.md"><img src="https://img.shields.io/badge/SBOM%20rating-100%2FA-brightgreen?style=flat-square" alt="SBOM rating 100/A"></a>
+  <a href="sbom/README.md"><img src="https://img.shields.io/badge/NTIA%20minimum%20elements-100%25%20A%20(sbomqs)-brightgreen?style=flat-square" alt="sbomqs NTIA 100/A"></a>
+  <a href="sbom/README.md"><img src="https://img.shields.io/badge/sbom--tools%20quality-A%20(92.6)-brightgreen?style=flat-square" alt="sbom-tools Grade A"></a>
+</p>
+
+<p align="center">
   <a href="https://github.com/seifreed/audiocore/stargazers"><img src="https://img.shields.io/github/stars/seifreed/audiocore?style=flat-square" alt="GitHub Stars"></a>
   <a href="https://github.com/seifreed/audiocore/issues"><img src="https://img.shields.io/github/issues/seifreed/audiocore?style=flat-square" alt="GitHub Issues"></a>
   <a href="https://buymeacoffee.com/seifreed"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-yellow?style=flat-square&logo=buy-me-a-coffee&logoColor=white" alt="Buy Me a Coffee"></a>
