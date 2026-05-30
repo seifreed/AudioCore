@@ -4,19 +4,95 @@ Tests priority chain merging, None value handling,
 SecretStr masking, and default value extraction.
 """
 
+import os
 from pathlib import Path
 
 import pytest
-from pydantic import SecretStr
+from pydantic import BaseModel, Field, SecretStr
 
 from audiocore.config.merger import (
+    _canonicalize_openai_api_key,
+    _deep_merge,
+    _extract_env_overrides,
     _get_defaults,
+    _mirror_openai_api_key,
+    _resolve_field_default,
     load_config,
     mask_secrets,
     merge_configs,
 )
+from audiocore.config.openai_config import OpenAIConfig
+from audiocore.config.settings import AppConfig
 from audiocore.errors import InvalidConfigError
 from audiocore.types import BackendType, ModelSize, OutputFormat, SelectionPolicy
+
+
+class _DefaultsProbe(BaseModel):
+    """Synthetic model exercising each field-default resolution branch."""
+
+    required_field: int
+    explicit_default: int = 5
+    factory_default: list[int] = Field(default_factory=list)
+
+
+class TestResolveFieldDefault:
+    """_resolve_field_default returns factory/explicit/None per field shape."""
+
+    def test_required_field_without_default_returns_none(self) -> None:
+        field = _DefaultsProbe.model_fields["required_field"]
+        assert _resolve_field_default(field) is None
+
+    def test_explicit_default_is_returned(self) -> None:
+        field = _DefaultsProbe.model_fields["explicit_default"]
+        assert _resolve_field_default(field) == 5
+
+    def test_default_factory_is_realized(self) -> None:
+        field = _DefaultsProbe.model_fields["factory_default"]
+        assert _resolve_field_default(field) == []
+
+
+class TestOpenAIApiKeyFolding:
+    """The OpenAI api_key alias is folded into / mirrored from the nested model."""
+
+    def test_canonicalize_folds_alias_into_basemodel_openai(self) -> None:
+        config = {
+            "openai_api_key": SecretStr("sk-live"),
+            "openai": OpenAIConfig(timeout=120.0),
+        }
+        result = _canonicalize_openai_api_key(config)
+        assert result["openai"]["api_key"] == SecretStr("sk-live")
+        assert result["openai"]["timeout"] == 120.0
+
+    def test_mirror_returns_unchanged_when_openai_not_dict(self) -> None:
+        config = {"openai": OpenAIConfig(api_key="sk-live")}
+        result = _mirror_openai_api_key(config)
+        assert "openai_api_key" not in result
+
+
+class TestDeepMerge:
+    """_deep_merge recurses into nested dicts, overlaying leaf values."""
+
+    def test_nested_dicts_merge_recursively(self) -> None:
+        base = {"openai": {"timeout": 30.0, "max_retries": 2}}
+        override = {"openai": {"max_retries": 5}}
+        result = _deep_merge(base, override)
+        assert result == {"openai": {"timeout": 30.0, "max_retries": 5}}
+
+
+class TestExtractEnvOverridesBlankSecret:
+    """A blank top-level SecretStr is not treated as an env override."""
+
+    def test_blank_secret_is_skipped(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        for key in list(os.environ):
+            if key.upper().startswith("AUDIOCORE_"):
+                monkeypatch.delenv(key, raising=False)
+
+        defaults = _get_defaults()
+        env_instance = AppConfig(openai_api_key="   ")  # whitespace-only secret
+
+        overrides = _extract_env_overrides(defaults, env_instance)
+
+        assert "openai_api_key" not in overrides
 
 
 class TestGetDefaults:

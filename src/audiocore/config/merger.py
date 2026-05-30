@@ -70,20 +70,24 @@ def _get_defaults() -> dict[str, Any]:
         >>> defaults["model"]
         <ModelSize.BASE: 'base'>
     """
-    defaults: dict[str, Any] = {}
+    return {
+        field_name: _resolve_field_default(field_info)
+        for field_name, field_info in AppConfig.model_fields.items()
+    }
 
-    for field_name, field_info in AppConfig.model_fields.items():
-        if field_info.default_factory is not None:
-            # Has a default_factory, call it to get default
-            defaults[field_name] = field_info.default_factory()  # type: ignore[misc]
-        elif field_info.default is not PydanticUndefined:
-            defaults[field_name] = field_info.default
-        else:
-            # Field is optional (default=None for optional fields)
-            # Include it with None value
-            defaults[field_name] = None
 
-    return defaults
+def _resolve_field_default(field_info: Any) -> Any:
+    """Return a model field's default, or None when it declares none.
+
+    A field with a ``default_factory`` is realized by calling it; a field with
+    an explicit ``default`` returns it; a field with neither (required, no
+    default) yields ``None`` so the merge layer still has a key to overlay.
+    """
+    if field_info.default_factory is not None:
+        return field_info.default_factory()
+    if field_info.default is not PydanticUndefined:
+        return field_info.default
+    return None
 
 
 def mask_secrets(config_dict: dict[str, Any]) -> dict[str, Any]:

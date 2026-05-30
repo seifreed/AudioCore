@@ -85,6 +85,16 @@ output_format = "json"
             assert "Permission denied" in str(exc_info.value)
             assert str(config_file) in str(exc_info.value)
 
+    def test_unknown_top_level_key_dropped(self, tmp_path: Path) -> None:
+        """An unknown top-level (unsectioned) TOML key is ignored with a warning."""
+        config_file = tmp_path / "config.toml"
+        config_file.write_text('bogus_top_level = "value"\nbackend = "openai"\n')
+
+        result = load_toml_config(config_file)
+
+        assert "bogus_top_level" not in result
+        assert result["backend"] == "openai"
+
     def test_unrecognized_nested_keys_dropped(self, tmp_path: Path) -> None:
         """Unrecognized nested TOML keys should be dropped with warning."""
         config_file = tmp_path / "config.toml"

@@ -148,6 +148,56 @@ class TestOpenAIConfigValidation:
             OpenAIConfig(unknown_field="value")  # type: ignore[call-arg]
 
 
+class TestOpenAIConfigCoercionEdges:
+    """Coercion validators reject wrong types and pass others through."""
+
+    def test_api_key_accepts_secret_str_unchanged(self) -> None:
+        """An already-wrapped SecretStr api_key is passed through verbatim."""
+        secret = SecretStr("sk-secret")
+        config = OpenAIConfig(api_key=secret)
+        assert config.api_key is secret
+
+    def test_max_retries_accepts_numeric_string(self) -> None:
+        """A string max_retries from env/TOML coerces to an int."""
+        config = OpenAIConfig(max_retries="3")
+        assert config.max_retries == 3
+
+    def test_api_key_rejects_non_string(self) -> None:
+        """A non-str/SecretStr api_key surfaces a typed coercion error."""
+        with pytest.raises(ValidationError, match="Expected str or SecretStr"):
+            OpenAIConfig(api_key=123)  # type: ignore[arg-type]
+
+    def test_float_field_rejects_bool(self) -> None:
+        """A boolean is not a valid numeric field value."""
+        with pytest.raises(ValidationError, match="value must be a number"):
+            OpenAIConfig(timeout=True)  # type: ignore[arg-type]
+
+    def test_float_field_passthrough_non_coercible_is_rejected(self) -> None:
+        """A non-numeric, non-string value falls through and pydantic rejects it."""
+        with pytest.raises(ValidationError):
+            OpenAIConfig(timeout=[1.0])  # type: ignore[arg-type]
+
+    def test_max_retries_rejects_bool(self) -> None:
+        """A boolean max_retries surfaces a typed coercion error."""
+        with pytest.raises(ValidationError, match="max_retries must be an integer"):
+            OpenAIConfig(max_retries=True)  # type: ignore[arg-type]
+
+    def test_max_retries_passthrough_float_is_rejected(self) -> None:
+        """A float max_retries falls through and strict int validation rejects it."""
+        with pytest.raises(ValidationError):
+            OpenAIConfig(max_retries=2.5)  # type: ignore[arg-type]
+
+    def test_chunk_prompt_chars_rejects_bool(self) -> None:
+        """A boolean chunk_prompt_chars surfaces a typed coercion error."""
+        with pytest.raises(ValidationError, match="chunk_prompt_chars must be an integer"):
+            OpenAIConfig(chunk_prompt_chars=True)  # type: ignore[arg-type]
+
+    def test_chunk_prompt_chars_passthrough_float_is_rejected(self) -> None:
+        """A float chunk_prompt_chars falls through and strict int validation rejects it."""
+        with pytest.raises(ValidationError):
+            OpenAIConfig(chunk_prompt_chars=2.5)  # type: ignore[arg-type]
+
+
 class TestOpenAIConfigOptionalFields:
     """Test optional field handling."""
 

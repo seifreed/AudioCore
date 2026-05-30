@@ -285,6 +285,23 @@ class TestInvalidEnumValues:
 
         assert field_name in str(exc_info.value)
 
+    def test_media_tool_path_accepts_path_object(self) -> None:
+        """A pathlib.Path is coerced to its string form."""
+        from pathlib import Path
+
+        config = AppConfig(ffmpeg_path=Path("/usr/bin/ffmpeg"))
+        assert config.ffmpeg_path == "/usr/bin/ffmpeg"
+
+    def test_media_tool_path_rejects_non_string_type(self) -> None:
+        """A non-string, non-Path media tool path is rejected."""
+        with pytest.raises(ValidationError, match="Expected string path"):
+            AppConfig(ffmpeg_path=123)  # type: ignore[arg-type]
+
+    def test_media_tool_path_rejects_nul_byte(self) -> None:
+        """A media tool path containing a NUL byte is rejected."""
+        with pytest.raises(ValidationError, match="must not contain NUL"):
+            AppConfig(ffprobe_path="/usr/bin/ff\x00probe")
+
 
 class TestCaseInsensitiveEnvVars:
     """Test case_sensitive=False behavior."""

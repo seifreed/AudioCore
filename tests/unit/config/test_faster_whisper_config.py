@@ -453,3 +453,67 @@ class TestFasterWhisperConfigBooleanFields:
         """Should accept vad_filter=False."""
         config = FasterWhisperConfig(vad_filter=False)
         assert config.vad_filter is False
+
+
+class TestFasterWhisperConfigCoercionEdges:
+    """Coercion validators reject wrong types and pass others through to pydantic."""
+
+    def test_device_rejects_non_string_type(self) -> None:
+        with pytest.raises(ValidationError, match="Invalid device type"):
+            FasterWhisperConfig(device=123)  # type: ignore[arg-type]
+
+    def test_language_non_string_passthrough_is_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            FasterWhisperConfig(language=123)  # type: ignore[arg-type]
+
+    def test_compute_type_rejects_unknown_type(self) -> None:
+        with pytest.raises(ValidationError, match="Invalid compute type"):
+            FasterWhisperConfig(compute_type=123)  # type: ignore[arg-type]
+
+    def test_model_size_rejects_unknown_type(self) -> None:
+        with pytest.raises(ValidationError, match="Invalid model size"):
+            FasterWhisperConfig(model_size=123)  # type: ignore[arg-type]
+
+    def test_int_field_rejects_bool(self) -> None:
+        with pytest.raises(ValidationError, match="Expected integer value"):
+            FasterWhisperConfig(beam_size=True)  # type: ignore[arg-type]
+
+    def test_int_field_passthrough_non_coercible_is_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            FasterWhisperConfig(beam_size=2.5)  # type: ignore[arg-type]
+
+    def test_float_field_rejects_bool(self) -> None:
+        with pytest.raises(ValidationError, match="Expected numeric value"):
+            FasterWhisperConfig(patience=True)  # type: ignore[arg-type]
+
+    def test_float_field_passthrough_non_coercible_is_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            FasterWhisperConfig(patience=[1.0])  # type: ignore[arg-type]
+
+    def test_language_none_is_accepted(self) -> None:
+        config = FasterWhisperConfig(language=None)
+        assert config.language is None
+
+    def test_int_field_accepts_numeric_string(self) -> None:
+        config = FasterWhisperConfig(beam_size="5")
+        assert config.beam_size == 5
+
+    def test_float_field_accepts_numeric_string(self) -> None:
+        config = FasterWhisperConfig(patience="1.5")
+        assert config.patience == 1.5
+
+    def test_bool_field_accepts_true_string(self) -> None:
+        config = FasterWhisperConfig(condition_on_previous_text="true")
+        assert config.condition_on_previous_text is True
+
+    def test_bool_field_accepts_false_string(self) -> None:
+        config = FasterWhisperConfig(word_timestamps="false")
+        assert config.word_timestamps is False
+
+    def test_bool_field_unrecognized_string_passthrough_is_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            FasterWhisperConfig(vad_filter="maybe")  # type: ignore[arg-type]
+
+    def test_bool_field_passthrough_non_coercible_is_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            FasterWhisperConfig(condition_on_previous_text=5)  # type: ignore[arg-type]
