@@ -4,6 +4,10 @@ Tests GPU device detection, validation, and information gathering
 with graceful handling when torch is not installed.
 """
 
+import sys
+import types
+from unittest.mock import patch
+
 import pytest
 
 from audiocore.backends.faster_whisper.device import (
@@ -231,3 +235,101 @@ class TestDeviceStringNormalization:
     def test_whitespace_normalization(self) -> None:
         """Regression: normalization should strip surrounding whitespace."""
         assert validate_device("\tCPU\n") == DEVICE_CPU
+
+
+def _fake_torch(*, cuda_available, cuda_count=1, mps_available=False, cuda_raises=False):
+    torch = types.ModuleType("torch")
+    torch.__version__ = "2.0.0-fake"
+
+    class _Cuda:
+        def is_available(self):
+            if cuda_raises:
+                raise RuntimeError("cuda probe blew up")
+            return cuda_available
+
+        def device_count(self):
+            return cuda_count
+
+        def get_device_name(self, index):
+            return "FakeGPU-3000"
+
+    class _Mps:
+        def is_available(self):
+            return mps_available
+
+    torch.cuda = _Cuda()
+    torch.backends = types.SimpleNamespace(mps=_Mps())
+    torch.version = types.SimpleNamespace(cuda="12.1")
+    return torch
+
+
+class TestDeviceDetectionWithFakeTorch:
+    """Drive CUDA/ImportError/Exception paths with an injected fake torch."""
+
+    def test_get_best_device_returns_cuda_when_available(self):
+        with patch.dict(sys.modules, {"torch": _fake_torch(cuda_available=True, cuda_count=2)}):
+            assert get_best_device() == "cuda"
+
+    def test_get_best_device_cuda_zero_count_still_cuda(self):
+        with patch.dict(sys.modules, {"torch": _fake_torch(cuda_available=True, cuda_count=0)}):
+            assert get_best_device() == "cuda"
+
+    def test_get_best_device_falls_back_to_cpu_without_torch(self):
+        with patch.dict(sys.modules, {"torch": None}):
+            assert get_best_device() == "cpu"
+
+    def test_get_best_device_handles_detection_error(self):
+        with patch.dict(
+            sys.modules, {"torch": _fake_torch(cuda_available=False, cuda_raises=True)}
+        ):
+            assert get_best_device() == "cpu"
+
+    def test_get_device_info_reports_cuda(self):
+        with patch.dict(sys.modules, {"torch": _fake_torch(cuda_available=True, cuda_count=1)}):
+            info = get_device_info()
+        assert info["cuda_available"] is True
+        assert info["device"] == "cuda"
+        assert info["device_name"] == "FakeGPU-3000"
+        assert info["cuda_version"] == "12.1"
+
+    def test_get_device_info_without_torch(self):
+        with patch.dict(sys.modules, {"torch": None}):
+            info = get_device_info()
+        assert info["device"] == "cpu"
+        assert info["torch_version"] is None
+
+    def test_get_device_info_handles_error(self):
+        with patch.dict(
+            sys.modules, {"torch": _fake_torch(cuda_available=False, cuda_raises=True)}
+        ):
+            info = get_device_info()
+        assert info["device"] == "cpu"
+
+    def test_validate_device_cuda_available_returns_cuda(self):
+        with patch.dict(sys.modules, {"torch": _fake_torch(cuda_available=True, cuda_count=1)}):
+            assert validate_device("cuda") == "cuda"
+
+    def test_validate_device_mps_always_falls_back_to_cpu(self):
+        assert validate_device("mps") == "cpu"
+
+    def test_get_best_device_cpu_when_no_accelerator(self):
+        with patch.dict(
+            sys.modules,
+            {"torch": _fake_torch(cuda_available=False, mps_available=False)},
+        ):
+            assert get_best_device() == "cpu"
+
+    def test_get_device_info_cuda_zero_count_skips_device_name(self):
+        with patch.dict(sys.modules, {"torch": _fake_torch(cuda_available=True, cuda_count=0)}):
+            info = get_device_info()
+        assert info["cuda_available"] is True
+        assert info["device_name"] is None
+
+    def test_get_device_info_cpu_when_no_accelerator(self):
+        with patch.dict(
+            sys.modules,
+            {"torch": _fake_torch(cuda_available=False, mps_available=False)},
+        ):
+            info = get_device_info()
+        assert info["device"] == "cpu"
+        assert info["cuda_available"] is False

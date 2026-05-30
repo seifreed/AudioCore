@@ -184,15 +184,12 @@ def validate_device(device: str) -> str:
         )
         return DEVICE_CPU
 
-    # CTranslate2 does not support MPS — always fall back to CPU
-    if device_lower == DEVICE_MPS:
-        logger.warning(
-            "MPS requested but CTranslate2 does not support MPS, falling back to CPU. "
-            "Use CUDA for GPU acceleration instead."
-        )
-        return DEVICE_CPU
-
-    # Should not reach here
+    # The only remaining valid device is MPS, which CTranslate2 does not
+    # support — always fall back to CPU.
+    logger.warning(
+        "MPS requested but CTranslate2 does not support MPS, falling back to CPU. "
+        "Use CUDA for GPU acceleration instead."
+    )
     return DEVICE_CPU
 
 
