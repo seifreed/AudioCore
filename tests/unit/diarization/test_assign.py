@@ -92,3 +92,13 @@ class TestDiarizerProtocol:
         labeled = assign_speakers(segments, turns)
         assert labeled[0].speaker == "SPEAKER_00"
         assert labeled[1].speaker == "SPEAKER_01"
+
+
+def test_diarizer_protocol_stub_returns_none(tmp_path: Path) -> None:
+    """The Diarizer protocol diarize() body is an inert stub."""
+
+    class _SuperDelegating(Diarizer):
+        def diarize(self, audio_path):
+            return super().diarize(audio_path)
+
+    assert _SuperDelegating().diarize(tmp_path / "a.wav") is None

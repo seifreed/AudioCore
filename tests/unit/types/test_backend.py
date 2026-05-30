@@ -135,3 +135,17 @@ class TestModelSize:
         """Regression: model config should tolerate incidental whitespace."""
         assert ModelSize.parse(" small ") == ModelSize.SMALL
         assert ModelSize.parse("\tlarge_v3_turbo\n") == ModelSize.LARGE_V3_TURBO
+
+
+class TestToJsonSerializable:
+    """to_json_serializable returns enum values and stringifies others."""
+
+    def test_enum_returns_value(self) -> None:
+        from audiocore.types.backend import to_json_serializable
+
+        assert to_json_serializable(BackendType.OPENAI) == "openai"
+
+    def test_non_enum_is_stringified(self) -> None:
+        from audiocore.types.backend import to_json_serializable
+
+        assert to_json_serializable(42) == "42"

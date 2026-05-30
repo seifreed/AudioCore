@@ -312,3 +312,13 @@ class TestProgressTypesIntegration:
 
         assert len(calls_callback1) == 1
         assert len(calls_callback2) == 1
+
+
+def test_progress_callback_protocol_stub_returns_none() -> None:
+    """The ProgressCallback protocol __call__ body is an inert stub."""
+
+    class _SuperDelegating(ProgressCallback):
+        def __call__(self, stage, progress, message):
+            return super().__call__(stage, progress, message)
+
+    assert _SuperDelegating()(PipelineStage.PROBING, 0.0, "msg") is None

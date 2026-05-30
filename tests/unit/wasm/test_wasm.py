@@ -141,3 +141,13 @@ class TestWasmImportIsolation:
         )
         leaked = completed.stdout.strip()
         assert leaked == "", f"audiocore.wasm imported heavy modules: {leaked}"
+
+
+class TestResolveDuration:
+    """_resolve_duration falls back to the minimum when nothing else is known."""
+
+    def test_empty_segments_and_no_duration_uses_minimum(self) -> None:
+        from audiocore.models import MIN_MEDIA_DURATION_SECONDS
+        from audiocore.wasm import _resolve_duration
+
+        assert _resolve_duration([], None) == MIN_MEDIA_DURATION_SECONDS

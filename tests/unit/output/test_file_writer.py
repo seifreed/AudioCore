@@ -11,6 +11,7 @@ from audiocore.errors.output import OutputDirectoryError, OutputFileExistsError
 from audiocore.models import MediaInfo, Segment, TranscriptionOptions, TranscriptionResult
 from audiocore.output.file_writer import (
     OutputFileConfig,
+    _atomic_write,
     format_and_write,
     write_output,
 )
@@ -441,3 +442,29 @@ class TestFormatAndWrite:
 
         assert output_path.exists()
         assert "Test" in output_path.read_text()
+
+
+class TestAtomicWriteEdges:
+    """_atomic_write handles the create-dirs-off path and cleans up on failure."""
+
+    def test_create_dirs_false_skips_mkdir_for_existing_parent(self, tmp_path: Path) -> None:
+        target = tmp_path / "out.txt"
+        _atomic_write(target, "hello", OutputFileConfig(create_dirs=False))
+        assert target.read_text() == "hello"
+
+    def test_failed_replace_removes_temp_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        target = tmp_path / "out.txt"
+
+        def boom(self: Path, _target: Path) -> None:
+            raise OSError("replace failed")
+
+        monkeypatch.setattr(Path, "replace", boom)
+
+        with pytest.raises(OSError, match="replace failed"):
+            _atomic_write(target, "data", OutputFileConfig())
+
+        leftovers = list(tmp_path.glob("*.tmp"))
+        assert leftovers == []
+        assert not target.exists()

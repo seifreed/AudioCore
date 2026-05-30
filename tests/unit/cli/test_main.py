@@ -46,3 +46,20 @@ def test_main_transcribe_help_exposes_options_not_nested_subcommand() -> None:
     assert result.exit_code == 0
     assert "Path(s) to the audio/video file(s)" in result.output
     assert "COMMAND [ARGS]" not in result.output
+
+
+class TestVersionCallback:
+    """version_callback prints the version and exits only when value is True."""
+
+    def test_version_flag_prints_version_and_exits(self) -> None:
+        from audiocore import __version__
+
+        result = runner.invoke(app, ["--version"])
+
+        assert result.exit_code == 0
+        assert __version__ in result.output
+
+    def test_false_is_noop(self) -> None:
+        from audiocore.cli.main import version_callback
+
+        assert version_callback(False) is None

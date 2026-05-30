@@ -308,3 +308,23 @@ class TestExceptionChaining:
         assert error.context["file_path"] == "/path/to/audio.mp3"
         assert "Check file exists" in error.suggestions
         assert "Verify permissions" in error.suggestions
+
+
+def test_api_getattr_unknown_attribute_raises():
+    """audiocore.api.__getattr__ rejects unknown names."""
+    import pytest
+
+    import audiocore.api as api_pkg
+
+    with pytest.raises(AttributeError, match="DefinitelyNotAThing"):
+        _ = api_pkg.DefinitelyNotAThing
+
+
+def test_audiocore_getattr_unknown_attribute_raises():
+    """audiocore.__getattr__ rejects unknown names."""
+    import pytest
+
+    import audiocore
+
+    with pytest.raises(AttributeError, match="DefinitelyNotAThing"):
+        _ = audiocore.DefinitelyNotAThing

@@ -171,6 +171,29 @@ class TestBackendAvailabilityChecker:
             assert "not installed" in status.reason
             assert "pip install" in status.suggestion
 
+    def test_check_faster_whisper_dependency_broken(self):
+        """faster-whisper installed but ctranslate2 broken reports unavailable."""
+        original_import = (
+            __builtins__["__import__"]
+            if isinstance(__builtins__, dict)
+            else __builtins__.__import__
+        )
+
+        def mock_import(name, *args, **kwargs):
+            if name == "ctranslate2":
+                raise ImportError("libctranslate2 missing")
+            return original_import(name, *args, **kwargs)
+
+        mock_fw = MagicMock()
+        with patch.dict("sys.modules", {"faster_whisper": mock_fw}):
+            with patch("builtins.__import__", side_effect=mock_import):
+                checker = BackendAvailabilityChecker()
+                status = checker.check_backend(BackendType.FASTER_WHISPER)
+
+        assert status.available is False
+        assert "dependencies not working" in status.reason
+        assert "force-reinstall" in status.suggestion
+
     def test_check_backend_auto(self):
         """Test checking AUTO backend type."""
         checker = BackendAvailabilityChecker()
