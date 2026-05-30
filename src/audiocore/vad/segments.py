@@ -68,18 +68,11 @@ def merge_short_segments(
         else:
             merged.append((start, end, conf))
 
-    # Final pass: merge any remaining short segments at the end
-    # Walk backwards from the end, merging short segments into the preceding one
-    while len(merged) > 1 and (merged[-1][1] - merged[-1][0]) < min_duration:
-        prev_start, prev_end, prev_conf = merged[-2]
-        gap = merged[-1][0] - prev_end
-        if gap >= max_gap:
-            break
-        merged[-2] = (prev_start, merged[-1][1], min(prev_conf, merged[-1][2]))
-        merged.pop()
-
     # Keep orphan segments shorter than min_segment_duration — dropping them
-    # would produce empty output for legitimate short utterances.
+    # would produce empty output for legitimate short utterances. A trailing
+    # short segment is always separated from its predecessor by a gap >= max_gap
+    # (otherwise the forward pass above would have merged it), so no extra
+    # backward-merge pass is needed.
     return merged
 
 

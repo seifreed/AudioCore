@@ -624,3 +624,116 @@ class TestErrorHandling:
 
         # Model should be called exactly twice
         assert mock_model.call_count == 2
+
+
+class TestSpeechSegmenterCloseSegment:
+    """_SpeechSegmenter._close_segment ignores zero-length runs."""
+
+    def test_close_segment_zero_length_appends_nothing(self) -> None:
+        """A close at exactly speech_start emits no segment but resets state."""
+        from audiocore.vad.config import VADConfig
+        from audiocore.vad.silero import _SpeechSegmenter
+
+        seg = _SpeechSegmenter(VADConfig())
+        seg._in_speech = True
+        seg._speech_start = 5.0
+        seg._confidences = [0.9]
+
+        seg._close_segment(5.0)
+
+        assert seg._segments == []
+        assert seg._in_speech is False
+        assert seg._speech_start is None
+        assert seg._confidences == []
+
+    def test_close_segment_positive_length_appends(self) -> None:
+        """A close after speech_start emits one segment with mean confidence."""
+        from audiocore.vad.config import VADConfig
+        from audiocore.vad.silero import _SpeechSegmenter
+
+        seg = _SpeechSegmenter(VADConfig())
+        seg._in_speech = True
+        seg._speech_start = 1.0
+        seg._confidences = [0.6, 0.8]
+
+        seg._close_segment(2.0)
+
+        assert seg._segments == [(1.0, 2.0, pytest.approx(0.7))]
+
+
+class TestNormalizeToFloat32:
+    """_normalize_to_float32 scales each PCM dtype to [-1, 1]."""
+
+    def test_int32_scaled_by_full_scale(self) -> None:
+        data = np.array([0, np.iinfo(np.int32).max], dtype=np.int32)
+        result = SileroVAD._normalize_to_float32(data)
+        assert result.dtype == np.float32
+        assert result[0] == pytest.approx(0.0)
+        assert result[1] == pytest.approx(1.0, abs=1e-6)
+
+    def test_uint8_centered_and_scaled(self) -> None:
+        data = np.array([0, 128, 255], dtype=np.uint8)
+        result = SileroVAD._normalize_to_float32(data)
+        assert result.dtype == np.float32
+        assert result[0] == pytest.approx(-1.0)
+        assert result[1] == pytest.approx(0.0)
+        assert result[2] == pytest.approx(0.9921875)
+
+    def test_uint16_centered_and_scaled(self) -> None:
+        data = np.array([0, 32768, 65535], dtype=np.uint16)
+        result = SileroVAD._normalize_to_float32(data)
+        assert result.dtype == np.float32
+        assert result[0] == pytest.approx(-1.0)
+        assert result[1] == pytest.approx(0.0)
+
+    def test_float_out_of_range_is_clamped(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import logging
+
+        caplog.set_level(logging.WARNING)
+        data = np.array([-4.0, 2.0], dtype=np.float64)
+        result = SileroVAD._normalize_to_float32(data)
+        assert result.dtype == np.float32
+        assert float(np.max(np.abs(result))) == pytest.approx(1.0)
+        assert any("exceeds [-1, 1] range" in r.message for r in caplog.records)
+
+    def test_float_in_range_is_unchanged(self) -> None:
+        data = np.array([-0.5, 0.25], dtype=np.float32)
+        result = SileroVAD._normalize_to_float32(data)
+        assert result[0] == pytest.approx(-0.5)
+        assert result[1] == pytest.approx(0.25)
+
+
+class _TinyJitModel(torch.nn.Module):
+    """Minimal TorchScript-able stand-in for a custom Silero model."""
+
+    def forward(self, chunk: torch.Tensor, sample_rate: int) -> torch.Tensor:
+        return torch.tensor(0.0)
+
+
+class TestCustomModelLoading:
+    """_load_custom_model loads TorchScript files and caches the result."""
+
+    def test_resolve_model_loads_and_caches_custom_model(self, tmp_path: Path) -> None:
+        from audiocore.vad.config import VADConfig
+
+        model_file = tmp_path / "custom.jit"
+        torch.jit.script(_TinyJitModel()).save(str(model_file))
+
+        vad = SileroVAD(config=VADConfig(model_path=model_file))
+        first = vad._resolve_model()
+        second = vad._resolve_model()
+
+        assert first is second
+        assert vad._custom_model is first
+
+    def test_load_custom_model_invalid_file_raises_vad_error(self, tmp_path: Path) -> None:
+        from audiocore.vad.config import VADConfig
+
+        model_file = tmp_path / "broken.jit"
+        model_file.write_bytes(b"not a torchscript archive")
+
+        vad = SileroVAD(config=VADConfig(model_path=model_file))
+        with pytest.raises(VADError, match="Failed to load custom VAD model"):
+            vad._resolve_model()

@@ -76,6 +76,19 @@ class TestCustomVADModelProtocol:
         assert segments == []
 
 
+class TestVADModelProtocolStub:
+    """The VADModel protocol method body is an inert stub returning None."""
+
+    def test_detect_file_stub_returns_none(self, tmp_path: Path) -> None:
+        class _SuperDelegating(VADModel):
+            def detect_file(
+                self, audio_path: Path | str, config: VADConfig | None = None
+            ) -> list[tuple[float, float, float]] | None:
+                return super().detect_file(audio_path, config)
+
+        assert _SuperDelegating().detect_file(tmp_path / "x.wav") is None
+
+
 class TestSileroCustomModelPath:
     """VADConfig.model_path selects a custom Silero-format model file."""
 

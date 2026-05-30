@@ -205,6 +205,34 @@ class TestMergeShortSegments:
         # Last segment is 0.15s, short, gap is 0.05s < 0.1s
         assert len(result) == 2
 
+    def test_merge_trailing_short_segment_with_large_gap_is_kept(
+        self, default_config: VADConfig
+    ) -> None:
+        """A short final segment separated by a large gap stays its own segment.
+
+        The forward pass appends it (gap exceeds max), and no later pass merges
+        it back: a trailing short span with a wide preceding silence is a real,
+        standalone utterance and must survive intact.
+        """
+        segments = [
+            (0.0, 1.0, 0.80),  # long
+            (3.0, 3.2, 0.70),  # short, 2.0s gap >> max_gap (0.1s)
+        ]
+        result = merge_short_segments(segments, default_config)
+        assert result == [(0.0, 1.0, 0.80), (3.0, 3.2, 0.70)]
+
+    def test_merge_two_trailing_shorts_with_large_gaps_are_kept(
+        self, default_config: VADConfig
+    ) -> None:
+        """Multiple wide-gap short tail segments are each preserved unchanged."""
+        segments = [
+            (0.0, 1.0, 0.80),  # long
+            (3.0, 3.2, 0.70),  # short, large gap
+            (6.0, 6.15, 0.60),  # short, large gap
+        ]
+        result = merge_short_segments(segments, default_config)
+        assert result == [(0.0, 1.0, 0.80), (3.0, 3.2, 0.70), (6.0, 6.15, 0.60)]
+
     def test_merge_single_orphan_short_segment_kept(self, default_config: VADConfig) -> None:
         """Regression: single short segment below min_segment_duration is kept.
 
@@ -353,6 +381,12 @@ class TestValidateSegments:
         ]
         # Should not raise
         validate_segments(segments, total_duration=10.0)
+
+    def test_validate_raises_for_negative_start(self) -> None:
+        """Segment with a negative start time should raise."""
+        segments = [(-0.5, 1.0, 0.80)]
+        with pytest.raises(ValueError, match="start.*is negative"):
+            validate_segments(segments, total_duration=10.0)
 
     def test_validate_raises_for_end_before_start(self) -> None:
         """Segment with end < start should raise."""

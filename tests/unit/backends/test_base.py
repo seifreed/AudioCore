@@ -494,6 +494,53 @@ class TestBackendUnavailableErrorHandling:
         assert "backend" in exc_info.value.context
 
 
+class _SuperDelegatingBackend(TranscriptionBackend):
+    """Concrete backend whose methods delegate to the abstract stubs.
+
+    Instantiable because every abstract name is overridden, yet each override
+    calls ``super()`` so the abstract method bodies actually execute. This
+    pins the contract that the base stubs are inert no-ops returning ``None``.
+    """
+
+    @property
+    def backend_type(self) -> BackendType | None:
+        return super().backend_type
+
+    def transcribe(
+        self, audio_path: Path | str, options: TranscriptionOptions
+    ) -> TranscriptionResult | None:
+        return super().transcribe(audio_path, options)
+
+    def get_name(self) -> str | None:
+        return super().get_name()
+
+    def is_available(self) -> bool | None:
+        return super().is_available()
+
+    def get_model_options(self) -> list[str] | None:
+        return super().get_model_options()
+
+
+class TestAbstractStubBodiesAreInert:
+    """The abstract method bodies execute as no-ops via super() delegation."""
+
+    def test_backend_type_stub_returns_none(self) -> None:
+        assert _SuperDelegatingBackend().backend_type is None
+
+    def test_transcribe_stub_returns_none(self) -> None:
+        backend = _SuperDelegatingBackend()
+        assert backend.transcribe("/mock/audio.wav", TranscriptionOptions()) is None
+
+    def test_get_name_stub_returns_none(self) -> None:
+        assert _SuperDelegatingBackend().get_name() is None
+
+    def test_is_available_stub_returns_none(self) -> None:
+        assert _SuperDelegatingBackend().is_available() is None
+
+    def test_get_model_options_stub_returns_none(self) -> None:
+        assert _SuperDelegatingBackend().get_model_options() is None
+
+
 class TestMultipleBackends:
     """Test behavior with multiple backend implementations."""
 
