@@ -238,8 +238,8 @@ def _resolve_output_path(output_path: Path | None) -> tuple[Path, Path | None]:
     """
     if output_path is not None:
         return output_path, None
-    # SIM115: temp file must persist for processing, cleaned up by caller
-    temp_file = NamedTemporaryFile(suffix=".wav", delete=False)  # noqa: SIM115
+    # The temp file must persist for processing and is cleaned up by the caller.
+    temp_file = NamedTemporaryFile(suffix=".wav", delete=False)
     resolved = Path(temp_file.name)
     temp_file.close()
     logger.debug(
@@ -488,8 +488,9 @@ def temp_audio_file(suffix: str = ".wav"):
         ...     # Process temp_path
         ... # File automatically deleted after context
     """
-    # SIM115: temp file must persist for caller usage, deleted in finally block
-    temp = NamedTemporaryFile(suffix=suffix, delete=False)  # noqa: SIM115
+    # The temp file must persist for caller usage; it is deleted in the
+    # finally block of the surrounding context manager.
+    temp = NamedTemporaryFile(suffix=suffix, delete=False)
     temp_path = Path(temp.name)
     temp.close()
     try:

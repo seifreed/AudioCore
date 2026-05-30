@@ -402,9 +402,9 @@ class OpenAIBackend(TranscriptionBackend):
         try:
             client = self._get_client()
 
-            # Build API call parameters
-            # SIM115: File handle closed in finally block and error handlers
-            audio_file = open(audio_path, "rb")  # noqa: SIM115
+            # Build API call parameters. The handle intentionally outlives this
+            # statement; it is closed in the finally block and error handlers.
+            audio_file = open(audio_path, "rb")
             api_params: dict[str, object] = {
                 "model": "whisper-1",
                 "file": audio_file,
