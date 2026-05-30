@@ -8,6 +8,7 @@ Tests verify:
 
 from unittest.mock import MagicMock, patch
 
+import pytest
 from pydantic import SecretStr
 from typer.testing import CliRunner
 
