@@ -265,6 +265,7 @@ class TestSelectBackendFunction:
         with patch.dict(os.environ, {}, clear=True):
             with patch.object(selector, "_has_cuda", return_value=False):
                 with patch.object(selector._checker, "check_backend") as mock_check:
+
                     def check_side_effect(backend_type):
                         if backend_type == BackendType.OPENAI:
                             return BackendStatus(
@@ -278,6 +279,95 @@ class TestSelectBackendFunction:
                                 available=True,
                                 reason="Module installed",
                             )
+
                     mock_check.side_effect = check_side_effect
                     result = selector.select(policy=SelectionPolicy.AUTO)
                     assert result == BackendType.FASTER_WHISPER
+
+
+def _unavailable(backend_type):
+    return BackendStatus(
+        backend_type=backend_type,
+        available=False,
+        reason="not installed",
+        suggestion="install it",
+    )
+
+
+class TestSelectorPolicyAndCudaBranches:
+    """Cover policy fall-throughs, CUDA detection, and registry delegation."""
+
+    def test_select_by_policy_unknown_raises_value_error(self):
+        selector = BackendSelector()
+        with pytest.raises(ValueError, match="Unknown selection policy"):
+            selector._select_by_policy("bogus-policy")
+
+    def test_prefer_local_no_backends_raises(self):
+        selector = BackendSelector()
+        with patch.object(selector._checker, "check_backend", side_effect=_unavailable):
+            with pytest.raises(BackendUnavailableError) as exc_info:
+                selector._select_prefer_local()
+        assert exc_info.value.context["policy"] == "prefer_local"
+
+    def test_prefer_cloud_no_backends_raises(self):
+        selector = BackendSelector()
+        with patch.object(selector._checker, "check_backend", side_effect=_unavailable):
+            with pytest.raises(BackendUnavailableError) as exc_info:
+                selector._select_prefer_cloud()
+        assert exc_info.value.context["policy"] == "prefer_cloud"
+
+    def test_has_cuda_returns_false_when_torch_missing(self):
+        BackendSelector._cuda_available = None
+        try:
+            with patch.dict("sys.modules", {"torch": None}):
+                assert BackendSelector._has_cuda() is False
+        finally:
+            BackendSelector._cuda_available = None
+
+    def test_has_cuda_returns_false_when_detection_raises(self):
+        BackendSelector._cuda_available = None
+        fake_torch = MagicMock()
+        fake_torch.cuda.is_available.side_effect = RuntimeError("driver error")
+        try:
+            with patch.dict("sys.modules", {"torch": fake_torch}):
+                assert BackendSelector._has_cuda() is False
+        finally:
+            BackendSelector._cuda_available = None
+
+    def test_has_cuda_fast_path_returns_cached_without_lock(self):
+        previous = BackendSelector._cuda_available
+        BackendSelector._cuda_available = True
+        try:
+            assert BackendSelector._has_cuda() is True
+        finally:
+            BackendSelector._cuda_available = previous
+
+    def test_has_cuda_double_checked_cache_hit_inside_lock(self):
+        BackendSelector._cuda_available = None
+
+        class _PrimingLock:
+            def __enter__(self):
+                BackendSelector._cuda_available = True
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        original_lock = BackendSelector._cuda_lock
+        BackendSelector._cuda_lock = _PrimingLock()
+        try:
+            assert BackendSelector._has_cuda() is True
+        finally:
+            BackendSelector._cuda_lock = original_lock
+            BackendSelector._cuda_available = None
+
+    def test_get_backend_delegates_to_registry(self):
+        selector = BackendSelector()
+        sentinel = object()
+        selector._registry = MagicMock()
+        selector._registry.get_backend.return_value = sentinel
+
+        result = selector.get_backend(BackendType.OPENAI)
+
+        assert result is sentinel
+        selector._registry.get_backend.assert_called_once()

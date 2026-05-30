@@ -951,3 +951,194 @@ class TestGetBackendConfigRace:
 
         assert len(errors) == 0, f"Errors during concurrent access: {errors}"
         assert all(inst is instances[0] for inst in instances)
+
+
+class TestConfigsMatch:
+    """Direct tests for the static config-equality helpers."""
+
+    def test_identical_object_matches(self) -> None:
+        from audiocore.config.openai_config import OpenAIConfig
+
+        config = OpenAIConfig()
+        assert BackendRegistry._configs_match(config, config) is True
+
+    def test_appconfig_against_faster_whisper_subconfig(self) -> None:
+        from audiocore.config import AppConfig
+        from audiocore.config.faster_whisper_config import FasterWhisperConfig
+
+        app = AppConfig()
+        assert BackendRegistry._configs_match(
+            app, FasterWhisperConfig()
+        ) == BackendRegistry._configs_match(app.faster_whisper, FasterWhisperConfig())
+
+    def test_faster_whisper_subconfig_against_appconfig(self) -> None:
+        from audiocore.config import AppConfig
+        from audiocore.config.faster_whisper_config import FasterWhisperConfig
+
+        app = AppConfig()
+        result = BackendRegistry._configs_match(FasterWhisperConfig(), app)
+        assert isinstance(result, bool)
+
+    def test_appconfig_against_unrelated_model_falls_through(self) -> None:
+        from audiocore.config import AppConfig
+        from audiocore.vad.config import VADConfig
+
+        # config_b is neither OpenAIConfig nor FasterWhisperConfig -> no extraction.
+        assert BackendRegistry._configs_match(AppConfig(), VADConfig()) is False
+
+    def test_unrelated_model_against_appconfig_falls_through(self) -> None:
+        from audiocore.config import AppConfig
+        from audiocore.vad.config import VADConfig
+
+        assert BackendRegistry._configs_match(VADConfig(), AppConfig()) is False
+
+    def test_no_common_fields_is_not_a_match(self) -> None:
+        from audiocore.config.faster_whisper_config import FasterWhisperConfig
+        from audiocore.config.openai_config import OpenAIConfig
+
+        assert BackendRegistry._configs_match(OpenAIConfig(), FasterWhisperConfig()) is False
+
+    def test_secretstr_versus_plain_is_not_a_match(self) -> None:
+        from pydantic import BaseModel, SecretStr
+
+        class _A(BaseModel):
+            x: SecretStr = SecretStr("s")
+
+        class _B(BaseModel):
+            x: str = "s"
+
+        assert BackendRegistry._configs_match(_A(), _B()) is False
+
+    def test_differing_plain_field_is_not_a_match(self) -> None:
+        from audiocore.config.openai_config import OpenAIConfig
+
+        assert (
+            BackendRegistry._configs_match(OpenAIConfig(timeout=100.0), OpenAIConfig(timeout=200.0))
+            is False
+        )
+
+    def test_non_model_fallback_equality(self) -> None:
+        assert BackendRegistry._configs_match("abc", "abc") is True
+        assert BackendRegistry._configs_match("abc", "xyz") is False
+
+    def test_requested_configs_match_both_present(self) -> None:
+        from audiocore.config.openai_config import OpenAIConfig
+
+        assert BackendRegistry._requested_configs_match(OpenAIConfig(), OpenAIConfig()) is True
+
+
+class TestIsAvailableCachedInstanceRaises:
+    """A cached instance whose is_available() raises is treated as unavailable."""
+
+    def test_raising_cached_instance_reports_unavailable(self) -> None:
+        from audiocore.backends.base import TranscriptionBackend
+        from audiocore.models import MediaInfo, TranscriptionResult
+
+        class _RaisingBackend(TranscriptionBackend):
+            @property
+            def backend_type(self) -> BackendType:
+                return BackendType.OPENAI
+
+            def transcribe(self, audio_path, options) -> TranscriptionResult:
+                return TranscriptionResult(
+                    segments=[],
+                    media_info=MediaInfo(duration=1.0, format="wav"),
+                    config_used=options,
+                    processing_time_seconds=0.0,
+                    backend_used=BackendType.OPENAI,
+                )
+
+            def get_name(self) -> str:
+                return "raising"
+
+            def is_available(self) -> bool:
+                raise RuntimeError("availability probe failed")
+
+            def get_model_options(self) -> list[str]:
+                return []
+
+        registry = BackendRegistry()
+        registry._reset()
+        registry.register(BackendType.OPENAI, _RaisingBackend)
+        registry._instances[BackendType.OPENAI] = _RaisingBackend()
+
+        assert registry.is_available(BackendType.OPENAI) is False
+
+
+class TestSingletonInitBranches:
+    """Cover the defensive __new__ branches of the registry singleton."""
+
+    def test_backfills_missing_instance_configs(self) -> None:
+        saved = BackendRegistry._instance
+        try:
+            instance = object.__new__(BackendRegistry)
+            instance._backends = {}
+            instance._instances = {}
+            # Intentionally omit _instance_configs to trigger the backfill path.
+            BackendRegistry._instance = instance
+
+            result = BackendRegistry()
+
+            assert result is instance
+            assert hasattr(instance, "_instance_configs")
+            assert instance._instance_configs == {}
+        finally:
+            BackendRegistry._instance = saved
+
+    def test_double_checked_lock_skips_creation_when_primed(self) -> None:
+        saved_instance = BackendRegistry._instance
+        saved_lock = BackendRegistry._lock
+
+        primed = object.__new__(BackendRegistry)
+        primed._backends = {}
+        primed._instances = {}
+        primed._instance_configs = {}
+
+        class _PrimingLock:
+            def __enter__(self):
+                BackendRegistry._instance = primed
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        BackendRegistry._instance = None
+        BackendRegistry._lock = _PrimingLock()
+        try:
+            result = BackendRegistry()
+            assert result is primed
+        finally:
+            BackendRegistry._lock = saved_lock
+            BackendRegistry._instance = saved_instance
+
+
+class TestInstanceConfigsBackfillRace:
+    """The _instance_configs backfill double-check tolerates a concurrent fill."""
+
+    def test_backfill_double_check_skips_when_primed(self) -> None:
+        saved_instance = BackendRegistry._instance
+        saved_lock = BackendRegistry._lock
+
+        instance = object.__new__(BackendRegistry)
+        instance._backends = {}
+        instance._instances = {}
+        # No _instance_configs yet -> outer check at line 74 is True.
+
+        class _PrimingLock:
+            def __enter__(self):
+                instance._instance_configs = {"primed": True}
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        BackendRegistry._instance = instance
+        BackendRegistry._lock = _PrimingLock()
+        try:
+            result = BackendRegistry()
+            assert result is instance
+            # The lock-primed value survives (inner check skipped the reset).
+            assert instance._instance_configs == {"primed": True}
+        finally:
+            BackendRegistry._lock = saved_lock
+            BackendRegistry._instance = saved_instance
