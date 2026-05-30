@@ -12,14 +12,16 @@ Tests cover:
 """
 
 import sys
+import types
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
 from audiocore.backends.faster_whisper_backend import FasterWhisperBackend
+from audiocore.config import AppConfig
 from audiocore.config.faster_whisper_config import ComputeType, FasterWhisperConfig
-from audiocore.errors import TranscriptionError
+from audiocore.errors import BackendUnavailableError, TranscriptionError
 from audiocore.models import TranscriptionOptions
 from audiocore.types import BackendType, ModelSize
 
@@ -625,3 +627,206 @@ class TestFasterWhisperBackendEdgeCases:
 
         # Verify text was stripped
         assert result.segments[0].text == "Hello world"
+
+
+def _fake_torch(*, cuda_available, raises_import=False):
+    torch = types.ModuleType("torch")
+
+    class _Cuda:
+        def is_available(self):
+            return cuda_available
+
+    torch.cuda = _Cuda()
+    return torch
+
+
+class TestFasterWhisperGetDeviceBranches:
+    """_get_device resolves every device string and fallback."""
+
+    def test_appconfig_unwraps_to_faster_whisper_subconfig(self) -> None:
+        backend = FasterWhisperBackend(config=AppConfig())
+        assert isinstance(backend.config, FasterWhisperConfig)
+
+    def test_unknown_device_falls_back_to_cpu(self) -> None:
+        backend = FasterWhisperBackend()
+        backend.config.device = "weird"
+        assert backend._get_device() == "cpu"
+
+    def test_mps_device_falls_back_to_cpu(self) -> None:
+        backend = FasterWhisperBackend(config=FasterWhisperConfig(device="mps"))
+        assert backend._get_device() == "cpu"
+
+    def test_cuda_device_used_when_available(self) -> None:
+        backend = FasterWhisperBackend(config=FasterWhisperConfig(device="cuda"))
+        with patch.dict(sys.modules, {"torch": _fake_torch(cuda_available=True)}):
+            assert backend._get_device() == "cuda"
+
+    def test_cuda_device_falls_back_when_unavailable(self) -> None:
+        backend = FasterWhisperBackend(config=FasterWhisperConfig(device="cuda"))
+        with patch.dict(sys.modules, {"torch": _fake_torch(cuda_available=False)}):
+            assert backend._get_device() == "cpu"
+
+    def test_cuda_device_falls_back_without_torch(self) -> None:
+        backend = FasterWhisperBackend(config=FasterWhisperConfig(device="cuda"))
+        with patch.dict(sys.modules, {"torch": None}):
+            assert backend._get_device() == "cpu"
+
+
+class TestFasterWhisperInstantiateModel:
+    """Model instantiation import/construction error handling."""
+
+    def test_instantiate_raises_backend_unavailable_without_package(self) -> None:
+        backend = FasterWhisperBackend(config=FasterWhisperConfig(device="cpu"))
+        with patch.dict(sys.modules, {"faster_whisper": None}):
+            with pytest.raises(BackendUnavailableError):
+                backend._instantiate_model("base")
+
+    def test_instantiate_wraps_construction_error(self) -> None:
+        backend = FasterWhisperBackend(config=FasterWhisperConfig(device="cpu"))
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("ct2 load failed")
+
+        with patch.dict(sys.modules, {"faster_whisper": types.SimpleNamespace(WhisperModel=_boom)}):
+            with pytest.raises(TranscriptionError, match="Failed to load faster-whisper model"):
+                backend._instantiate_model("base")
+
+
+class TestFasterWhisperLoadModelBranches:
+    """_load_model caching, switching, and double-checked lock."""
+
+    def test_switches_model_when_size_differs(self) -> None:
+        backend = FasterWhisperBackend(config=FasterWhisperConfig(device="cpu"))
+        backend._model = MagicMock(name="old-model")
+        backend._loaded_model_size = "base"
+
+        new_model = MagicMock(name="new-model")
+        with patch.object(backend, "_instantiate_model", return_value=new_model) as inst:
+            result = backend._load_model(model_size="small")
+
+        assert result is new_model
+        assert backend._loaded_model_size == "small"
+        inst.assert_called_once_with("small")
+
+    def test_double_checked_lock_returns_cached_when_primed(self) -> None:
+        backend = FasterWhisperBackend(config=FasterWhisperConfig(device="cpu"))
+        cached = MagicMock(name="primed-model")
+
+        class _PrimingLock:
+            def __enter__(self):
+                backend._model = cached
+                backend._loaded_model_size = "base"
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        backend._model_lock = _PrimingLock()
+        with patch.object(backend, "_instantiate_model") as inst:
+            result = backend._load_model(model_size="base")
+
+        assert result is cached
+        inst.assert_not_called()
+
+
+class TestFasterWhisperTranscribeBranches:
+    """transcribe / transcribe_stream model-size override and error handling."""
+
+    def _audio(self, tmp_path: Path) -> Path:
+        f = tmp_path / "clip.wav"
+        f.touch()
+        return f
+
+    def test_transcribe_uses_options_model_size_override(self, tmp_path: Path) -> None:
+        backend = FasterWhisperBackend(config=FasterWhisperConfig(device="cpu"))
+        seg = MagicMock(start=0.0, end=1.0, text="hi", words=None)
+        info = MagicMock(duration=1.0, language="en")
+        model = MagicMock()
+        model.transcribe.return_value = ([seg], info)
+
+        with patch.object(backend, "_load_model", return_value=model) as load:
+            options = TranscriptionOptions(model_size=ModelSize.SMALL)
+            backend.transcribe(self._audio(tmp_path), options)
+
+        load.assert_called_once_with(model_size=ModelSize.SMALL.value)
+
+    def test_transcribe_reraises_backend_unavailable(self, tmp_path: Path) -> None:
+        backend = FasterWhisperBackend(config=FasterWhisperConfig(device="cpu"))
+        model = MagicMock()
+        model.transcribe.side_effect = BackendUnavailableError("gone")
+
+        with patch.object(backend, "_load_model", return_value=model):
+            with pytest.raises(BackendUnavailableError):
+                backend.transcribe(self._audio(tmp_path), TranscriptionOptions())
+
+    def test_transcribe_wraps_generic_error(self, tmp_path: Path) -> None:
+        backend = FasterWhisperBackend(config=FasterWhisperConfig(device="cpu"))
+        model = MagicMock()
+        model.transcribe.side_effect = RuntimeError("decode error")
+
+        with patch.object(backend, "_load_model", return_value=model):
+            with pytest.raises(TranscriptionError, match="transcription failed"):
+                backend.transcribe(self._audio(tmp_path), TranscriptionOptions())
+
+    def test_stream_uses_options_model_size_override(self, tmp_path: Path) -> None:
+        backend = FasterWhisperBackend(config=FasterWhisperConfig(device="cpu"))
+        seg = MagicMock(start=0.0, end=1.0, words=None)
+        seg.text = "hi"
+        model = MagicMock()
+        model.transcribe.return_value = ([seg], MagicMock())
+
+        with patch.object(backend, "_load_model", return_value=model) as load:
+            options = TranscriptionOptions(model_size=ModelSize.SMALL)
+            list(backend.transcribe_stream(self._audio(tmp_path), options))
+
+        load.assert_called_once_with(model_size=ModelSize.SMALL.value)
+
+    def test_stream_reraises_backend_unavailable(self, tmp_path: Path) -> None:
+        backend = FasterWhisperBackend(config=FasterWhisperConfig(device="cpu"))
+        model = MagicMock()
+        model.transcribe.side_effect = BackendUnavailableError("gone")
+
+        with patch.object(backend, "_load_model", return_value=model):
+            with pytest.raises(BackendUnavailableError):
+                list(backend.transcribe_stream(self._audio(tmp_path), TranscriptionOptions()))
+
+    def test_stream_wraps_generic_error(self, tmp_path: Path) -> None:
+        backend = FasterWhisperBackend(config=FasterWhisperConfig(device="cpu"))
+        model = MagicMock()
+        model.transcribe.side_effect = RuntimeError("decode error")
+
+        with patch.object(backend, "_load_model", return_value=model):
+            with pytest.raises(TranscriptionError, match="streaming transcription failed"):
+                list(backend.transcribe_stream(self._audio(tmp_path), TranscriptionOptions()))
+
+    def test_build_params_includes_initial_prompt(self) -> None:
+        backend = FasterWhisperBackend(config=FasterWhisperConfig(device="cpu"))
+        backend.config.initial_prompt = "context here"
+        params = backend._build_transcribe_params(TranscriptionOptions())
+        assert params["initial_prompt"] == "context here"
+
+    def test_auto_device_mps_detection_falls_back_to_cpu(self) -> None:
+        backend = FasterWhisperBackend()  # config.device is None -> auto
+        with patch("audiocore.backends.faster_whisper.get_best_device", return_value="mps"):
+            assert backend._get_device() == "cpu"
+
+    def test_load_model_quick_cache_hit_returns_without_lock(self) -> None:
+        backend = FasterWhisperBackend(config=FasterWhisperConfig(model_size=ModelSize.BASE))
+        cached = MagicMock(name="cached")
+        backend._model = cached
+        backend._loaded_model_size = "base"
+        with patch.object(backend, "_instantiate_model") as inst:
+            assert backend._load_model(model_size="base") is cached
+        inst.assert_not_called()
+
+    def test_extract_words_normalizes_timestamps_and_confidence(self) -> None:
+        word = types.SimpleNamespace(word="hello", start=-0.2, end=0.5, probability=1.4)
+        segment = types.SimpleNamespace(words=[word])
+
+        result = FasterWhisperBackend._extract_words(segment)
+
+        assert result is not None
+        assert result[0].word == "hello"
+        assert result[0].start_time == 0.0  # clamped from -0.2
+        assert result[0].end_time == 0.5
+        assert result[0].confidence == 1.0  # clamped from 1.4

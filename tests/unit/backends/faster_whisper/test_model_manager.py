@@ -704,3 +704,124 @@ class TestModelManagerCacheDir:
         # Cleanup
         ModelManager._instance = None
         ModelManager._persisted_cache_dir = None
+
+
+def _fresh_manager(cache_dir: Path) -> ModelManager:
+    ModelManager._instance = None
+    ModelManager._persisted_cache_dir = None
+    return ModelManager(cache_dir=cache_dir)
+
+
+def _cache_folder(cache_dir: Path, model_name: str) -> Path:
+    repo_id = MODEL_REPOS[model_name]
+    return cache_dir / f"models--{repo_id.replace('/', '--')}"
+
+
+class TestModelManagerCoverageGaps:
+    """Filesystem-edge and error branches for the model manager."""
+
+    def teardown_method(self) -> None:
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+
+    def test_get_model_path_none_when_snapshots_missing(self, tmp_path: Path) -> None:
+        manager = _fresh_manager(tmp_path)
+        # Cache folder exists but has no snapshots subdirectory.
+        _cache_folder(tmp_path, "base").mkdir(parents=True)
+        assert manager.get_model_path("base") is None
+
+    def test_get_model_path_handles_iterdir_error(self, tmp_path: Path) -> None:
+        manager = _fresh_manager(tmp_path)
+        folder = _cache_folder(tmp_path, "base")
+        folder.mkdir(parents=True)
+        # snapshots is a file, so .exists() is True but iterdir() raises.
+        (folder / "snapshots").write_text("not a directory")
+        assert manager.get_model_path("base") is None
+
+    def test_download_wraps_generic_error(self, tmp_path: Path) -> None:
+        manager = _fresh_manager(tmp_path)
+        with patch(
+            "faster_whisper.utils.download_model",
+            side_effect=RuntimeError("network down"),
+        ):
+            with pytest.raises(BackendUnavailableError) as exc_info:
+                manager.download_model("base")
+        assert "Failed to download model" in str(exc_info.value)
+
+    def test_delete_model_wraps_rmtree_error(self, tmp_path: Path) -> None:
+        manager = _fresh_manager(tmp_path)
+        folder = _cache_folder(tmp_path, "base")
+        (folder / "snapshots" / "snap").mkdir(parents=True)
+        (folder / "snapshots" / "snap" / "model.bin").write_text("weights")
+
+        with patch("shutil.rmtree", side_effect=OSError("permission denied")):
+            with pytest.raises(ConfigurationError) as exc_info:
+                manager.delete_model("base")
+        assert "Failed to delete model" in str(exc_info.value)
+
+    def test_clear_swallows_rmtree_error(self, tmp_path: Path) -> None:
+        manager = _fresh_manager(tmp_path)
+        _cache_folder(tmp_path, "base").mkdir(parents=True)
+
+        with patch("shutil.rmtree", side_effect=OSError("locked")):
+            # Must not raise even though removal fails.
+            manager.clear()
+
+    def test_get_model_info_returns_none_when_not_listed(self, tmp_path: Path) -> None:
+        _fresh_manager(tmp_path)
+        with patch.object(ModelManager, "list_models", return_value=[]):
+            assert get_model_info("base") is None
+
+
+class TestModelManagerRemainingBranches:
+    """The last filesystem and singleton branches."""
+
+    def teardown_method(self) -> None:
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+
+    def test_get_model_path_none_when_snapshots_empty(self, tmp_path: Path) -> None:
+        manager = _fresh_manager(tmp_path)
+        (_cache_folder(tmp_path, "base") / "snapshots").mkdir(parents=True)
+        assert manager.get_model_path("base") is None
+
+    def test_get_model_path_none_when_model_bin_absent(self, tmp_path: Path) -> None:
+        manager = _fresh_manager(tmp_path)
+        (_cache_folder(tmp_path, "base") / "snapshots" / "snap").mkdir(parents=True)
+        # snapshot directory exists but contains no model.bin
+        assert manager.get_model_path("base") is None
+
+    def test_clear_removes_existing_cache(self, tmp_path: Path) -> None:
+        manager = _fresh_manager(tmp_path)
+        folder = _cache_folder(tmp_path, "base")
+        folder.mkdir(parents=True)
+        assert folder.exists()
+
+        manager.clear()
+
+        assert not folder.exists()
+
+    def test_singleton_double_checked_lock_skips_when_primed(self, tmp_path: Path) -> None:
+        ModelManager._instance = None
+        ModelManager._persisted_cache_dir = None
+
+        primed = object.__new__(ModelManager)
+        primed._cache_dir = tmp_path
+
+        class _PrimingLock:
+            def __enter__(self):
+                ModelManager._instance = primed
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        saved_lock = ModelManager._lock
+        ModelManager._lock = _PrimingLock()
+        try:
+            result = ModelManager()
+            assert result is primed
+        finally:
+            ModelManager._lock = saved_lock
+            ModelManager._instance = None
+            ModelManager._persisted_cache_dir = None

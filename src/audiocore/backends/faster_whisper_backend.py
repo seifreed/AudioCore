@@ -248,10 +248,10 @@ class FasterWhisperBackend(TranscriptionBackend):
                 )
                 self._model = None
 
-            if self._model is None:
-                self._model = self._instantiate_model(effective_model_size)
-                self._loaded_model_size = effective_model_size
-
+            # Either no model was loaded or it was just dropped above, so always
+            # instantiate the requested model here.
+            self._model = self._instantiate_model(effective_model_size)
+            self._loaded_model_size = effective_model_size
             return self._model
 
     def _instantiate_model(self, model_size: str) -> Any:
