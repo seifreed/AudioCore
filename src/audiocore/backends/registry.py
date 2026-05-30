@@ -53,6 +53,12 @@ class BackendRegistry:
     _instance_lock: threading.RLock = threading.RLock()
     _builtins_registered: bool = False
 
+    # Per-instance state, populated in __new__ (singletons initialize there to
+    # keep creation atomic). Declared here so the types are visible to callers.
+    _backends: dict[BackendType, type[TranscriptionBackend]]
+    _instances: dict[BackendType, TranscriptionBackend]
+    _instance_configs: dict[BackendType, object | None]
+
     def __new__(cls) -> BackendRegistry:
         """Create or return the singleton registry instance.
 
@@ -67,9 +73,9 @@ class BackendRegistry:
             with cls._lock:
                 if cls._instance is None:
                     instance = super().__new__(cls)
-                    instance._backends: dict[BackendType, type[TranscriptionBackend]] = {}
-                    instance._instances: dict[BackendType, TranscriptionBackend] = {}
-                    instance._instance_configs: dict[BackendType, object | None] = {}
+                    instance._backends = {}
+                    instance._instances = {}
+                    instance._instance_configs = {}
                     cls._instance = instance
         if not hasattr(cls._instance, "_instance_configs"):
             with cls._lock:
@@ -191,9 +197,11 @@ class BackendRegistry:
         from audiocore.config import AppConfig
 
         if isinstance(config, AppConfig):
-            # OpenAIBackend and FasterWhisperBackend accept AppConfig
-            # and extract their own sub-config internally
-            return backend_class(config=config)
+            # OpenAIBackend and FasterWhisperBackend accept AppConfig and extract
+            # their own sub-config internally. The ABC can't declare a config
+            # parameter on its constructor, so the concrete kwarg is invisible to
+            # the type checker here.
+            return backend_class(config=config)  # type: ignore[call-arg]
 
         # Fallback: pass config directly
         return backend_class(config=config)

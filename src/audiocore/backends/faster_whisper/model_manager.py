@@ -136,6 +136,9 @@ class ModelManager:
     _lock: threading.Lock = threading.Lock()
     _persisted_cache_dir: Path | None = None
 
+    # Per-instance cache directory, resolved and assigned in __new__.
+    _cache_dir: Path
+
     def __new__(cls, cache_dir: Path | str | None = None) -> ModelManager:
         """Create or return singleton instance.
 
