@@ -86,9 +86,7 @@ class TestTranscribeCommand:
 
         assert result.exit_code == 0
 
-    def test_json_to_stdout_is_parseable(
-        self, audio_file: Path, mock_pipeline: MagicMock
-    ) -> None:
+    def test_json_to_stdout_is_parseable(self, audio_file: Path, mock_pipeline: MagicMock) -> None:
         """Regression: JSON printed to stdout must be byte-exact and parseable.
 
         The progress bar previously rendered to stdout and rich markup/width
@@ -868,3 +866,102 @@ class TestBatchTranscription:
 
         assert result.exit_code == 0
         assert "successfully" in result.output.lower()
+
+
+class TestTranscribeCoverageGaps:
+    """Cover remaining branches in the transcribe CLI module."""
+
+    def test_validate_input_files_rejects_directory(self, tmp_path: Path) -> None:
+        from audiocore.cli.transcribe import validate_input_files
+
+        with pytest.raises(BadParameter, match="is not a file"):
+            validate_input_files([tmp_path])
+
+    def test_print_result_falls_back_to_segments_without_formatted_output(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from rich.console import Console
+
+        from audiocore.cli.transcribe import _print_transcription_result
+
+        result = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=1.5, text="raw line")],
+            media_info=MediaInfo(duration=1.5, format="wav", sample_rate=16000, channels=1),
+            config_used=TranscriptionOptions(),
+            processing_time_seconds=0.1,
+            backend_used=BackendType.OPENAI,
+            formatted_output="",
+        )
+        _print_transcription_result(Console(), result)
+
+        captured = capsys.readouterr()
+        assert "raw line" in captured.out
+        assert "0.000 - 1.500" in captured.out
+
+    def test_config_error_exits_with_code_2(self, audio_file: Path) -> None:
+        from audiocore.errors import ConfigurationError
+
+        with patch(
+            "audiocore.cli.transcribe.load_config",
+            side_effect=ConfigurationError("bad config"),
+        ):
+            result = runner.invoke(app, [str(audio_file)])
+
+        assert result.exit_code == 2
+        assert "Configuration Error" in result.output
+
+    def test_single_file_with_output_dir_generates_filename(
+        self, audio_file: Path, mock_pipeline: MagicMock, tmp_path: Path
+    ) -> None:
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=mock_pipeline):
+            result = runner.invoke(app, [str(audio_file), "--output-dir", str(out_dir)])
+
+        assert result.exit_code == 0
+        assert (out_dir / "test.text").exists()
+
+    def test_progress_callback_is_driven_during_single_file(
+        self, audio_file: Path, tmp_path: Path
+    ) -> None:
+        from audiocore.pipeline.progress import PipelineStage
+
+        result_obj = TranscriptionResult(
+            segments=[Segment(start_time=0.0, end_time=1.0, text="hi")],
+            media_info=MediaInfo(duration=1.0, format="wav", sample_rate=16000, channels=1),
+            config_used=TranscriptionOptions(),
+            processing_time_seconds=0.1,
+            backend_used=BackendType.OPENAI,
+            formatted_output="hi",
+        )
+
+        pipeline = MagicMock()
+
+        def transcribe_with_progress(path, options, progress_callback):
+            progress_callback(PipelineStage.PROBING, 0.5, "halfway")
+            return result_obj
+
+        pipeline.transcribe.side_effect = transcribe_with_progress
+
+        with patch("audiocore.cli.transcribe.Pipeline", return_value=pipeline):
+            result = runner.invoke(app, [str(audio_file)])
+
+        assert result.exit_code == 0
+        pipeline.transcribe.assert_called_once()
+
+    def test_batch_audiocore_error_maps_to_exit_code(self, tmp_path: Path) -> None:
+        from audiocore.errors import MediaError
+
+        files = []
+        for i in range(2):
+            f = tmp_path / f"clip{i}.wav"
+            f.write_bytes(b"fake audio")
+            files.append(str(f))
+
+        with patch(
+            "audiocore.cli.transcribe.transcribe_files_concurrent",
+            side_effect=MediaError("batch boom"),
+        ):
+            result = runner.invoke(app, [*files])
+
+        assert result.exit_code != 0

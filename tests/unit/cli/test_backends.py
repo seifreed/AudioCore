@@ -193,3 +193,21 @@ class TestBackendStatus:
         assert status.available is False
         assert "not installed" in status.reason
         assert "pip install" in status.suggestion
+
+
+def test_list_backends_renders_empty_details_when_reason_blank() -> None:
+    """A status with no reason renders an empty details cell."""
+    checker = MagicMock()
+    checker.check_all.return_value = [
+        BackendStatus(
+            backend_type=BackendType.OPENAI,
+            available=True,
+            reason="",
+            suggestion=None,
+        )
+    ]
+    with patch("audiocore.cli.backends.BackendAvailabilityChecker", return_value=checker):
+        result = runner.invoke(app, ["list"])
+
+    assert result.exit_code == 0
+    assert "openai" in result.output.lower()

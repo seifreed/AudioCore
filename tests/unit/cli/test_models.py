@@ -291,3 +291,55 @@ class TestModelInfo:
         assert info.name == "small"
         assert info.downloaded is False
         assert info.local_path is None
+
+
+class TestModelsCoverageGaps:
+    """Cover GB formatting, already-downloaded-without-path, and remove confirm loop."""
+
+    def test_list_formats_large_model_in_gigabytes(self) -> None:
+        manager = MagicMock()
+        manager.list_models.return_value = [
+            ModelInfo(
+                name="large-v3",
+                size_mb=1500,
+                repo_id="guillaumekln/faster-whisper-large-v3",
+                downloaded=False,
+                local_path=None,
+            )
+        ]
+        with patch("audiocore.cli.models.ModelManager", return_value=manager):
+            result = runner.invoke(app, ["list"])
+
+        assert result.exit_code == 0
+        assert "1.5 GB" in result.output
+
+    def test_download_already_downloaded_without_known_path(self) -> None:
+        manager = MagicMock()
+        manager.is_model_downloaded.return_value = True
+        manager.get_model_path.return_value = None
+        with patch("audiocore.cli.models.ModelManager", return_value=manager):
+            result = runner.invoke(app, ["download", "tiny"])
+
+        assert result.exit_code == 0
+        assert "already downloaded" in result.output.lower()
+        assert "Location" not in result.output
+
+    def test_remove_unconfirmed_when_model_absent_from_list(self) -> None:
+        manager = MagicMock()
+        manager.is_model_downloaded.return_value = True
+        # list_models does not contain the target -> size lookup loop finds nothing.
+        manager.list_models.return_value = [
+            ModelInfo(
+                name="base",
+                size_mb=150,
+                repo_id="guillaumekln/faster-whisper-base",
+                downloaded=True,
+                local_path=Path("/cache/base"),
+            )
+        ]
+        with patch("audiocore.cli.models.ModelManager", return_value=manager):
+            result = runner.invoke(app, ["remove", "tiny"], input="n\n")
+
+        assert result.exit_code == 0
+        assert "Cancelled" in result.output
+        manager.delete_model.assert_not_called()

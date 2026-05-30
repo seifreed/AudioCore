@@ -642,3 +642,79 @@ class TestProgressCallbackLockContention:
         # Completed counts should be 1, 2, 3 (ordered by completion)
         completed_counts = sorted([c for c, _, _ in progress_calls])
         assert completed_counts == [1, 2, 3]
+
+
+class TestCollectFileResultsBranches:
+    """Direct tests for the defensive branches of _collect_file_results."""
+
+    @pytest.mark.asyncio
+    async def test_continue_on_error_wraps_raising_task(self) -> None:
+        from audiocore.parallel.files import _collect_file_results
+
+        async def boom():
+            raise RuntimeError("task failed")
+
+        task = asyncio.create_task(boom())
+        results = await _collect_file_results([task], [Path("f0.wav")], continue_on_error=True)
+
+        assert results[0].success is False
+        assert "task failed" in results[0].error
+
+    @pytest.mark.asyncio
+    async def test_fail_fast_success_path_assigns_results(self) -> None:
+        from audiocore.parallel.files import FileResult, _collect_file_results
+
+        async def ok():
+            return FileResult(path=Path("f0.wav"), success=True, result=None, error=None)
+
+        task = asyncio.create_task(ok())
+        results = await _collect_file_results([task], [Path("f0.wav")], continue_on_error=False)
+
+        assert results[0].success is True
+
+    @pytest.mark.asyncio
+    async def test_unpopulated_slot_filled_with_internal_error(self) -> None:
+        from audiocore.parallel.files import FileResult, _collect_file_results
+
+        async def ok():
+            return FileResult(path=Path("f0.wav"), success=True, result=None, error=None)
+
+        task = asyncio.create_task(ok())
+        # Two files but one task -> the second slot is never populated by gather.
+        results = await _collect_file_results(
+            [task], [Path("f0.wav"), Path("f1.wav")], continue_on_error=True
+        )
+
+        assert results[0].success is True
+        assert results[1].success is False
+        assert "Internal error" in results[1].error
+
+
+class TestProgressCallbackRobustness:
+    """A raising progress callback never breaks a concurrent run."""
+
+    @pytest.mark.asyncio
+    async def test_exploding_progress_callback_is_swallowed(
+        self,
+        tmp_path: Path,
+        transcription_options: TranscriptionOptions,
+        mock_transcription_result: TranscriptionResult,
+    ) -> None:
+        audio_file = tmp_path / "test.wav"
+        audio_file.write_bytes(b"fake audio")
+
+        def exploding_callback(completed: int, total: int, path: Path) -> None:
+            raise RuntimeError("progress boom")
+
+        with patch("audiocore.parallel.files.transcribe") as mock_transcribe:
+            mock_transcribe.return_value = mock_transcription_result
+
+            results = await transcribe_files_concurrent(
+                files=[audio_file],
+                options=transcription_options,
+                max_workers=1,
+                progress_callback=exploding_callback,
+            )
+
+        assert len(results) == 1
+        assert results[0].success is True

@@ -278,3 +278,54 @@ class TestShowConfigUsesLoadConfig:
 
         assert result.exit_code == 0
         mock_load.assert_called_once()
+
+
+class TestShowConfigOptionalSections:
+    """config show handles missing openai/vad sections and organization display."""
+
+    def _base_config(self) -> MagicMock:
+        config = MagicMock(spec=AppConfig)
+        config.backend = BackendType.OPENAI
+        config.model = MagicMock(value="base")
+        config.language = None
+        config.output_format = MagicMock(value="text")
+        config.backend_preference = MagicMock(value="auto")
+        config.ffprobe_path = "ffprobe"
+        config.ffmpeg_path = "ffmpeg"
+        config.openai = MagicMock()
+        config.openai.api_key = SecretStr("")
+        config.openai.organization = None
+        config.openai.timeout = 300
+        config.openai.max_retries = 2
+        config.vad = MagicMock()
+        return config
+
+    def test_show_displays_openai_organization(self) -> None:
+        config = self._base_config()
+        config.openai.organization = "acme-corp"
+
+        with patch("audiocore.cli.config_cmd.load_config", return_value=config):
+            result = runner.invoke(app, ["show"])
+
+        assert result.exit_code == 0
+        assert "acme-corp" in result.output
+
+    def test_show_skips_openai_section_when_absent(self) -> None:
+        config = self._base_config()
+        config.openai = None
+
+        with patch("audiocore.cli.config_cmd.load_config", return_value=config):
+            result = runner.invoke(app, ["show"])
+
+        assert result.exit_code == 0
+        assert "OpenAI API Key" not in result.output
+
+    def test_show_skips_vad_section_when_absent(self) -> None:
+        config = self._base_config()
+        config.vad = None
+
+        with patch("audiocore.cli.config_cmd.load_config", return_value=config):
+            result = runner.invoke(app, ["show"])
+
+        assert result.exit_code == 0
+        assert "VAD Speech Threshold" not in result.output
