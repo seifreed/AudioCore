@@ -289,8 +289,10 @@ class TestInvalidEnumValues:
         """A pathlib.Path is coerced to its string form."""
         from pathlib import Path
 
-        config = AppConfig(ffmpeg_path=Path("/usr/bin/ffmpeg"))
-        assert config.ffmpeg_path == "/usr/bin/ffmpeg"
+        path = Path("/usr/bin/ffmpeg")
+        config = AppConfig(ffmpeg_path=path)
+        # str(Path(...)) uses the platform separator (backslashes on Windows).
+        assert config.ffmpeg_path == str(path)
 
     def test_media_tool_path_rejects_non_string_type(self) -> None:
         """A non-string, non-Path media tool path is rejected."""
