@@ -19,6 +19,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from openai import (
+    APIConnectionError,
+)
+from openai import (
+    APIError as OpenAIAPIError,
+)
+from openai import (
     APITimeoutError as OpenAITimeoutError,
 )
 from openai import (
@@ -31,6 +37,7 @@ from openai import (
 from audiocore.backends.openai_backend import OpenAIBackend
 from audiocore.config.openai_config import OpenAIConfig
 from audiocore.errors import (
+    APIError,
     APITimeoutError,
     AuthenticationError,
     BackendUnavailableError,
@@ -1092,3 +1099,114 @@ class TestLogging:
         # Check all log messages
         all_logs = "".join(record.message for record in caplog.records)
         assert api_key not in all_logs
+
+
+class TestOpenAIBackendConfigProperties:
+    """Config-derived properties fall back to defaults when no config is set."""
+
+    def test_chunk_target_bytes_default_without_config(self) -> None:
+        backend = OpenAIBackend(api_key="sk-x")
+        assert backend._chunk_target_bytes > 0
+
+    def test_chunk_min_duration_uses_config_when_present(self) -> None:
+        backend = OpenAIBackend(config=OpenAIConfig(chunk_min_duration_seconds=42.0))
+        assert backend._chunk_min_duration_seconds == 42.0
+
+    def test_chunk_min_duration_default_without_config(self) -> None:
+        backend = OpenAIBackend(api_key="sk-x")
+        assert backend._chunk_min_duration_seconds > 0
+
+    def test_chunk_prompt_chars_default_without_config(self) -> None:
+        backend = OpenAIBackend(api_key="sk-x")
+        assert backend._chunk_prompt_chars >= 0
+
+
+class TestOpenAIClientKwargs:
+    """_get_client forwards organization/base_url/timeout/max_retries from config."""
+
+    @patch("audiocore.backends.openai_backend.OpenAI")
+    def test_passes_optional_config_fields(self, mock_openai: MagicMock) -> None:
+        config = OpenAIConfig(
+            api_key="sk-x",
+            organization="org-123",
+            base_url="https://proxy.example",
+        )
+        backend = OpenAIBackend(config=config)
+        backend._get_client()
+
+        _, kwargs = mock_openai.call_args
+        assert kwargs["organization"] == "org-123"
+        assert kwargs["base_url"] == "https://proxy.example"
+
+    @patch("audiocore.backends.openai_backend.OpenAI")
+    def test_omits_falsy_timeout_and_none_max_retries(self, mock_openai: MagicMock) -> None:
+        config = OpenAIConfig(api_key="sk-x")
+        backend = OpenAIBackend(config=config)
+        # Force the falsy-timeout and None-max_retries branches.
+        backend._config.timeout = 0
+        backend._config.max_retries = None
+        backend._get_client()
+
+        _, kwargs = mock_openai.call_args
+        assert "timeout" not in kwargs
+        assert "max_retries" not in kwargs
+
+
+class TestOpenAIBackendIsAvailable:
+    """is_available reflects package availability."""
+
+    def test_returns_false_without_openai_package(self) -> None:
+        backend = OpenAIBackend(api_key="sk-x")
+        with patch.dict("sys.modules", {"openai": None}):
+            assert backend.is_available() is False
+
+
+class TestOpenAIRedaction:
+    """_redact_api_key masks both constructor and environment keys (stripped)."""
+
+    def test_redacts_stripped_constructor_key(self) -> None:
+        backend = OpenAIBackend(api_key="  topsecret  ")
+        message = "error using topsecret here"
+        assert "topsecret" not in backend._redact_api_key(message)
+
+    def test_redacts_stripped_env_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("OPENAI_API_KEY", "  envsecret  ")
+        backend = OpenAIBackend()
+        message = "leaked envsecret value"
+        assert "envsecret" not in backend._redact_api_key(message)
+
+
+class TestOpenAIErrorTranslation:
+    """_translate_openai_error maps connection/API errors and handles missing response."""
+
+    def test_connection_error_maps_to_api_error(self, tmp_path: Path) -> None:
+        backend = OpenAIBackend(api_key="sk-x")
+        err = APIConnectionError(request=MagicMock())
+        mapped = backend._translate_openai_error(err, tmp_path / "a.mp3")
+        assert isinstance(mapped, APIError)
+        assert "connection error" in str(mapped).lower()
+
+    def test_generic_api_error_maps_to_api_error(self, tmp_path: Path) -> None:
+        backend = OpenAIBackend(api_key="sk-x")
+        err = OpenAIAPIError("boom", request=MagicMock(), body=None)
+        mapped = backend._translate_openai_error(err, tmp_path / "a.mp3")
+        assert isinstance(mapped, APIError)
+
+    def test_rate_limit_without_response_omits_retry_after(self) -> None:
+        backend = OpenAIBackend(api_key="sk-x")
+        fake_error = MagicMock()
+        fake_error.response = None
+        result = backend._rate_limit_error(fake_error)
+        assert "retry_after" not in result.context
+
+    def test_split_audio_for_upload_delegates(self, tmp_path: Path) -> None:
+        backend = OpenAIBackend(api_key="sk-x")
+        audio = tmp_path / "a.wav"
+        audio.write_bytes(b"x")
+        with patch(
+            "audiocore.backends.openai_backend.openai_chunking.split_audio_for_upload",
+            return_value=[audio],
+        ) as split:
+            result = backend._split_audio_for_upload(audio)
+        assert result == [audio]
+        split.assert_called_once()

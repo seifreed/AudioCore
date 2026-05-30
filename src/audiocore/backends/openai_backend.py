@@ -600,8 +600,9 @@ class OpenAIBackend(TranscriptionBackend):
                 )
                 duration_offset += chunk_duration
         finally:
-            if chunks:
-                openai_chunking.cleanup_chunk_dir(chunks[0].parent)
+            # chunks is always non-empty here: _split_audio_for_upload returns at
+            # least one chunk or raises before this try is entered.
+            openai_chunking.cleanup_chunk_dir(chunks[0].parent)
 
         return TranscriptionResult(
             segments=combined_segments,
