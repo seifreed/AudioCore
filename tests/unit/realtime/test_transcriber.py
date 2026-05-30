@@ -13,6 +13,7 @@ from audiocore.models import (
     Segment,
     TranscriptionOptions,
     TranscriptionResult,
+    Word,
 )
 from audiocore.realtime import (
     AudioSource,
@@ -142,3 +143,142 @@ class TestAudioSourceProtocol:
         monkeypatch.setattr(builtins, "__import__", blocked_import)
         with pytest.raises(ProcessingError, match="sounddevice"):
             next(iter(MicrophoneSource()))
+
+    def test_audio_source_protocol_stub_returns_none(self) -> None:
+        """The AudioSource protocol __iter__ body is an inert stub."""
+
+        class _SuperDelegating(AudioSource):
+            sample_rate = _RATE
+
+            def __iter__(self):
+                return super().__iter__()
+
+        assert _SuperDelegating().__iter__() is None
+
+
+def _install_fake_sounddevice(monkeypatch: pytest.MonkeyPatch, read_impl) -> None:
+    """Register a minimal fake ``sounddevice`` module exposing InputStream."""
+    import sys
+    import types
+
+    fake = types.ModuleType("sounddevice")
+
+    class _InputStream:
+        def __init__(self, **kwargs) -> None:
+            self.kwargs = kwargs
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc) -> bool:
+            return False
+
+        def read(self, frames: int):
+            return read_impl(frames)
+
+    fake.InputStream = _InputStream  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "sounddevice", fake)
+
+
+class TestMicrophoneCapture:
+    """MicrophoneSource.__iter__ drives the sounddevice InputStream."""
+
+    def test_stop_sets_stopped_flag(self) -> None:
+        mic = MicrophoneSource()
+        mic.stop()
+        assert mic._stopped is True
+
+    def test_iter_yields_blocks_until_stopped(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def read_impl(frames: int):
+            return np.zeros((frames, 1), dtype=np.float32), False
+
+        _install_fake_sounddevice(monkeypatch, read_impl)
+        mic = MicrophoneSource()
+
+        it = iter(mic)
+        first = next(it)
+        assert first.dtype == np.float32
+        assert first.ndim == 1
+
+        mic.stop()
+        with pytest.raises(StopIteration):
+            next(it)
+
+    def test_iter_reraises_processing_error_unwrapped(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def read_impl(frames: int):
+            raise ProcessingError("inner failure", context={})
+
+        _install_fake_sounddevice(monkeypatch, read_impl)
+
+        with pytest.raises(ProcessingError, match="inner failure"):
+            next(iter(MicrophoneSource()))
+
+    def test_iter_wraps_unexpected_capture_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def read_impl(frames: int):
+            raise RuntimeError("device exploded")
+
+        _install_fake_sounddevice(monkeypatch, read_impl)
+
+        with pytest.raises(ProcessingError, match="Microphone capture failed") as exc_info:
+            next(iter(MicrophoneSource()))
+        assert isinstance(exc_info.value.__cause__, RuntimeError)
+
+
+class TestShiftSegment:
+    """_shift_segment offsets segment and word timings onto the stream timeline."""
+
+    def test_shift_segment_without_words(self) -> None:
+        from audiocore.realtime.transcriber import _shift_segment
+
+        seg = Segment(start_time=0.0, end_time=0.5, text="hi", confidence=0.9)
+        shifted = _shift_segment(seg, 2.0)
+
+        assert shifted.start_time == 2.0
+        assert shifted.end_time == 2.5
+        assert shifted.words is None
+
+    def test_shift_segment_with_words_offsets_each_word(self) -> None:
+        from audiocore.realtime.transcriber import _shift_segment
+
+        seg = Segment(
+            start_time=0.0,
+            end_time=1.0,
+            text="hi there",
+            confidence=0.9,
+            words=[
+                Word(word="hi", start_time=0.0, end_time=0.4, confidence=0.8),
+                Word(word="there", start_time=0.5, end_time=1.0, confidence=0.7),
+            ],
+        )
+        shifted = _shift_segment(seg, 3.0)
+
+        assert shifted.words is not None
+        assert shifted.words[0].start_time == 3.0
+        assert shifted.words[0].end_time == 3.4
+        assert shifted.words[1].start_time == 3.5
+        assert shifted.words[1].word == "there"
+
+
+class TestTranscribeRealtimeHelper:
+    """transcribe_realtime resolves a backend and streams segments."""
+
+    def test_uses_explicit_backend(self) -> None:
+        from audiocore.realtime import transcribe_realtime
+
+        backend = _RecordingBackend()
+        # Empty source -> no utterances -> no transcription, just backend wiring.
+        segments = list(transcribe_realtime(_ListSource([]), backend=backend))
+
+        assert segments == []
+        assert backend.received_paths == []
+
+    def test_resolves_backend_from_config_when_omitted(self) -> None:
+        from audiocore.config import AppConfig
+        from audiocore.realtime import transcribe_realtime
+
+        # Empty source -> backend is resolved from config but never invoked.
+        segments = list(transcribe_realtime(_ListSource([]), backend=None, config=AppConfig()))
+
+        assert segments == []

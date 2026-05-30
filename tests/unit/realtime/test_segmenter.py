@@ -106,3 +106,21 @@ class TestUtteranceSegmentation:
         """A zero-length chunk produces nothing and does not crash."""
         seg = _fast_segmenter()
         assert seg.process(np.empty(0, dtype=np.float32)) == []
+
+    def test_max_duration_reached_but_utterance_too_short_emits_nothing(self) -> None:
+        """Hitting max duration with sub-min audio drops the forced flush.
+
+        With max_utterance_seconds below min_utterance_seconds, the buffer
+        crosses the max bound while still shorter than the minimum, so the
+        forced finalize returns None and nothing is emitted.
+        """
+        seg = UtteranceSegmenter(
+            sample_rate=_RATE,
+            energy_threshold=0.015,
+            min_silence_seconds=10.0,
+            min_utterance_seconds=100 * _BLOCK / _RATE,  # unreachably long minimum
+            max_utterance_seconds=_BLOCK / _RATE / 2,  # crossed by the first block
+        )
+        emitted = seg.process(_speech())
+        assert emitted == []
+        assert seg._capturing is False  # forced finalize reset state
