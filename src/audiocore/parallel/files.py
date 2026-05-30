@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from audiocore.api.transcribe import _get_executor, transcribe
 from audiocore.pipeline.cancellation import CancelledError
@@ -214,7 +214,9 @@ async def _collect_file_results(
                 error="Internal error: result was not populated",
             )
 
-    return list(results)  # type: ignore[return-value]
+    # Every slot was populated above (None entries replaced with a failure
+    # result), so no element is None at this point.
+    return cast("list[FileResult]", results)
 
 
 __all__ = ["FileResult", "transcribe_files_concurrent"]

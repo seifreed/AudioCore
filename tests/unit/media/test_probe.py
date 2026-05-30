@@ -10,6 +10,7 @@ import pytest
 from audiocore.errors import InvalidInputError, MediaError
 from audiocore.media.probe import (
     _parse_duration,
+    _parse_positive_int,
     _validate_audio_stream,
     _validate_file_exists,
     probe,
@@ -96,6 +97,22 @@ class TestParseDuration:
         assert _parse_duration("-1.0") is None
         assert _parse_duration("inf") is None
         assert _parse_duration("nan") is None
+        assert _parse_duration(["not", "scalar"]) is None
+
+
+class TestParsePositiveInt:
+    """Tests for ffprobe positive-integer metadata parsing."""
+
+    def test_parses_numeric_string_and_int(self) -> None:
+        assert _parse_positive_int("44100") == 44100
+        assert _parse_positive_int(2) == 2
+
+    def test_returns_none_for_invalid_values(self) -> None:
+        assert _parse_positive_int("N/A") is None  # not an int -> ValueError
+        assert _parse_positive_int(None) is None  # non-scalar type
+        assert _parse_positive_int(["x"]) is None  # non-scalar type
+        assert _parse_positive_int("0") is None  # not positive
+        assert _parse_positive_int(-5) is None  # not positive
 
 
 class TestProbe:

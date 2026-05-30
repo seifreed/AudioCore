@@ -73,9 +73,11 @@ def _validate_file_exists(file_path: Path) -> None:
 
 def _parse_duration(value: object) -> float | None:
     """Parse a positive ffprobe duration value, returning None for invalid values."""
+    if not isinstance(value, str | int | float):
+        return None
     try:
         duration = float(value)
-    except (TypeError, ValueError):
+    except ValueError:
         return None
     if not math.isfinite(duration):
         return None
@@ -84,9 +86,11 @@ def _parse_duration(value: object) -> float | None:
 
 def _parse_positive_int(value: object) -> int | None:
     """Parse a positive integer metadata value, returning None for invalid values."""
+    if not isinstance(value, str | int | float):
+        return None
     try:
         parsed = int(value)
-    except (TypeError, ValueError):
+    except ValueError:
         return None
     return parsed if parsed > 0 else None
 

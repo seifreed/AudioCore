@@ -415,8 +415,10 @@ class OpenAIBackend(TranscriptionBackend):
 
             if options.task == TranscriptionTask.TRANSLATE:
                 # The translations endpoint always outputs English: it accepts
-                # neither a language nor word-level timestamp_granularities.
-                return client.audio.translations.create(**api_params)  # type: ignore[arg-type]
+                # neither a language nor word-level timestamp_granularities. The
+                # dynamically-built params dict can't be matched against the
+                # SDK's typed create() overloads.
+                return client.audio.translations.create(**api_params)  # type: ignore[call-overload]
 
             if options.language:
                 api_params["language"] = options.language
@@ -425,8 +427,9 @@ class OpenAIBackend(TranscriptionBackend):
                 # segment-level breakdown the result model is built around.
                 api_params["timestamp_granularities"] = ["segment", "word"]
 
-            # Make the API call
-            return client.audio.transcriptions.create(**api_params)  # type: ignore[arg-type]
+            # Make the API call. The dynamically-built params dict can't be
+            # matched against the SDK's typed create() overloads.
+            return client.audio.transcriptions.create(**api_params)  # type: ignore[call-overload]
 
         except BackendUnavailableError:
             # Already a typed AudioCore error from _get_client(); don't wrap.

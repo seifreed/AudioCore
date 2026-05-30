@@ -25,7 +25,7 @@ Example (in a Pyodide REPL):
 from __future__ import annotations
 
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 
 from audiocore.models import (
     MIN_MEDIA_DURATION_SECONDS,
@@ -47,7 +47,7 @@ __all__ = [
 ]
 
 # Formatter dispatch — kept local so this module never imports the pipeline.
-_FORMATTERS = {
+_FORMATTERS: dict[OutputFormat, Callable[[TranscriptionResult, TranscriptionOptions], str]] = {
     OutputFormat.TEXT: format_text,
     OutputFormat.JSON: format_json,
     OutputFormat.SRT: format_srt,

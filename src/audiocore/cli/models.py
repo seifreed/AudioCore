@@ -127,7 +127,7 @@ def download_model(
             TextColumn("[progress.description]{task.description}"),
             TimeElapsedColumn(),
             console=console,
-        ) as progress_bar:  # type: ignore[assignment]
+        ) as progress_bar:
             task = progress_bar.add_task(f"Downloading {model}...", total=None)
 
             # Download (HuggingFace hub doesn't provide progress easily)

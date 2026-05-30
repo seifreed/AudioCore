@@ -124,7 +124,10 @@ class BackendAvailabilityChecker:
 
         import os
 
-        for key in (os.environ.get("OPENAI_API_KEY"), os.environ.get("AUDIOCORE_OPENAI_API_KEY")):
-            if key and key.strip():
-                return key.strip()
+        for env_key in (
+            os.environ.get("OPENAI_API_KEY"),
+            os.environ.get("AUDIOCORE_OPENAI_API_KEY"),
+        ):
+            if env_key and env_key.strip():
+                return env_key.strip()
         return None

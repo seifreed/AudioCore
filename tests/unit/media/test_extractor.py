@@ -796,9 +796,9 @@ class TestProbeTotalDuration:
         assert result == 7.0
         assert mock_probe.call_args.kwargs["ffprobe_path"] == str(ffprobe)
 
-    def test_probes_with_none_when_no_ffprobe_found(self, tmp_path: Path) -> None:
+    def test_probes_with_path_ffprobe_when_none_found(self, tmp_path: Path) -> None:
         # shutil.which finds nothing and the derived ffprobe does not exist,
-        # so probe is called with ffprobe_path=None (its own discovery).
+        # so probe falls back to a bare "ffprobe" resolved from PATH.
         ffmpeg = tmp_path / "ffmpeg"
         ffmpeg.write_text("#!/bin/sh\n")
         info = MediaInfo(duration=3.0, format="wav")
@@ -810,7 +810,7 @@ class TestProbeTotalDuration:
             result = _probe_total_duration(tmp_path / "in.mp4", str(ffmpeg), None)
 
         assert result == 3.0
-        assert mock_probe.call_args.kwargs["ffprobe_path"] is None
+        assert mock_probe.call_args.kwargs["ffprobe_path"] == "ffprobe"
 
     def test_returns_none_on_probe_failure(self, tmp_path: Path) -> None:
         with patch("audiocore.media.extractor.probe", side_effect=MediaError("nope")):

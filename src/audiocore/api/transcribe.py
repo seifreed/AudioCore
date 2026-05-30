@@ -13,7 +13,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, TypeIs
 
 from audiocore.backends import register_builtin_backends
 from audiocore.errors import AudioCoreError
@@ -202,7 +202,9 @@ def _resolve_options(
     return resolved
 
 
-def _is_batch_path(path: object) -> bool:
+def _is_batch_path(
+    path: object,
+) -> TypeIs[list[str | Path] | tuple[str | Path, ...]]:
     """Return True for the public async batch path form."""
     return isinstance(path, (list, tuple))
 
@@ -466,9 +468,8 @@ async def async_transcribe(
 
     try:
         if _is_batch_path(path):
-            batch_path = cast("list[str | Path] | tuple[str | Path, ...]", path)
             return await _async_transcribe_batch(
-                batch_path,
+                path,
                 options,
                 config,
                 progress_callback,
@@ -516,7 +517,7 @@ async def async_transcribe(
 
 
 async def _async_transcribe_single(
-    path: str | Path | list[str | Path] | tuple[str | Path, ...],
+    path: str | Path,
     options: TranscriptionOptions | None,
     config: AppConfig | None,
     progress_callback: ProgressCallback | None,

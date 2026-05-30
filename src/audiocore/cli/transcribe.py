@@ -494,11 +494,11 @@ def _transcribe_with_progress(
         task = progress_bar.add_task("[cyan]Initializing[/cyan]", total=100)
         pipeline = Pipeline(config=config)
 
-        def update_progress(stage: PipelineStage, p: float, msg: str) -> None:
+        def update_progress(stage: PipelineStage, progress: float, message: str) -> None:
             progress_bar.update(
                 task,
-                completed=int(p * 100),
-                description=f"[cyan]{stage.value}[/cyan] - {msg}",
+                completed=int(progress * 100),
+                description=f"[cyan]{stage.value}[/cyan] - {message}",
             )
 
         result = pipeline.transcribe(

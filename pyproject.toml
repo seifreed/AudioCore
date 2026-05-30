@@ -122,10 +122,12 @@ ignore = ["E501", "SIM115", "TC001", "TC002", "TC003", "TC004"]
 python_version = "3.13"
 strict = false
 warn_return_any = false
-warn_unused_ignores = false
+# Surface redundant inline ignores so suppressions can't silently pile up.
+warn_unused_ignores = true
 show_error_codes = true
+# Third-party packages without type stubs (torch, faster_whisper, openai
+# response objects, etc.) are treated as untyped rather than erroring.
 ignore_missing_imports = true
-disable_error_code = ["assignment", "arg-type", "operator", "no-untyped-def", "call-overload", "attr-defined", "no-any-return", "misc", "call-arg"]
 exclude = [
     "tests/",
 ]

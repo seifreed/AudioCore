@@ -10,7 +10,7 @@ Key Features:
 - Optional organization and base URL for proxies
 """
 
-from typing import Annotated, Any, Self
+from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 
@@ -51,7 +51,8 @@ class OpenAIConfig(BaseModel):
 
     model_config = ConfigDict(strict=True, extra="forbid")
 
-    api_key: Annotated[SecretStr | None, Field(default=None)] = Field(
+    api_key: SecretStr | None = Field(
+        default=None,
         description="OpenAI API key (from OPENAI_API_KEY env var or passed directly)",
     )
     organization: str | None = Field(

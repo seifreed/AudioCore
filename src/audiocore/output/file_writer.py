@@ -19,6 +19,7 @@ from __future__ import annotations
 import codecs
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator
@@ -188,7 +189,7 @@ def _atomic_write(file_path: Path, content: str, config: OutputFileConfig) -> No
 
 
 # Mapping of OutputFormat to formatter function
-_FORMATTERS = {
+_FORMATTERS: dict[OutputFormat, Callable[[TranscriptionResult, TranscriptionOptions], str]] = {
     OutputFormat.TEXT: format_text,
     OutputFormat.JSON: format_json,
     OutputFormat.SRT: format_srt,

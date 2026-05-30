@@ -221,7 +221,9 @@ def _probe_total_duration(
                 )
                 if Path(derived).exists():
                     effective_ffprobe = str(derived)
-        media_info = probe(input_path, ffprobe_path=effective_ffprobe)
+        # Fall back to a bare "ffprobe" (resolved from PATH) when discovery
+        # turned up nothing, rather than handing probe a None executable.
+        media_info = probe(input_path, ffprobe_path=effective_ffprobe or "ffprobe")
         return media_info.duration
     except Exception as probe_error:
         logger.debug(f"Could not probe media for progress: {probe_error}")
