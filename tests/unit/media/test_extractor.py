@@ -11,10 +11,13 @@ from audiocore.errors import InvalidInputError, MediaError
 from audiocore.media.extractor import (
     _build_ffmpeg_command,
     _parse_progress,
+    _probe_total_duration,
+    _run_ffmpeg_streaming,
     _validate_output,
     extract_audio,
     temp_audio_file,
 )
+from audiocore.models import MediaInfo
 
 
 def _make_mock_popen(returncode: int = 0, stderr: str = "", stdout: str = "") -> MagicMock:
@@ -765,3 +768,125 @@ class TestExtractAudioTempFileCleanup:
 
             with pytest.raises(KeyboardInterrupt):
                 extract_audio(input_file)
+
+
+class TestProbeTotalDuration:
+    """_probe_total_duration discovers ffprobe and is non-fatal on failure."""
+
+    def test_uses_explicit_ffprobe_path(self, tmp_path: Path) -> None:
+        info = MediaInfo(duration=42.0, format="wav")
+        with patch("audiocore.media.extractor.probe", return_value=info) as mock_probe:
+            result = _probe_total_duration(tmp_path / "in.mp4", "ffmpeg", "ffprobe")
+        assert result == 42.0
+        assert mock_probe.call_args.kwargs["ffprobe_path"] == "ffprobe"
+
+    def test_derives_ffprobe_from_ffmpeg_path(self, tmp_path: Path) -> None:
+        ffmpeg = tmp_path / "ffmpeg"
+        ffmpeg.write_text("#!/bin/sh\n")
+        ffprobe = tmp_path / "ffprobe"
+        ffprobe.write_text("#!/bin/sh\n")
+        info = MediaInfo(duration=7.0, format="wav")
+
+        with (
+            patch("shutil.which", return_value=None),
+            patch("audiocore.media.extractor.probe", return_value=info) as mock_probe,
+        ):
+            result = _probe_total_duration(tmp_path / "in.mp4", str(ffmpeg), None)
+
+        assert result == 7.0
+        assert mock_probe.call_args.kwargs["ffprobe_path"] == str(ffprobe)
+
+    def test_probes_with_none_when_no_ffprobe_found(self, tmp_path: Path) -> None:
+        # shutil.which finds nothing and the derived ffprobe does not exist,
+        # so probe is called with ffprobe_path=None (its own discovery).
+        ffmpeg = tmp_path / "ffmpeg"
+        ffmpeg.write_text("#!/bin/sh\n")
+        info = MediaInfo(duration=3.0, format="wav")
+
+        with (
+            patch("shutil.which", return_value=None),
+            patch("audiocore.media.extractor.probe", return_value=info) as mock_probe,
+        ):
+            result = _probe_total_duration(tmp_path / "in.mp4", str(ffmpeg), None)
+
+        assert result == 3.0
+        assert mock_probe.call_args.kwargs["ffprobe_path"] is None
+
+    def test_returns_none_on_probe_failure(self, tmp_path: Path) -> None:
+        with patch("audiocore.media.extractor.probe", side_effect=MediaError("nope")):
+            assert _probe_total_duration(tmp_path / "in.mp4", "ffmpeg", "ffprobe") is None
+
+
+class TestRunFfmpegStreaming:
+    """_run_ffmpeg_streaming streams progress and handles failures."""
+
+    def test_missing_stderr_pipe_raises(self) -> None:
+        proc = MagicMock()
+        proc.stderr = None
+        calls: list[float] = []
+        with patch("audiocore.media.extractor.subprocess.Popen", return_value=proc):
+            with pytest.raises(MediaError, match="stderr pipe was not available"):
+                _run_ffmpeg_streaming(["ffmpeg"], 0, 10.0, calls.append, Path("in.mp4"), "ffmpeg")
+        assert proc.kill.called
+
+    def test_emits_progress_and_skips_non_time_lines(self) -> None:
+        proc = MagicMock()
+        proc.stderr = iter(["frame=1\n", "time=00:00:05.00\n"])
+        proc.wait.return_value = 0
+        progress: list[float] = []
+        with patch("audiocore.media.extractor.subprocess.Popen", return_value=proc):
+            returncode, stderr = _run_ffmpeg_streaming(
+                ["ffmpeg"], 0, 10.0, progress.append, Path("in.mp4"), "ffmpeg"
+            )
+        assert returncode == 0
+        assert progress == [pytest.approx(0.5)]
+        assert "frame=1" in stderr
+
+    def test_timeout_kills_process_and_raises(self) -> None:
+        proc = MagicMock()
+        proc.stderr = iter(["time=00:00:01.00\n", "time=00:00:02.00\n"])
+        with (
+            patch("audiocore.media.extractor.subprocess.Popen", return_value=proc),
+            patch("audiocore.media.extractor.time.monotonic", side_effect=[0.0, 100.0]),
+        ):
+            with pytest.raises(subprocess.TimeoutExpired):
+                _run_ffmpeg_streaming(
+                    ["ffmpeg"], 1.0, 10.0, lambda _p: None, Path("in.mp4"), "ffmpeg"
+                )
+        proc.kill.assert_called_once()
+
+    def test_unexpected_error_cleans_up_and_reraises(self) -> None:
+        class _RaisingStderr:
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                raise KeyboardInterrupt("interrupted")
+
+        proc = MagicMock()
+        proc.stderr = _RaisingStderr()
+        with patch("audiocore.media.extractor.subprocess.Popen", return_value=proc):
+            with pytest.raises(KeyboardInterrupt):
+                _run_ffmpeg_streaming(
+                    ["ffmpeg"], 0, 10.0, lambda _p: None, Path("in.mp4"), "ffmpeg"
+                )
+        proc.kill.assert_called_once()
+
+
+class TestExtractAudioOutputValidation:
+    """extract_audio cleans up and re-raises when output validation fails."""
+
+    def test_validation_failure_cleans_up_temp(self, tmp_path: Path) -> None:
+        input_file = tmp_path / "in.mp4"
+        input_file.write_bytes(b"data")
+
+        proc = _make_mock_popen(returncode=0)
+        with (
+            patch("audiocore.media.extractor.subprocess.Popen", return_value=proc),
+            patch(
+                "audiocore.media.extractor._validate_output",
+                side_effect=MediaError("empty output"),
+            ),
+        ):
+            with pytest.raises(MediaError, match="empty output"):
+                extract_audio(input_file, tmp_path / "out.wav")
