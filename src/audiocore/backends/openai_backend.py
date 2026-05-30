@@ -19,7 +19,7 @@ import contextlib
 import logging
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from openai import (
     APIConnectionError,
@@ -233,7 +233,7 @@ class OpenAIBackend(TranscriptionBackend):
                 )
 
             # Build client kwargs from config if available
-            client_kwargs: dict[str, object] = {"api_key": api_key}
+            client_kwargs: dict[str, Any] = {"api_key": api_key}
             if self._config is not None:
                 if self._config.organization is not None:
                     client_kwargs["organization"] = self._config.organization
@@ -244,7 +244,7 @@ class OpenAIBackend(TranscriptionBackend):
                 if self._config.max_retries is not None:
                     client_kwargs["max_retries"] = self._config.max_retries
 
-            self._client = OpenAI(**client_kwargs)  # type: ignore[arg-type]
+            self._client = OpenAI(**client_kwargs)
 
         return self._client
 
@@ -405,7 +405,7 @@ class OpenAIBackend(TranscriptionBackend):
             # Build API call parameters. The handle intentionally outlives this
             # statement; it is closed in the finally block and error handlers.
             audio_file = open(audio_path, "rb")
-            api_params: dict[str, object] = {
+            api_params: dict[str, Any] = {
                 "model": "whisper-1",
                 "file": audio_file,
                 "response_format": "verbose_json",  # Get segments with timestamps
@@ -418,7 +418,7 @@ class OpenAIBackend(TranscriptionBackend):
                 # neither a language nor word-level timestamp_granularities. The
                 # dynamically-built params dict can't be matched against the
                 # SDK's typed create() overloads.
-                return client.audio.translations.create(**api_params)  # type: ignore[call-overload]
+                return client.audio.translations.create(**api_params)
 
             if options.language:
                 api_params["language"] = options.language
@@ -429,7 +429,7 @@ class OpenAIBackend(TranscriptionBackend):
 
             # Make the API call. The dynamically-built params dict can't be
             # matched against the SDK's typed create() overloads.
-            return client.audio.transcriptions.create(**api_params)  # type: ignore[call-overload]
+            return client.audio.transcriptions.create(**api_params)
 
         except BackendUnavailableError:
             # Already a typed AudioCore error from _get_client(); don't wrap.

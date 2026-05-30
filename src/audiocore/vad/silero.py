@@ -254,9 +254,10 @@ class SileroVAD:
         Returns:
             Silero VAD model instance with reset state.
         """
-        model = self._resolve_model()
-        # The Silero JIT model exposes reset_states(); it is not in torch's stubs.
-        model.reset_states()  # type: ignore[operator]
+        # Typed Any: the Silero JIT model is dynamically loaded and exposes
+        # reset_states()/__call__ that are not visible in torch's stubs.
+        model: Any = self._resolve_model()
+        model.reset_states()
         return model
 
     def reset_state(self) -> None:
@@ -267,9 +268,10 @@ class SileroVAD:
         ongoing inference in multi-threaded contexts.
         """
         with self._inference_lock:
-            model = self._resolve_model()
-            # Silero JIT model exposes reset_states(); not in torch's stubs.
-            model.reset_states()  # type: ignore[operator]
+            # Typed Any: the dynamically-loaded Silero JIT model exposes
+            # reset_states(), which is not visible in torch's stubs.
+            model: Any = self._resolve_model()
+            model.reset_states()
 
     def _load_audio(self, audio_path: Path | str) -> tuple[NDArray[np.float32], int]:
         """Load audio from WAV file and convert to required format.
