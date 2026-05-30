@@ -854,3 +854,49 @@ class TestFormattingErrorNonFatal:
 
         # Warning should be logged
         assert "Failed to format output" in caplog.text
+
+
+class TestPipelineErrorConstructorBranches:
+    """Cover the constructor branches of the pipeline exception hierarchy."""
+
+    def test_pipeline_error_default_suggestions(self):
+        from audiocore.pipeline.errors import PipelineError
+
+        error = PipelineError("boom")
+        assert any("input file" in s.lower() for s in error.suggestions)
+
+    def test_pipeline_error_stage_with_no_context_creates_context(self):
+        from audiocore.pipeline.errors import PipelineError
+
+        error = PipelineError("boom", stage=PipelineStage.VAD)
+        assert error.context["stage"] == "vad"
+
+    def test_cancelled_error_defaults(self):
+        error = PipelineCancelledError()
+        assert "Pipeline execution was cancelled" in str(error)
+        assert any("Cancelling is intentional" in s for s in error.suggestions)
+        assert "stage" not in error.context
+
+    def test_cancelled_error_with_stage_context_and_suggestions(self):
+        error = PipelineCancelledError(
+            "stopped",
+            stage=PipelineStage.TRANSCRIBING,
+            context={"reason": "user"},
+            suggestions=["bespoke"],
+        )
+        assert error.context["stage"] == "transcribing"
+        assert error.context["reason"] == "user"
+        assert error.suggestions == ["bespoke"]
+
+    def test_partial_result_error_no_result_with_context_and_suggestions(self):
+        error = PartialResultError(
+            "partial",
+            partial_result=None,
+            failed_segments=None,
+            context={"phase": "x"},
+            suggestions=["only-this"],
+        )
+        assert error.context["phase"] == "x"
+        assert "segments_completed" not in error.context
+        assert "segments_failed" not in error.context
+        assert error.suggestions == ["only-this"]
