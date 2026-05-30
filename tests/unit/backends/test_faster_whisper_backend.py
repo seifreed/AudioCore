@@ -629,7 +629,7 @@ class TestFasterWhisperBackendEdgeCases:
         assert result.segments[0].text == "Hello world"
 
 
-def _fake_torch(*, cuda_available, raises_import=False):
+def _fake_torch(*, cuda_available):
     torch = types.ModuleType("torch")
 
     class _Cuda:
