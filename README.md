@@ -78,7 +78,7 @@ AudioCore uses `ffmpeg` for media processing, supporting:
 
 ### Prerequisites
 
-1. **Python 3.11+**
+1. **Python 3.13+**
 2. **ffmpeg** (for media processing)
    ```bash
    # macOS
@@ -100,8 +100,8 @@ pip install audiocore
 ### From Source
 
 ```bash
-git clone https://github.com/seifreed/audiocore.git
-cd audiocore
+git clone https://github.com/seifreed/AudioCore.git
+cd AudioCore
 python3 -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -e .
@@ -110,11 +110,14 @@ pip install -e .
 ### Optional Dependencies
 
 ```bash
-# For CUDA support (faster local transcription)
-pip install audiocore[cuda]
+# Live microphone capture (real-time transcription)
+pip install "audiocore[realtime]"
+
+# Speaker diarization (pyannote.audio)
+pip install "audiocore[diarization]"
 
 # For development
-pip install audiocore[dev]
+pip install "audiocore[dev]"
 ```
 
 ---
@@ -692,7 +695,7 @@ audiocore/
 
 | Requirement | Version | Purpose |
 |-------------|---------|---------|
-| Python | ≥3.11 | Runtime |
+| Python | ≥3.13 | Runtime |
 | ffmpeg | System | Media processing |
 | Pydantic | ≥2.0 | Data validation |
 | openai | ≥1.0 | OpenAI API client |
@@ -710,8 +713,8 @@ audiocore/
 ### Setup
 
 ```bash
-git clone https://github.com/seifreed/audiocore.git
-cd audiocore
+git clone https://github.com/seifreed/AudioCore.git
+cd AudioCore
 python3 -m venv venv
 source venv/bin/activate
 pip install -e ".[dev]"
