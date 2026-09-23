@@ -15,6 +15,9 @@ import pytest
 
 from audiocore.pipeline.cancellation import CancellationToken, CancelledError
 
+# Windows timers tick at ~15.6 ms, so a 50 ms wait can measure a hair short.
+CLOCK_TOLERANCE_S = 0.02
+
 
 class TestCancelledError:
     """Tests for CancelledError exception."""
@@ -240,7 +243,7 @@ class TestCancellationTokenThreadSafety:
         wait_duration = time.time() - wait_start
 
         assert cancelled is True
-        assert wait_duration >= 0.05  # Waited at least until cancel
+        assert wait_duration >= 0.05 - CLOCK_TOLERANCE_S  # Waited until cancel
 
         thread.join()
 
@@ -253,7 +256,7 @@ class TestCancellationTokenThreadSafety:
         duration = time.time() - start
 
         assert cancelled is False
-        assert duration >= 0.05  # Waited the full timeout
+        assert duration >= 0.05 - CLOCK_TOLERANCE_S  # Waited the full timeout
 
     def test_reset_from_another_thread(self) -> None:
         """reset() can be called from another thread."""
