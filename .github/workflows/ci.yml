@@ -28,6 +28,9 @@ jobs:
       
       - name: Run Ruff (format)
         run: ruff format --check src/audiocore
+
+      - name: Run Black
+        run: black --check src/audiocore
       
       - name: Run Mypy
         run: mypy src/audiocore --ignore-missing-imports
@@ -113,3 +116,34 @@ jobs:
           name: dist
           path: dist/
           retention-days: 30
+
+  install-check:
+    name: Wheel install ${{ matrix.os }} - Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.13", "3.14"]
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download built package
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Install wheel into a clean environment
+        shell: bash
+        run: |
+          python -m venv clean-env
+          if [ "$RUNNER_OS" = "Windows" ]; then BIN=clean-env/Scripts; else BIN=clean-env/bin; fi
+          "$BIN/python" -m pip install --upgrade pip
+          "$BIN/python" -m pip install dist/*.whl
+          "$BIN/python" -c "from audiocore import transcribe; print('import ok')"
+          "$BIN/audiocore" --help
