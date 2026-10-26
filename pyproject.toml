@@ -52,6 +52,9 @@ dependencies = [
     "urllib3>=2.7.0",    # via requests — PYSEC-2026-141, PYSEC-2026-142
     "requests>=2.33.0",  # via huggingface-hub — CVE-2026-25645
     "pygments>=2.20.0",  # via rich — CVE-2026-4539
+    # Compatibility ceiling: av 19 dropped open(metadata_errors=), which
+    # faster-whisper 1.2.1 still passes, breaking every local transcription.
+    "av<19",             # via faster-whisper
 ]
 
 [project.optional-dependencies]
