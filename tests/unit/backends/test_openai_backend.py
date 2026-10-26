@@ -446,6 +446,50 @@ class TestLargeFileChunking:
         for call in mock_client.audio.transcriptions.create.call_args_list:
             assert "prompt" not in call[1]
 
+    @patch("audiocore.backends.openai_backend.OpenAI")
+    def test_chunk_prompt_hallucinated_credit_line_is_not_propagated(
+        self, mock_openai: MagicMock, tmp_path: Path
+    ) -> None:
+        """Regression: a Whisper subtitle-credit hallucination must not seed later prompts.
+
+        Feeding "Subtítulos realizados por la comunidad de Amara.org" back as the
+        prompt makes whisper-1 repeat it for every remaining chunk.
+        """
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+
+        source_file = tmp_path / "large.wav"
+        source_file.write_bytes(b"0" * (3 * 1024 * 1024))
+
+        chunk_dir = tmp_path / "chunks"
+        chunk_dir.mkdir()
+        chunk_1 = chunk_dir / "chunk_0000.wav"
+        chunk_2 = chunk_dir / "chunk_0001.wav"
+        chunk_1.write_bytes(b"chunk 1")
+        chunk_2.write_bytes(b"chunk 2")
+
+        real_segment = MagicMock(start=0.0, end=2.0, text="Somos estos cuatro")
+        credit_segment = MagicMock(
+            start=2.0, end=4.0, text=" Subtítulos realizados por la comunidad de Amara.org"
+        )
+        mock_client.audio.transcriptions.create.side_effect = [
+            MagicMock(segments=[real_segment, credit_segment], duration=10.0),
+            MagicMock(segments=[], duration=10.0),
+        ]
+
+        backend = OpenAIBackend(
+            config=OpenAIConfig(
+                api_key="sk-test123", max_upload_size_mb=2.0, chunk_target_size_mb=1.0
+            )
+        )
+        backend._split_audio_for_upload = MagicMock(return_value=[chunk_1, chunk_2])
+        backend._get_audio_duration = MagicMock(side_effect=[10.0, 10.0])
+
+        backend.transcribe(source_file, TranscriptionOptions())
+
+        second_call = mock_client.audio.transcriptions.create.call_args_list[1][1]
+        assert second_call["prompt"] == "Somos estos cuatro"
+
     def test_ffprobe_timeout_maps_to_transcription_error(self, tmp_path: Path) -> None:
         """Regression: ffprobe timeout should be an AudioCore transcription error."""
         audio_file = tmp_path / "audio.wav"

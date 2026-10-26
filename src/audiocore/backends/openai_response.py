@@ -26,6 +26,21 @@ from audiocore.types import BackendType
 
 logger = logging.getLogger(__name__)
 
+# Subtitle-credit lines whisper-1 emits from its training data on silence or
+# noise. Echoed back as a chunk prompt, they make every later chunk repeat them.
+# ponytail: substring list, extend when another recurring phrase shows up.
+_HALLUCINATED_CREDIT_MARKERS = (
+    "amara.org",
+    "subtítulos realizados por",
+    "subtitles by the amara",
+)
+
+
+def is_hallucinated_credit(text: str) -> bool:
+    """Return True when text is a known Whisper subtitle-credit hallucination."""
+    lowered = text.lower()
+    return any(marker in lowered for marker in _HALLUCINATED_CREDIT_MARKERS)
+
 
 def get_response_value(obj: object, key: str) -> object | None:
     """Read an OpenAI response field from SDK objects or dict-compatible data."""

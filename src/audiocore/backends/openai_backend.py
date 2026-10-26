@@ -588,6 +588,7 @@ class OpenAIBackend(TranscriptionBackend):
                     segment.text.strip()
                     for segment in chunk_result.segments
                     if segment.text.strip()
+                    and not openai_response.is_hallucinated_credit(segment.text)
                 )
                 if chunk_text and self._chunk_prompt_chars > 0:
                     next_tail = (
