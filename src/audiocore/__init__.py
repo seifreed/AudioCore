@@ -51,7 +51,7 @@ Example:
     >>> result = transcribe("video.mp4", backend="openai", output_format=OutputFormat.SRT)
 """
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 # Import exceptions first - these have no circular import issues
 from audiocore.errors import (

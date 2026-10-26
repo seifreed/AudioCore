@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "audiocore"
-version = "1.0.0"
+version = "1.0.1"
 description = "Python audio/video transcription engine with dual backend support"
 readme = "README.md"
 license = { text = "MIT" }
