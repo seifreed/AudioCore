@@ -88,6 +88,20 @@ jobs:
         run: |
           sbom-tools quality "$SBOM_FILE" --profile standard \
             --no-color -o sarif -O sbom-quality.sarif || true
+          # sbom-tools emits results without locations, which Code Scanning
+          # rejects ("expected at least one location"); anchor them to the SBOM.
+          if [ -f sbom-quality.sarif ]; then
+            jq --arg uri "$SBOM_FILE" '
+              .runs[].results[] |= (
+                if (.locations // []) == [] then
+                  .locations = [{physicalLocation: {
+                    artifactLocation: {uri: $uri},
+                    region: {startLine: 1}
+                  }}]
+                else . end
+              )' sbom-quality.sarif > sbom-quality.sarif.tmp
+            mv sbom-quality.sarif.tmp sbom-quality.sarif
+          fi
 
       - name: Upload SARIF
         if: always() && hashFiles('sbom-quality.sarif') != ''
